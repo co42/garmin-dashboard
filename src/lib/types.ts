@@ -213,6 +213,41 @@ export interface GearItem {
 	active: boolean;
 }
 
+// --- Calendar / Upcoming ---
+
+export interface CalendarItem {
+	id: number;
+	item_type: string;
+	workout_id: number | null;
+	title: string | null;
+	date: string | null;
+}
+
+export interface WorkoutStep {
+	type: string;
+	step_type: string;
+	end_condition: string;
+	end_condition_value: number;
+	target_type: string | null;
+	target_value_one: number | null;
+	target_value_two: number | null;
+	description: string | null;
+	exercise_name: string | null;
+	category: string | null;
+	number_of_iterations: number | null;
+	steps: WorkoutStep[] | null;
+}
+
+export interface CalendarEntry {
+	id: number;
+	item_type: string;
+	sport_type: string | null;
+	title: string;
+	date: string;
+	workout_id: number | null;
+	steps: WorkoutStep[];
+}
+
 // --- Dashboard aggregate ---
 
 export interface DashboardData {
@@ -242,6 +277,9 @@ export interface DashboardData {
 	// Records & gear
 	records: PersonalRecord[];
 	gear: GearItem[];
+
+	// Calendar
+	calendar: CalendarEntry[];
 
 	// Computed
 	lastRunDate: string | null;

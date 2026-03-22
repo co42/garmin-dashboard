@@ -9,6 +9,9 @@ import type {
 	ActivitySplit,
 	HillScore,
 	EnduranceScore,
+	CalendarItem,
+	CalendarEntry,
+	WorkoutStep,
 } from './types.js';
 
 export interface SyncResult {
@@ -195,6 +198,51 @@ export async function runSync(): Promise<SyncResult> {
 			splitBatch();
 		}
 
+		// Phase 6: Calendar + workout steps
+		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', '--weeks', '4'], []);
+		const calendarEntries: CalendarEntry[] = [];
+
+		// Collect items that have workout IDs for batch fetching
+		const workoutItems = calendarItems.filter(
+			(ci): ci is CalendarItem & { workout_id: number } => ci.workout_id != null
+		);
+
+		// Fetch workout details in batches of 5 (deduplicate by workout_id)
+		const uniqueWorkoutIds = [...new Set(workoutItems.map(ci => ci.workout_id))];
+		const workoutStepsMap = new Map<number, WorkoutStep[]>();
+		const workoutRawMap = new Map<number, any>();
+		for (let i = 0; i < uniqueWorkoutIds.length; i += 5) {
+			const batch = uniqueWorkoutIds.slice(i, i + 5);
+			const results = await Promise.all(
+				batch.map(id =>
+					garminSafe<any>(['workouts', 'get', String(id)], null)
+						.then(raw => ({ workoutId: id, raw }))
+				)
+			);
+			for (const { workoutId, raw } of results) {
+				if (raw) {
+					workoutRawMap.set(workoutId, raw);
+					workoutStepsMap.set(workoutId, parseWorkoutSteps(raw));
+				}
+			}
+		}
+
+		for (const ci of calendarItems) {
+			if (!ci.title || !ci.date) continue;
+			const raw = ci.workout_id != null ? workoutRawMap.get(ci.workout_id) : null;
+			calendarEntries.push({
+				id: ci.id,
+				item_type: ci.item_type,
+				sport_type: raw?.sportType?.sportTypeKey ?? null,
+				title: ci.title,
+				date: ci.date,
+				workout_id: ci.workout_id,
+				steps: ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [],
+			});
+		}
+
+		upsertSnapshot.run('calendar', JSON.stringify(calendarEntries));
+
 		// Finish
 		db.prepare('UPDATE sync_log SET finished_at = datetime(?), status = ? WHERE id = ?')
 			.run(new Date().toISOString(), 'ok', logId);
@@ -222,4 +270,31 @@ export async function runSync(): Promise<SyncResult> {
 			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, activities: 0, splits: 0 },
 		};
 	}
+}
+
+function parseRawStep(step: any): WorkoutStep {
+	return {
+		type: step.type ?? '',
+		step_type: step.stepType?.stepTypeKey ?? '',
+		end_condition: step.endCondition?.conditionTypeKey ?? '',
+		end_condition_value: step.endConditionValue ?? 0,
+		target_type: step.targetType?.workoutTargetTypeKey ?? null,
+		target_value_one: step.targetValueOne ?? null,
+		target_value_two: step.targetValueTwo ?? null,
+		description: step.description ?? null,
+		exercise_name: step.exerciseName ?? null,
+		category: step.category ?? null,
+		number_of_iterations: step.numberOfIterations ?? null,
+		steps: step.type === 'RepeatGroupDTO' && Array.isArray(step.workoutSteps)
+			? step.workoutSteps.map(parseRawStep)
+			: null,
+	};
+}
+
+function parseWorkoutSteps(raw: any): WorkoutStep[] {
+	const segments = raw?.workoutSegments;
+	if (!Array.isArray(segments) || segments.length === 0) return [];
+	const rawSteps = segments[0]?.workoutSteps;
+	if (!Array.isArray(rawSteps)) return [];
+	return rawSteps.map(parseRawStep);
 }

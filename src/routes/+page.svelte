@@ -16,6 +16,7 @@
 	import WeeklyVolume from '../components/WeeklyVolume.svelte';
 	import ActivityFeed from '../components/ActivityFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
+	import UpcomingCard from '../components/UpcomingCard.svelte';
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
@@ -41,6 +42,11 @@
 
 		<!-- ═══ BANNER ═══ -->
 		<StatusBanner status={d.currentStatus} readiness={d.readiness} daysSinceLastRun={d.daysSinceLastRun} />
+
+		<!-- ═══ UPCOMING ═══ -->
+		{#if d.calendar.length > 0 || d.activities.length > 0}
+			<UpcomingCard calendar={d.calendar} activities={d.activities} />
+		{/if}
 
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
 		<Tip text={`Calibrated for a ${PROFILE_LABEL}.\nAll axes: 0 = average untrained, 100 = elite (top 0.1%).\nDashed blue = 3-month peak · Dashed red = 3-month low.`}>

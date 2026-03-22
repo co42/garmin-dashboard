@@ -38,12 +38,9 @@
 
 </script>
 
-<div
-	class="rounded-lg bg-card p-5"
-	style="border-left: 4px solid {color}; background: linear-gradient(90deg, {color}08, transparent 40%);"
->
+<div class="rounded-lg bg-card p-5">
 	<!-- Top: Status + ACWR + Days off | Readiness + Recovery -->
-	<div class="flex flex-wrap items-start gap-x-6 gap-y-3">
+	<div class="flex flex-wrap items-center gap-x-6 gap-y-3">
 		<!-- Left: Training status -->
 		<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
 			<div>
@@ -51,12 +48,16 @@
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Status</span>
 				</Tip>
 				<p class="text-xl font-bold" style="color: {color}">{fmt(status.status)}</p>
+				<span class="text-xs text-text-secondary">{fmt(status.load_balance_feedback)}</span>
 			</div>
 
 			<Tip text={"Acute:Chronic Workload Ratio\n7-day load ÷ 28-day average.\n\n< 0.8 = undertraining\n0.8–1.3 = optimal\n> 1.3 = overreaching risk\n\nCurrently " + status.acute_load + " acute / " + status.chronic_load + " chronic."}>
-				<div class="flex items-center gap-2 rounded-full px-3 py-1.5" style="background: {acwrC}18; border: 1px solid {acwrC}40;">
-					<span class="num text-sm font-semibold" style="color: {acwrC}">ACWR {status.acwr.toFixed(1)}</span>
-					<span class="text-xs text-text-secondary">{status.acwr_status}</span>
+				<div class="flex items-center gap-1.5">
+					<span class="text-lg" style="color: {acwrC}">●</span>
+					<div>
+						<span class="text-xs text-text-secondary">ACWR</span>
+						<p class="num text-sm font-medium text-text">{status.acwr.toFixed(1)} <span class="text-xs font-normal text-text-secondary">{status.acwr_status.toLowerCase()}</span></p>
+					</div>
 				</div>
 			</Tip>
 
@@ -98,8 +99,4 @@
 		</div>
 	</div>
 
-	<!-- Bottom: load balance feedback only -->
-	<div class="mt-3 border-t border-card-border/50 pt-3">
-		<span class="text-xs text-text-secondary">{fmt(status.load_balance_feedback)}</span>
-	</div>
 </div>

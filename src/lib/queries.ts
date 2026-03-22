@@ -17,6 +17,7 @@ import type {
 	ActivitySplit,
 	PersonalRecord,
 	GearItem,
+	CalendarEntry,
 } from './types.js';
 
 function snapshot<T>(command: string, fallback: T): T {
@@ -94,6 +95,7 @@ export function loadDashboard(): DashboardData | null {
 
 	const records = snapshot<PersonalRecord[]>('records', []);
 	const gear = snapshot<GearItem[]>('gear', []);
+	const calendar = snapshot<CalendarEntry[]>('calendar', []);
 
 	// Time-series
 	const hrvRows = db.prepare(
@@ -171,6 +173,7 @@ export function loadDashboard(): DashboardData | null {
 		recentSplits,
 		records,
 		gear,
+		calendar,
 		lastRunDate,
 		daysSinceLastRun,
 		lastSyncedAt: syncRow?.synced_at ?? null,
