@@ -1,88 +1,109 @@
 <script lang="ts">
-	import type { DashboardData, LactateThreshold } from '$lib/types.js';
-	import { generateAdvice } from '$lib/advice.js';
+	import type { DashboardData } from '$lib/types.js';
+	import { PROFILE_LABEL } from '$lib/profile.js';
+	import Tip from '../components/Tip.svelte';
+	import SyncButton from '../components/SyncButton.svelte';
 	import StatusBanner from '../components/StatusBanner.svelte';
+	import RecoveryStrip from '../components/RecoveryStrip.svelte';
 	import ReadinessGauge from '../components/ReadinessGauge.svelte';
 	import LoadBalanceChart from '../components/LoadBalanceChart.svelte';
-	import CoachingCard from '../components/CoachingCard.svelte';
 	import AcwrChart from '../components/AcwrChart.svelte';
 	import HrvChart from '../components/HrvChart.svelte';
-	import MetricCard from '../components/MetricCard.svelte';
-	import RacePredictions from '../components/RacePredictions.svelte';
+	import RunnerProfile from '../components/RunnerProfile.svelte';
+	import ProfileTrend from '../components/ProfileTrend.svelte';
+	import ProfileStats from '../components/ProfileStats.svelte';
+	import TrainingPolarization from '../components/TrainingPolarization.svelte';
+	import WeeklyVolume from '../components/WeeklyVolume.svelte';
 	import ActivityFeed from '../components/ActivityFeed.svelte';
+	import ShoeTracker from '../components/ShoeTracker.svelte';
 
-	let { data }: { data: DashboardData } = $props();
-
-	const advice = $derived(generateAdvice(data));
-
-	function classifyEndurance(classification: number): string {
-		const labels: Record<number, string> = {
-			0: 'Beginner',
-			1: 'Intermediate',
-			2: 'Trained',
-			3: 'Well-Trained',
-			4: 'Well-Trained',
-			5: 'Expert',
-			6: 'Superior',
-			7: 'Elite',
-		};
-		return labels[classification] ?? 'Unknown';
-	}
-
-	function getLactateHr(lt: LactateThreshold[]): number | null {
-		for (const entry of lt) {
-			if (entry.hearRate != null) return entry.hearRate;
-		}
-		return null;
-	}
+	let { data }: { data: { dashboard: DashboardData | null } } = $props();
+	const d = $derived(data.dashboard);
 </script>
 
-<div class="grid gap-4">
-	<!-- Row 1: Status Banner -->
-	<StatusBanner
-		status={data.trainingStatus.status}
-		vo2max={data.trainingStatus.vo2max}
-		daysSinceLastRun={data.daysSinceLastRun}
-	/>
-
-	<!-- Row 2: Readiness + Load Balance + Coaching -->
-	<div class="grid gap-4 md:grid-cols-3">
-		<ReadinessGauge readiness={data.readiness} />
-		<LoadBalanceChart loadBalance={data.trainingStatus.loadBalance} />
-		<CoachingCard {advice} />
+<header class="sticky top-0 z-40 border-b border-card-border bg-bg/90 px-6 py-3 backdrop-blur">
+	<div class="mx-auto flex max-w-[1400px] items-center justify-between">
+		<h1 class="text-lg font-semibold tracking-tight text-text">Training</h1>
+		<SyncButton lastSyncedAt={d?.lastSyncedAt ?? null} />
 	</div>
+</header>
 
-	<!-- Row 3: ACWR Trend + HRV Trend -->
-	<div class="grid gap-4 md:grid-cols-[2fr_1fr]">
-		<AcwrChart status={data.trainingStatus.status} />
-		<HrvChart hrv={data.hrv} />
+{#if !d}
+	<div class="flex flex-col items-center justify-center gap-6 py-24">
+		<div class="text-center">
+			<h2 class="text-2xl font-bold text-text">No data yet</h2>
+			<p class="mt-2 text-text-secondary">Click sync to pull your Garmin data.</p>
+		</div>
 	</div>
+{:else}
+	<main class="mx-auto max-w-[1400px] p-4 md:p-6">
+	<div class="grid gap-4">
 
-	<!-- Row 4: Metric Cards + Race Predictions -->
-	<div class="grid gap-4 md:grid-cols-4">
-		<MetricCard
-			label="VO2max"
-			value={data.trainingStatus.vo2max.vo2MaxPreciseValue.toFixed(1)}
-			subtitle="mL/kg/min"
-			trend={data.trainingStatus.status.fitnessTrend}
-		/>
-		<MetricCard
-			label="Endurance"
-			value={data.enduranceScore.overallScore.toLocaleString()}
-			subtitle={classifyEndurance(data.enduranceScore.classification)}
-		/>
-		<MetricCard
-			label="Fitness Age"
-			value={data.fitnessAge.fitnessAge.toFixed(1)}
-			subtitle={`Real age ${data.fitnessAge.chronologicalAge}`}
-			delta={data.fitnessAge.fitnessAge - data.fitnessAge.chronologicalAge}
-		/>
-		<RacePredictions predictions={data.racePredictions} />
+		<!-- ═══ BANNER ═══ -->
+		<StatusBanner status={d.currentStatus} readiness={d.readiness} daysSinceLastRun={d.daysSinceLastRun} />
+
+		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
+		<Tip text={`Calibrated for a ${PROFILE_LABEL}.\nAll axes: 0 = average untrained, 100 = elite (top 0.1%).\nDashed blue = 3-month peak · Dashed red = 3-month low.`}>
+			<h2 class="mt-2 text-xs font-medium uppercase tracking-wider text-text-secondary">Runner Profile</h2>
+		</Tip>
+		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
+			<RunnerProfile
+				hillScore={d.hillScore}
+				currentStatus={d.currentStatus}
+				enduranceScore={d.enduranceScore}
+				vo2max={d.currentStatus.vo2max_precise}
+				racePredictions={d.racePredictions}
+				statusHistory={d.statusHistory}
+				hillScoreHistory={d.hillScoreHistory}
+				enduranceScoreHistory={d.enduranceScoreHistory}
+			/>
+			<ProfileTrend
+				statusHistory={d.statusHistory}
+				hillScoreHistory={d.hillScoreHistory}
+				enduranceScoreHistory={d.enduranceScoreHistory}
+			/>
+		</div>
+
+		<ProfileStats predictions={d.racePredictions} records={d.records} />
+
+		<!-- ═══ BODY: How am I right now? ═══ -->
+		<Tip text={"Your current physical state.\nChanges daily based on sleep, stress, and recovery.\nAnswers: can I train today?"}>
+			<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Body</h2>
+		</Tip>
+
+		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
+			<RecoveryStrip
+				bodyBattery={d.bodyBattery}
+				stress={d.stress}
+				sleepScores={d.sleepScoreHistory}
+				heartRate={d.heartRateHistory}
+			/>
+			<ReadinessGauge readiness={d.readiness} />
+		</div>
+
+		<!-- ═══ TRAINING: How is my training going? ═══ -->
+		<Tip text={"Your training load, balance, and trends over weeks.\nAnswers: am I training the right amount and mix?"}>
+			<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Training</h2>
+		</Tip>
+
+		<div class="grid gap-4 md:grid-cols-2">
+			<LoadBalanceChart status={d.currentStatus} />
+			<TrainingPolarization activities={d.activities} />
+		</div>
+
+		<div class="grid gap-4 md:grid-cols-2">
+			<AcwrChart history={d.statusHistory} />
+			<HrvChart hrv={d.hrvHistory} />
+		</div>
+
+		<WeeklyVolume activities={d.activities} />
+
+		<!-- ═══ LOG ═══ -->
+		<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Activity Log</h2>
+
+		<ActivityFeed activities={d.activities} />
+
+		<ShoeTracker gear={d.gear} />
 	</div>
-
-	<!-- Row 5: Activity Feed -->
-	<ActivityFeed
-		activities={data.activities}
-		lactateHr={getLactateHr(data.lactateThreshold)}
-	/>
-</div>
+	</main>
+{/if}

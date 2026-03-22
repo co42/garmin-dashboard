@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+echo "Running svelte-check..."
+npx svelte-kit sync
+npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings
+if [ $? -ne 0 ]; then
+    echo "svelte-check failed."
+    exit 1
+fi
+
+echo "Running build..."
+npm run build
+if [ $? -ne 0 ]; then
+    echo "Build failed."
+    exit 1
+fi
+
+echo "All checks passed."

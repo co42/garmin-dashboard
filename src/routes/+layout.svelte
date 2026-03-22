@@ -7,14 +7,12 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 	<title>Training Dashboard</title>
 </svelte:head>
 
 <div class="min-h-dvh bg-bg">
-	<header class="border-b border-card-border px-6 py-4">
-		<h1 class="text-lg font-semibold tracking-tight text-text">Training Dashboard</h1>
-	</header>
-	<main class="mx-auto max-w-[1400px] p-4 md:p-6">
-		{@render children()}
-	</main>
+	{@render children()}
 </div>

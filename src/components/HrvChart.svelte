@@ -1,53 +1,54 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import type { HrvDay } from '$lib/types.js';
-	import { HRV_STATUS_COLORS } from '$lib/colors.js';
+	import { hrvStatusColor } from '$lib/colors.js';
+	import Tip from './Tip.svelte';
 
 	interface Props {
 		hrv: HrvDay[];
 	}
 
 	let { hrv }: Props = $props();
-
 	let chartEl: HTMLDivElement;
+
+	let _chart: any; let _ro: ResizeObserver;
+	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
 	onMount(async () => {
 		const echarts = await import('echarts');
-		const chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 
-		// Filter to days with summary data and sort chronologically
-		const days = hrv
-			.filter(d => d.hrvSummary)
-			.sort((a, b) => a.hrvSummary.calendarDate.localeCompare(b.hrvSummary.calendarDate));
+		const dates = hrv.map(d => d.date.slice(5, 10));
+		const values = hrv.map(d => d.weekly_average);
+		const statuses = hrv.map(d => d.status);
 
-		const dates = days.map(d => d.hrvSummary.calendarDate.slice(5)); // MM-DD
-		const weeklyAvgs = days.map(d => d.hrvSummary.weeklyAvg);
-		const balancedLows = days.map(d => d.hrvSummary.baseline.balancedLow);
-		const balancedUppers = days.map(d => d.hrvSummary.baseline.balancedUpper);
-		const statuses = days.map(d => d.hrvSummary.status);
+		// Compute rolling baseline corridor
+		const baseline = values.map((_, i) => {
+			const window = values.slice(Math.max(0, i - 6), i + 1);
+			return window.reduce((s, v) => s + v, 0) / window.length;
+		});
+		const corridorLow = baseline.map(v => Math.round(v - 5));
+		const corridorHigh = baseline.map(v => Math.round(v + 5));
 
-		// Create colored scatter points
-		const scatterData = days.map((d, i) => ({
-			value: [i, d.hrvSummary.weeklyAvg],
-			itemStyle: { color: HRV_STATUS_COLORS[d.hrvSummary.status] ?? '#8888a0' },
+		const scatterData = hrv.map((d, i) => ({
+			value: [i, d.weekly_average],
+			itemStyle: { color: hrvStatusColor(d.status) },
 		}));
 
-		chart.setOption({
+		_chart.setOption({
 			grid: { top: 20, right: 16, bottom: 30, left: 40 },
 			tooltip: {
 				trigger: 'axis',
-				backgroundColor: '#1e1e2a',
-				borderColor: '#2a2a3a',
+				confine: true,
+				backgroundColor: '#1e1e2a', borderColor: '#2a2a3a',
 				textStyle: { color: '#e8e8ed', fontSize: 12 },
 				formatter(params: any) {
 					const idx = params[0]?.dataIndex ?? 0;
-					const status = statuses[idx] ?? '';
-					return `${dates[idx]}<br/>Weekly avg: <b>${weeklyAvgs[idx]}</b> ms<br/>Status: ${status}`;
+					return `${dates[idx]}<br/>Weekly avg: <b>${values[idx]}</b> ms<br/>Baseline: ${corridorLow[idx]}–${corridorHigh[idx]}<br/>Status: ${statuses[idx]}`;
 				},
 			},
 			xAxis: {
-				type: 'category',
-				data: dates,
+				type: 'category', data: dates,
 				axisLine: { lineStyle: { color: '#2a2a3a' } },
 				axisLabel: { color: '#555568', fontSize: 10, interval: 6 },
 			},
@@ -58,50 +59,36 @@
 				splitLine: { lineStyle: { color: '#1e1e2a' } },
 			},
 			series: [
-				// Baseline corridor (filled band)
+				// Baseline corridor upper (dashed, same style as ACWR zone lines)
 				{
-					type: 'line',
-					data: balancedUppers,
-					symbol: 'none',
-					lineStyle: { width: 0 },
-					areaStyle: { color: 'rgba(34,197,94,0.08)' },
-					stack: 'baseline',
+					type: 'line', data: corridorHigh, smooth: true, symbol: 'none',
+					lineStyle: { width: 2, type: 'dashed', color: '#22c55e' },
 					z: 1,
 				},
+				// Baseline corridor lower (dashed)
 				{
-					type: 'line',
-					data: balancedLows,
-					symbol: 'none',
-					lineStyle: { width: 0 },
-					areaStyle: { color: '#13131a' },
-					stack: 'baseline',
+					type: 'line', data: corridorLow, smooth: true, symbol: 'none',
+					lineStyle: { width: 2, type: 'dashed', color: '#22c55e' },
 					z: 1,
 				},
-				// Weekly avg line
+				// Weekly avg line (same as ACWR main line)
 				{
-					type: 'line',
-					data: weeklyAvgs,
-					symbol: 'none',
-					lineStyle: { width: 2, color: '#e8e8ed' },
+					type: 'line', data: values, smooth: true, symbol: 'none',
+					lineStyle: { width: 2.5, color: '#3b82f6' },
+					itemStyle: { color: '#3b82f6' },
 					z: 3,
-				},
-				// Status-colored dots
-				{
-					type: 'scatter',
-					data: scatterData,
-					symbolSize: 6,
-					z: 4,
 				},
 			],
 		});
 
-		const ro = new ResizeObserver(() => chart.resize());
-		ro.observe(chartEl);
-		return () => { ro.disconnect(); chart.dispose(); };
+		_ro = new ResizeObserver(() => _chart.resize());
+		_ro.observe(chartEl);
 	});
 </script>
 
 <div class="rounded-lg bg-card p-4">
-	<h2 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-secondary">HRV Trend (30d)</h2>
+	<Tip text={"Heart Rate Variability — variation between heartbeats.\nHigher = more recovered nervous system.\n\nDots:\n• Green = balanced (within baseline)\n• Amber = unbalanced\n• Red = low\n\nDashed green lines = your personal baseline corridor."}>
+		<h2 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-secondary">HRV Trend</h2>
+	</Tip>
 	<div bind:this={chartEl} class="h-[260px] w-full"></div>
 </div>

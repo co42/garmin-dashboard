@@ -1,50 +1,85 @@
 <script lang="ts">
-	import type { Advice } from '$lib/advice.js';
-	import { getIntensityColor } from '$lib/advice.js';
+	import type { Readiness, DailyTrainingStatus } from '$lib/types.js';
+	import { readinessColor } from '$lib/colors.js';
+	import Tip from './Tip.svelte';
 
 	interface Props {
-		advice: Advice;
+		readiness: Readiness;
+		status: DailyTrainingStatus;
 	}
 
-	let { advice }: Props = $props();
+	let { readiness, status }: Props = $props();
 
-	const color = $derived(getIntensityColor(advice.intensity));
+	const color = $derived(readinessColor(readiness.score));
+
+	function fmt(s: string): string {
+		return s.toLowerCase().replace(/_\d+$/, '').replace(/_/g, ' ');
+	}
+
+	function recoveryTime(hours: number): string {
+		if (hours <= 0) return 'none';
+		const d = Math.floor(hours / 24);
+		const h = Math.round(hours % 24);
+		if (d > 0) return `${d}d ${h}h`;
+		return `${h}h`;
+	}
+
+	const factors = $derived([
+		{ label: 'Recovery', feedback: readiness.recovery_feedback },
+		{ label: 'HRV', feedback: readiness.hrv_feedback },
+		{ label: 'Sleep', feedback: readiness.sleep_feedback },
+		{ label: 'Sleep history', feedback: readiness.sleep_history_feedback },
+		{ label: 'Stress', feedback: readiness.stress_feedback },
+		{ label: 'ACWR', feedback: readiness.acwr_feedback },
+	]);
+
+	function feedbackColor(fb: string): string {
+		switch (fb) {
+			case 'VERY_GOOD': return '#22c55e';
+			case 'GOOD': return '#22c55e';
+			case 'FAIR': return '#f59e0b';
+			case 'POOR': return '#ef4444';
+			default: return '#555568';
+		}
+	}
 </script>
 
-<div
-	class="rounded-lg bg-card p-4"
-	style="border-left: 3px solid {color};"
->
-	<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Next Run</h2>
+<div class="rounded-lg bg-card p-4 h-full">
+	<Tip text={"Garmin's own feedback phrases — no interpretation added.\nStatus = VO2max trend × ACWR.\nReadiness factors show what's helping or hurting today."}>
+		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Garmin says</h2>
+	</Tip>
 
-	<div class="mb-2 flex items-center gap-2">
-		<span
-			class="rounded px-2 py-0.5 text-xs font-semibold uppercase"
-			style="background: {color}20; color: {color};"
-		>
-			{advice.intensity}
-		</span>
-		<span class="text-base font-bold text-text">{advice.runType}</span>
+	<!-- Readiness headline -->
+	<div class="mb-3 flex items-center gap-3">
+		<span class="num text-2xl font-bold" style="color: {color}">{readiness.score}</span>
+		<div>
+			<span class="text-sm font-semibold text-text">{readiness.level}</span>
+			<span class="text-sm text-text-secondary"> · {fmt(readiness.feedback)}</span>
+		</div>
+		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(readiness.recovery_time_hours)}</span>
 	</div>
 
-	<p class="mb-3 text-sm text-text-secondary">{advice.description}</p>
+	<!-- Status + load feedback -->
+	<div class="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+		<span class="text-text-secondary">
+			Status: <span class="font-medium text-text">{fmt(status.status)}</span>
+		</span>
+		<span class="text-text-secondary">
+			Load: <span class="font-medium text-text">{fmt(status.load_balance_feedback)}</span>
+		</span>
+		<span class="text-text-secondary">
+			ACWR: <span class="font-medium text-text">{status.acwr_status.toLowerCase()}</span>
+		</span>
+	</div>
 
-	{#if advice.distanceKm || advice.paceGuidance}
-		<div class="mb-3 flex gap-4">
-			{#if advice.distanceKm}
-				<div>
-					<span class="text-[10px] uppercase text-text-dim">Distance</span>
-					<p class="text-sm font-medium text-text">{advice.distanceKm} km</p>
-				</div>
+	<!-- Factor pills -->
+	<div class="flex flex-wrap gap-2">
+		{#each factors as f}
+			{#if f.feedback && f.feedback !== 'NONE'}
+				<span class="rounded px-2 py-0.5 text-[10px] font-medium" style="background: {feedbackColor(f.feedback)}15; color: {feedbackColor(f.feedback)}">
+					{f.label}: {fmt(f.feedback)}
+				</span>
 			{/if}
-			{#if advice.paceGuidance}
-				<div>
-					<span class="text-[10px] uppercase text-text-dim">Pace</span>
-					<p class="text-sm font-medium text-text">{advice.paceGuidance}</p>
-				</div>
-			{/if}
-		</div>
-	{/if}
-
-	<p class="text-xs leading-relaxed text-text-dim">{advice.rationale}</p>
+		{/each}
+	</div>
 </div>

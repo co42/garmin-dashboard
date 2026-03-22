@@ -1,146 +1,144 @@
-// --- Training Status ---
+// --- Training Status (from `training status --days N`) ---
 
-export interface AcuteTrainingLoad {
-	acwrPercent: number;
-	acwrStatus: string; // "LOW" | "OPTIMAL" | "HIGH" | "VERY_HIGH"
-	acwrStatusFeedback: string;
-	dailyAcuteChronicWorkloadRatio: number;
-	dailyTrainingLoadAcute: number;
-	dailyTrainingLoadChronic: number;
-	maxTrainingLoadChronic: number;
-	minTrainingLoadChronic: number;
-}
-
-export interface TrainingStatusData {
-	acuteTrainingLoadDTO: AcuteTrainingLoad;
-	calendarDate: string;
-	deviceId: number;
-	fitnessTrend: number; // 1 = up, 0 = stable, -1 = down
-	fitnessTrendSport: string;
-	sport: string;
-	trainingStatus: number;
-	trainingStatusFeedbackPhrase: string; // "DETRAINING", "PRODUCTIVE", etc.
-	trainingPaused: boolean;
-}
-
-export interface LoadBalance {
-	calendarDate: string;
-	monthlyLoadAerobicHigh: number;
-	monthlyLoadAerobicHighTargetMax: number;
-	monthlyLoadAerobicHighTargetMin: number;
-	monthlyLoadAerobicLow: number;
-	monthlyLoadAerobicLowTargetMax: number;
-	monthlyLoadAerobicLowTargetMin: number;
-	monthlyLoadAnaerobic: number;
-	monthlyLoadAnaerobicTargetMax: number;
-	monthlyLoadAnaerobicTargetMin: number;
-	trainingBalanceFeedbackPhrase: string;
-}
-
-export interface VO2Max {
-	calendarDate: string;
-	vo2MaxPreciseValue: number;
-	vo2MaxValue: number;
-	maxMetCategory: number;
-}
-
-export interface TrainingStatus {
-	status: TrainingStatusData;
-	loadBalance: LoadBalance;
-	vo2max: VO2Max;
+export interface DailyTrainingStatus {
+	date: string;
+	acwr: number;
+	acwr_status: string;
+	acute_load: number;
+	chronic_load: number;
+	status: string; // "PRODUCTIVE_2", "DETRAINING", "MAINTAINING", etc.
+	status_code: number;
+	fitness_trend: number;
+	fitness_trend_sport: string;
+	load_balance_feedback: string;
+	monthly_load_aerobic_high: number;
+	monthly_load_aerobic_high_target_max: number;
+	monthly_load_aerobic_high_target_min: number;
+	monthly_load_aerobic_low: number;
+	monthly_load_aerobic_low_target_max: number;
+	monthly_load_aerobic_low_target_min: number;
+	monthly_load_anaerobic: number;
+	monthly_load_anaerobic_target_max: number;
+	monthly_load_anaerobic_target_min: number;
+	vo2max: number;
+	vo2max_precise: number;
+	vo2max_date: string;
+	training_paused: boolean;
 }
 
 // --- Readiness ---
 
 export interface Readiness {
 	score: number;
-	level: string; // "HIGH" | "MODERATE" | "LOW"
-	calendarDate: string;
-	hrvFactorPercent: number;
-	hrvFactorFeedback: string;
-	hrvWeeklyAverage: number;
-	sleepHistoryFactorPercent: number;
-	sleepHistoryFactorFeedback: string;
-	recoveryTimeFactorPercent: number;
-	recoveryTimeFactorFeedback: string;
-	stressHistoryFactorPercent: number;
-	stressHistoryFactorFeedback: string;
-	acwrFactorPercent: number;
-	acwrFactorFeedback: string;
-	recoveryTime: number;
-	feedbackShort: string;
-	feedbackLong: string;
+	level: string;
+	date: string;
+	hrv_score: number;
+	hrv_feedback: string;
+	hrv_weekly_average: number;
+	sleep_history_score: number;
+	sleep_history_feedback: string;
+	recovery_score: number;
+	recovery_feedback: string;
+	stress_score: number;
+	stress_feedback: string;
+	acwr_score: number;
+	acwr_feedback: string;
+	recovery_time_hours: number;
+	feedback: string;
+	sleep_score: number;
+	sleep_feedback: string;
 }
 
 // --- Race Predictions ---
 
 export interface RacePredictions {
-	calendarDate: string;
-	time5K: number; // seconds
-	time10K: number;
-	timeHalfMarathon: number;
-	timeMarathon: number;
+	date: string;
+	time_5k_seconds: number;
+	time_10k_seconds: number;
+	time_half_marathon_seconds: number;
+	time_marathon_seconds: number;
+	pace_5k: string;
+	pace_10k: string;
+	pace_half_marathon: string;
+	pace_marathon: string;
 }
 
 // --- Endurance Score ---
 
 export interface EnduranceScore {
-	overallScore: number;
-	classification: number;
-	classificationLowerLimitIntermediate: number;
-	classificationLowerLimitTrained: number;
-	classificationLowerLimitWellTrained: number;
-	classificationLowerLimitExpert: number;
-	classificationLowerLimitSuperior: number;
-	classificationLowerLimitElite: number;
-	gaugeLowerLimit: number;
-	gaugeUpperLimit: number;
-	feedbackPhrase: number;
+	score: number;
+	classification: string;
+	date: string;
+}
+
+// --- Hill Score ---
+
+export interface HillScore {
+	date: string;
+	overall: number;
+	strength: number;
+	endurance: number;
+	vo2max: number;
 }
 
 // --- Fitness Age ---
 
 export interface FitnessAge {
-	fitnessAge: number;
-	chronologicalAge: number;
-	achievableFitnessAge: number;
-	components: {
-		bmi: { value: number; stale: boolean };
-		rhr: { value: number; stale: boolean };
-		vigorousDaysAvg: { value: number; stale: boolean };
-		vigorousMinutesAvg: { value: number; stale: boolean };
-	};
+	fitness_age: number;
+	chronological_age: number;
+	achievable_fitness_age: number;
+	bmi: number;
+	resting_heart_rate: number;
+	vigorous_days_avg: number;
+	vigorous_minutes_avg: number;
 }
 
 // --- Lactate Threshold ---
 
 export interface LactateThreshold {
-	calendarDate: string;
-	hearRate: number | null;
-	speed: number | null;
+	date: string;
+	heart_rate: number;
+	pace: string;
+	speed_meters_per_second: number;
 }
 
 // --- HRV ---
 
-export interface HrvSummary {
-	calendarDate: string;
-	weeklyAvg: number;
-	lastNightAvg: number;
-	lastNight5MinHigh: number;
-	status: string; // "BALANCED" | "UNBALANCED" | "LOW"
-	feedbackPhrase: string;
-	baseline: {
-		balancedLow: number;
-		balancedUpper: number;
-		lowUpper: number;
-		markerValue: number;
-	};
+export interface HrvDay {
+	date: string;
+	status: string;
+	weekly_average: number;
 }
 
-export interface HrvDay {
-	startTimestampLocal: string;
-	endTimestampLocal: string;
-	hrvSummary: HrvSummary;
+// --- Health ---
+
+export interface HeartRateDay {
+	date: string;
+	resting_hr: number;
+	avg_7day_resting: number;
+	max_hr: number;
+	min_hr: number;
+}
+
+export interface SleepScoreDay {
+	date: string;
+	score: number;
+}
+
+export interface StressDay {
+	date: string;
+	avg_stress: number;
+	max_stress: number;
+	body_battery_high: number;
+	body_battery_low: number;
+	body_battery_latest: number;
+}
+
+export interface BodyBattery {
+	date: string;
+	high: number;
+	low: number;
+	latest: number;
 }
 
 // --- Activities ---
@@ -156,24 +154,97 @@ export interface Activity {
 	max_hr: number | null;
 	calories: number | null;
 	pace_min_km: string | null;
-	// Enriched fields (new CLI version)
 	training_effect_label: string | null;
 	activity_training_load: number | null;
 	aerobic_training_effect: number | null;
 	anaerobic_training_effect: number | null;
+	elevation_gain: number | null;
+	elevation_loss: number | null;
+	avg_power: number | null;
+	avg_stride_length: number | null;
+	avg_ground_contact_time: number | null;
+	avg_vertical_oscillation: number | null;
+	avg_vertical_ratio: number | null;
+	hr_time_in_zone_1: number | null;
+	hr_time_in_zone_2: number | null;
+	hr_time_in_zone_3: number | null;
+	hr_time_in_zone_4: number | null;
+	hr_time_in_zone_5: number | null;
+	difference_body_battery: number | null;
+	location_name: string | null;
+	vo2max_value: number | null;
+	avg_grade_adjusted_speed: number | null;
+}
+
+export interface ActivitySplit {
+	split: number;
+	pace: string;
+	pace_seconds?: number;
+	avg_hr: number;
+	elevation_gain: number;
+	elevation_loss: number;
+	avg_power: number;
+	avg_cadence: number;
+	distance_meters: number;
+	duration_seconds: number;
+}
+
+// --- Records ---
+
+export interface PersonalRecord {
+	type_id: number;
+	value: number;
+	date: string;
+	activity_id: number;
+	activity_name: string;
+	activity_type: string;
+}
+
+// --- Gear ---
+
+export interface GearItem {
+	uuid: string;
+	display_name: string;
+	type: string;
+	distance_meters: number;
+	activities: number;
+	date_begin: string | null;
+	date_end: string | null;
+	active: boolean;
 }
 
 // --- Dashboard aggregate ---
 
 export interface DashboardData {
-	trainingStatus: TrainingStatus;
+	// Current state
+	currentStatus: DailyTrainingStatus;
 	readiness: Readiness;
 	racePredictions: RacePredictions;
 	enduranceScore: EnduranceScore;
+	hillScore: HillScore;
 	fitnessAge: FitnessAge;
-	lactateThreshold: LactateThreshold[];
-	hrv: HrvDay[];
+	lactateThreshold: LactateThreshold;
+	stress: StressDay;
+	bodyBattery: BodyBattery;
+
+	// Trends
+	statusHistory: DailyTrainingStatus[];
+	hrvHistory: HrvDay[];
+	heartRateHistory: HeartRateDay[];
+	sleepScoreHistory: SleepScoreDay[];
+	hillScoreHistory: HillScore[];
+	enduranceScoreHistory: EnduranceScore[];
+
+	// Activities
 	activities: Activity[];
+	recentSplits: Record<number, ActivitySplit[]>; // activity_id -> splits
+
+	// Records & gear
+	records: PersonalRecord[];
+	gear: GearItem[];
+
+	// Computed
 	lastRunDate: string | null;
 	daysSinceLastRun: number | null;
+	lastSyncedAt: string | null;
 }

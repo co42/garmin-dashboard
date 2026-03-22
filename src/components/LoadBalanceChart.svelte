@@ -1,33 +1,40 @@
 <script lang="ts">
-	import type { LoadBalance } from '$lib/types.js';
+	import type { DailyTrainingStatus } from '$lib/types.js';
 	import { LOAD_COLORS } from '$lib/colors.js';
+	import Tip from './Tip.svelte';
 
 	interface Props {
-		loadBalance: LoadBalance;
+		status: DailyTrainingStatus;
 	}
 
-	let { loadBalance }: Props = $props();
+	let { status }: Props = $props();
+
+	const barTips: Record<string, string> = {
+		'Aero High': 'Load from tempo runs, threshold efforts, and hard aerobic sessions. Builds speed endurance and lactate clearance.',
+		'Aero Low': 'Load from easy runs, Z2 efforts, and recovery jogs. Builds your aerobic base — the foundation for everything else.',
+		'Anaerobic': 'Load from intervals, sprints, and VO2max sessions. Builds top-end speed and neuromuscular power.',
+	};
 
 	const bars = $derived([
 		{
 			label: 'Aero High',
-			value: loadBalance.monthlyLoadAerobicHigh,
-			min: loadBalance.monthlyLoadAerobicHighTargetMin,
-			max: loadBalance.monthlyLoadAerobicHighTargetMax,
+			value: status.monthly_load_aerobic_high,
+			min: status.monthly_load_aerobic_high_target_min,
+			max: status.monthly_load_aerobic_high_target_max,
 			color: LOAD_COLORS.aeroHigh,
 		},
 		{
 			label: 'Aero Low',
-			value: loadBalance.monthlyLoadAerobicLow,
-			min: loadBalance.monthlyLoadAerobicLowTargetMin,
-			max: loadBalance.monthlyLoadAerobicLowTargetMax,
+			value: status.monthly_load_aerobic_low,
+			min: status.monthly_load_aerobic_low_target_min,
+			max: status.monthly_load_aerobic_low_target_max,
 			color: LOAD_COLORS.aeroLow,
 		},
 		{
 			label: 'Anaerobic',
-			value: loadBalance.monthlyLoadAnaerobic,
-			min: loadBalance.monthlyLoadAnaerobicTargetMin,
-			max: loadBalance.monthlyLoadAnaerobicTargetMax,
+			value: status.monthly_load_anaerobic,
+			min: status.monthly_load_anaerobic_target_min,
+			max: status.monthly_load_anaerobic_target_max,
 			color: LOAD_COLORS.anaerobic,
 		},
 	]);
@@ -44,17 +51,17 @@
 		return '#22c55e';
 	}
 
-	function scaleMax(bars: typeof bars.$type): number {
+	function scaleMax(items: { value: number; max: number }[]): number {
 		let m = 0;
-		for (const b of bars) {
-			m = Math.max(m, b.value, b.max);
-		}
+		for (const b of items) m = Math.max(m, b.value, b.max);
 		return m * 1.15;
 	}
 </script>
 
-<div class="rounded-lg bg-card p-4">
-	<h2 class="mb-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Load Balance</h2>
+<div class="rounded-lg bg-card p-4 h-full">
+	<Tip text={"Your 4-week training load broken into three types.\nEach has a personalized target range.\n\nAll three in range = balanced training.\nShortages or surpluses indicate imbalanced training."}>
+		<h2 class="mb-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Load Balance</h2>
+	</Tip>
 
 	<div class="space-y-5">
 		{#each bars as bar}
@@ -64,31 +71,19 @@
 			{@const valueWidth = Math.min((bar.value / max) * 100, 100)}
 			<div>
 				<div class="mb-1.5 flex items-baseline justify-between">
-					<span class="text-xs font-medium text-text-secondary">{bar.label}</span>
-					<span class="text-xs font-medium" style="color: {deltaColor(bar.value, bar.min, bar.max)}">
-						{Math.round(bar.value)} · {delta(bar.value, bar.min, bar.max)}
-					</span>
+					<Tip text={barTips[bar.label]}>
+						<span class="text-xs font-medium text-text-secondary">{bar.label}</span>
+					</Tip>
+					<Tip text="Shaded band = target range ({bar.min}–{bar.max}). Garmin computes these from your training history. In range = balanced.">
+						<span class="num text-xs font-medium" style="color: {deltaColor(bar.value, bar.min, bar.max)}">
+							{Math.round(bar.value)} · {delta(bar.value, bar.min, bar.max)}
+						</span>
+					</Tip>
 				</div>
 				<div class="relative h-5 rounded bg-card-border">
-					<!-- Target zone band -->
-					<div
-						class="absolute top-0 h-full rounded opacity-25"
-						style="left: {zoneLeft}%; width: {zoneWidth}%; background: {bar.color};"
-					></div>
-					<!-- Target zone border -->
-					<div
-						class="absolute top-0 h-full rounded border opacity-50"
-						style="left: {zoneLeft}%; width: {zoneWidth}%; border-color: {bar.color};"
-					></div>
-					<!-- Current value bar -->
-					<div
-						class="absolute left-0 top-0 h-full rounded transition-all"
-						style="width: {valueWidth}%; background: {bar.color}; opacity: 0.8;"
-					></div>
-				</div>
-				<div class="mt-1 flex justify-between text-[10px] text-text-dim">
-					<span>{bar.min}</span>
-					<span>{bar.max}</span>
+					<div class="absolute top-0 h-full rounded opacity-30" style="left: {zoneLeft}%; width: {zoneWidth}%; background: {bar.color};"></div>
+					<div class="absolute top-0 h-full rounded opacity-70" style="left: {zoneLeft}%; width: {zoneWidth}%; border: 2px solid {bar.color};"></div>
+					<div class="absolute left-0 top-0 h-full rounded transition-all" style="width: {valueWidth}%; background: {bar.color}; opacity: 0.8;"></div>
 				</div>
 			</div>
 		{/each}
