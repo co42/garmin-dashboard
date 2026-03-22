@@ -8,15 +8,24 @@ RUN npm run build
 
 # Stage 2: Runtime
 FROM node:22-alpine
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates curl tar
+
+# Install garmin CLI
+ARG GARMIN_CLI_VERSION=1.3.1
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      echo "No linux arm64 garmin-cli build available yet — sync will not work"; \
+    else \
+      curl -fsSL "https://github.com/co42/garmin-cli/releases/download/v${GARMIN_CLI_VERSION}/garmin-v${GARMIN_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+        | tar -xz -C /usr/local/bin; \
+    fi
+
 WORKDIR /app
 
 COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./
 
-# garmin CLI must be mounted or installed separately
-# Data directory for SQLite
 RUN mkdir -p data
 
 ENV NODE_ENV=production
