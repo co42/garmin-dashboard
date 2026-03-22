@@ -1,42 +1,53 @@
-# sv
+# Garmin Dashboard
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Personal running training dashboard. Single-page coach's view that synthesizes Garmin Connect data into a clear narrative: where you are, what's wrong, what to do about it.
 
-## Creating a project
+Data comes from the [`garmin`](https://github.com/co42/garmin-cli) CLI. All fetching is done server-side, stored in SQLite, and served via SvelteKit.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Sections
 
-```sh
-# create a new project
-npx sv create my-app
-```
+- **Banner** — training status, ACWR, readiness, recovery time, VO2max trend
+- **Runner Profile** — radar chart (6 axes: VO2max, Speed, Endurance, Balance, Hill Str, Hill End) with 3-month peak/low overlay, weekly trend chart
+- **Race Times** — personal records + VO2max-based predictions for 5K/10K/Semi/Marathon
+- **Body** — body battery, sleep score, resting HR, stress, readiness gauge with factor breakdown
+- **Training** — load balance, training polarization (Seiler model), ACWR + HRV trends, weekly volume
+- **Activity Log** — recent runs with date, type, distance, pace, GAP, training load, HR zone bars
 
-To recreate this project with the same configuration:
+## Requirements
 
-```sh
-# recreate this project
-npx sv@0.12.8 create --template minimal --types ts --no-install .
-```
+- [garmin CLI](https://github.com/co42/garmin-cli) installed and authenticated (`garmin auth login`)
+- Node.js 22+
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## Development
 
 ```sh
+npm install
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+Click "Sync Data" in the top bar to pull data from Garmin Connect. First sync fetches 90 days of history.
 
-To create a production version of your app:
+## Docker
 
 ```sh
-npm run build
+docker build -t garmin-dashboard .
+docker run -p 3000:3000 -v ./data:/app/data garmin-dashboard
 ```
 
-You can preview the production build with `npm run preview`.
+The `garmin` CLI must be available in the container or mounted as a binary for sync to work.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Release
+
+```sh
+make release VERSION=1.0.0
+```
+
+Tags, pushes, waits for GitHub Actions to build multi-arch Docker images (amd64 + arm64), and creates a GitHub release. Images are pushed to `ghcr.io/co42/garmin-dashboard`.
+
+## Stack
+
+- SvelteKit (TypeScript, adapter-node)
+- Tailwind CSS 4
+- Apache ECharts
+- better-sqlite3
+- Inter + JetBrains Mono
