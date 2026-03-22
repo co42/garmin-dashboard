@@ -6,9 +6,9 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Stage 2: Runtime
-FROM node:22-alpine
-RUN apk add --no-cache ca-certificates curl tar
+# Stage 2: Runtime (slim = Debian, has glibc for garmin CLI)
+FROM node:22-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Install garmin CLI
 ARG GARMIN_CLI_VERSION=1.3.1

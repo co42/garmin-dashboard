@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { resolve } from 'node:path';
 
-const DB_PATH = resolve(import.meta.dirname ?? '.', '../../data/training.db');
+const DB_PATH = resolve(process.cwd(), 'data/training.db');
 
 let _db: Database.Database | null = null;
 
