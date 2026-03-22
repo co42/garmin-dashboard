@@ -16,11 +16,12 @@
 		return s.toLowerCase().replace(/_\d+$/, '').replace(/_/g, ' ');
 	}
 
-	function recoveryTime(hours: number): string {
-		if (hours <= 0) return 'none';
-		const d = Math.floor(hours / 24);
-		const h = Math.round(hours % 24);
-		if (d > 0) return `${d}d ${h}h`;
+	function recoveryTime(minutes: number): string {
+		if (minutes <= 0) return 'none';
+		const h = Math.floor(minutes / 60);
+		const d = Math.floor(h / 24);
+		const rh = h % 24;
+		if (d > 0) return `${d}d ${rh}h`;
 		return `${h}h`;
 	}
 
@@ -56,7 +57,7 @@
 			<span class="text-sm font-semibold text-text">{readiness.level}</span>
 			<span class="text-sm text-text-secondary"> · {fmt(readiness.feedback)}</span>
 		</div>
-		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(readiness.recovery_time_hours)}</span>
+		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(readiness.recovery_time_minutes)}</span>
 	</div>
 
 	<!-- Status + load feedback -->

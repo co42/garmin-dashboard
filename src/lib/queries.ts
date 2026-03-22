@@ -57,7 +57,7 @@ export function loadDashboard(): DashboardData | null {
 		score: 0, level: 'UNKNOWN', date: '', hrv_score: 0, hrv_feedback: '',
 		hrv_weekly_average: 0, sleep_history_score: 0, sleep_history_feedback: '',
 		recovery_score: 0, recovery_feedback: '', stress_score: 0, stress_feedback: '',
-		acwr_score: 0, acwr_feedback: '', recovery_time_hours: 0, feedback: '',
+		acwr_score: 0, acwr_feedback: '', recovery_time_minutes: 0, feedback: '',
 		sleep_score: 0, sleep_feedback: '',
 	});
 

@@ -43,7 +43,7 @@ export interface Readiness {
 	stress_feedback: string;
 	acwr_score: number;
 	acwr_feedback: string;
-	recovery_time_hours: number;
+	recovery_time_minutes: number;
 	feedback: string;
 	sleep_score: number;
 	sleep_feedback: string;

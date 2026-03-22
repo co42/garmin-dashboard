@@ -83,7 +83,7 @@
 			<Tip text="Time until Garmin estimates full recovery from recent training.">
 				<div class="text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Recovery</span>
-					<p class="num text-xl font-bold text-text">{recoveryTime(readiness.recovery_time_hours)}</p>
+					<p class="num text-xl font-bold text-text">{recoveryTime(readiness.recovery_time_minutes)}</p>
 				</div>
 			</Tip>
 			{#if daysSinceLastRun != null}
