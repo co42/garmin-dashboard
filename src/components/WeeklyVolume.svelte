@@ -11,11 +11,10 @@
 	let chartEl: HTMLDivElement;
 
 	function getWeekKey(dateStr: string): string {
-		const d = new Date(dateStr);
+		const d = new Date(dateStr + 'T00:00:00');
 		const day = d.getDay();
-		const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-		const monday = new Date(d.setDate(diff));
-		return monday.toISOString().slice(0, 10);
+		d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 	}
 
 	const weeklyData = $derived(() => {
@@ -51,7 +50,7 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 
 		const data = weeklyData();
-		const weeks = data.map(d => new Date(d.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+		const weeks = data.map(d => new Date(d.week + 'T00:00:00').toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }));
 		const kms = data.map(d => Math.round(d.km * 10) / 10);
 		const runs = data.map(d => d.runs);
 

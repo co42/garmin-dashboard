@@ -14,10 +14,10 @@
 	let chartEl: HTMLDivElement;
 
 	function getWeekKey(dateStr: string): string {
-		const d = new Date(dateStr);
+		const d = new Date(dateStr + 'T00:00:00');
 		const day = d.getDay();
-		const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-		return new Date(d.getFullYear(), d.getMonth(), diff).toISOString().slice(0, 10);
+		d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 	}
 
 	const weeklyData = $derived(() => {
@@ -46,7 +46,7 @@
 
 			return {
 				week,
-				label: new Date(week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+				label: new Date(week + 'T00:00:00').toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
 				vo2max: normalize('vo2max', vo2),
 				speed: normalize('speed', estimate5kFromVo2(vo2)),
 				endurance: endur ? normalize('endurance', endur.score) : null,
