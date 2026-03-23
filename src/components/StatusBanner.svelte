@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { DailyTrainingStatus, Readiness } from '$lib/types.js';
 	import { statusColor, acwrColor, fitnessTrend, readinessColor } from '$lib/colors.js';
+	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -14,7 +15,8 @@
 	const color = $derived(statusColor(status.status));
 	const acwrC = $derived(acwrColor(status.acwr_status));
 	const trend = $derived(fitnessTrend(status.fitness_trend));
-	const readyColor = $derived(readinessColor(readiness.score));
+	const latest = $derived(readiness.post_activity ?? readiness.morning);
+	const latestColor = $derived(latest ? readinessColor(latest.score) : '#555568');
 
 	function fmt(s: string): string {
 		return s.replace(/_\d+$/, '').split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
@@ -74,17 +76,21 @@
 
 		<!-- Right: Readiness + Recovery + Last run -->
 		<div class="ml-auto flex items-center gap-4">
-			<Tip text={"How ready is your body to train today? (0–100)\n\n70+ = push hard\n40–69 = moderate\n< 40 = rest"}>
+			<Tip text={"How ready is your body to train today? (0–100)\n\n70+ = push hard\n40–69 = moderate\n< 40 = rest" + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + readiness.morning.score : "")}>
 				<div class="text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</span>
-					<p class="num text-xl font-bold" style="color: {readyColor}">{readiness.score}</p>
+					<p class="num text-xl font-bold">
+						<span style="color: {latestColor}">{latest?.score ?? '—'}</span>
+					</p>
 				</div>
 			</Tip>
 			<div class="h-8 w-px bg-card-border"></div>
-			<Tip text="Time until Garmin estimates full recovery from recent training.">
+			<Tip text={"Time until Garmin estimates full recovery from recent training." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time_minutes) : "")}>
 				<div class="text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Recovery</span>
-					<p class="num text-xl font-bold text-text">{recoveryTime(readiness.recovery_time_minutes)}</p>
+					<p class="num text-xl font-bold text-text">
+						{recoveryTime(latest?.recovery_time_minutes ?? 0)}
+					</p>
 				</div>
 			</Tip>
 			{#if daysSinceLastRun != null}

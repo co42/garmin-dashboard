@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Readiness, DailyTrainingStatus } from '$lib/types.js';
 	import { readinessColor } from '$lib/colors.js';
+	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -10,7 +11,8 @@
 
 	let { readiness, status }: Props = $props();
 
-	const color = $derived(readinessColor(readiness.score));
+	const entry = $derived(resolveReadiness(readiness));
+	const color = $derived(readinessColor(entry.score));
 
 	function fmt(s: string): string {
 		return s.toLowerCase().replace(/_\d+$/, '').replace(/_/g, ' ');
@@ -26,12 +28,12 @@
 	}
 
 	const factors = $derived([
-		{ label: 'Recovery', feedback: readiness.recovery_feedback },
-		{ label: 'HRV', feedback: readiness.hrv_feedback },
-		{ label: 'Sleep', feedback: readiness.sleep_feedback },
-		{ label: 'Sleep history', feedback: readiness.sleep_history_feedback },
-		{ label: 'Stress', feedback: readiness.stress_feedback },
-		{ label: 'ACWR', feedback: readiness.acwr_feedback },
+		{ label: 'Recovery', feedback: entry.recovery_feedback },
+		{ label: 'HRV', feedback: entry.hrv_feedback },
+		{ label: 'Sleep', feedback: entry.sleep_feedback },
+		{ label: 'Sleep history', feedback: entry.sleep_history_feedback },
+		{ label: 'Stress', feedback: entry.stress_feedback },
+		{ label: 'ACWR', feedback: entry.acwr_feedback },
 	]);
 
 	function feedbackColor(fb: string): string {
@@ -52,12 +54,12 @@
 
 	<!-- Readiness headline -->
 	<div class="mb-3 flex items-center gap-3">
-		<span class="num text-2xl font-bold" style="color: {color}">{readiness.score}</span>
+		<span class="num text-2xl font-bold" style="color: {color}">{entry.score}</span>
 		<div>
-			<span class="text-sm font-semibold text-text">{readiness.level}</span>
-			<span class="text-sm text-text-secondary"> · {fmt(readiness.feedback)}</span>
+			<span class="text-sm font-semibold text-text">{entry.level}</span>
+			<span class="text-sm text-text-secondary"> · {fmt(entry.feedback)}</span>
 		</div>
-		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(readiness.recovery_time_minutes)}</span>
+		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(entry.recovery_time_minutes)}</span>
 	</div>
 
 	<!-- Status + load feedback -->

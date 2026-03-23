@@ -1,4 +1,5 @@
 import type { DashboardData } from './types.js';
+import { resolveReadiness } from './queries.js';
 
 export interface Advice {
 	runType: string;
@@ -24,7 +25,8 @@ export function getIntensityColor(intensity: Advice['intensity']): string {
 export function generateAdvice(data: DashboardData): Advice {
 	const { readiness, currentStatus: s, daysSinceLastRun, bodyBattery, sleepScoreHistory, hillScore } = data;
 	const acwr = s.acwr;
-	const score = readiness.score;
+	const resolved = resolveReadiness(readiness);
+	const score = resolved.score;
 	const bb = bodyBattery.latest;
 
 	// Aggregate HR zone time from last 10 activities

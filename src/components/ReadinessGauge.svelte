@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { Readiness } from '$lib/types.js';
 	import { readinessColor } from '$lib/colors.js';
+	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -9,6 +10,10 @@
 	}
 
 	let { readiness }: Props = $props();
+
+	const latest = $derived(readiness.post_activity ?? readiness.morning);
+	const entry = $derived(latest ?? resolveReadiness(readiness));
+	const hasBoth = $derived(!!readiness.morning && !!readiness.post_activity);
 
 	let chartEl: HTMLDivElement;
 
@@ -21,14 +26,14 @@
 	};
 
 	const factors = $derived([
-		{ label: 'HRV', value: readiness.hrv_score },
-		{ label: 'Sleep', value: readiness.sleep_history_score },
-		{ label: 'Recovery', value: readiness.recovery_score },
-		{ label: 'Stress', value: readiness.stress_score },
-		{ label: 'ACWR', value: readiness.acwr_score },
+		{ label: 'HRV', value: entry.hrv_score },
+		{ label: 'Sleep', value: entry.sleep_history_score },
+		{ label: 'Recovery', value: entry.recovery_score },
+		{ label: 'Stress', value: entry.stress_score },
+		{ label: 'ACWR', value: entry.acwr_score },
 	]);
 
-	const color = $derived(readinessColor(readiness.score));
+	const color = $derived(readinessColor(entry.score));
 
 	let _chart: any; let _ro: ResizeObserver;
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
@@ -56,7 +61,7 @@
 					valueAnimation: true, fontSize: 28, fontWeight: 'bold',
 					color: '#e8e8ed', offsetCenter: [0, 0],
 				},
-				data: [{ value: readiness.score }],
+				data: [{ value: entry.score }],
 			}],
 		});
 
@@ -80,7 +85,12 @@
 		<!-- Gauge -->
 		<div class="shrink-0">
 			<div bind:this={chartEl} class="h-[120px] w-[140px]"></div>
-			<div class="-mt-1 text-center text-xs text-text-secondary">{readiness.level}</div>
+			<div class="-mt-1 text-center text-xs text-text-secondary">
+				{entry.level}
+				{#if hasBoth && readiness.morning}
+					<span class="text-text-dim">· morning {readiness.morning.score}</span>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Factor bars -->

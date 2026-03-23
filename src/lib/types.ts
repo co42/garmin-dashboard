@@ -28,25 +28,31 @@ export interface DailyTrainingStatus {
 
 // --- Readiness ---
 
-export interface Readiness {
+export interface ReadinessEntry {
+	timestamp_local?: string;
 	score: number;
 	level: string;
-	date: string;
+	feedback: string;
+	recovery_time_minutes: number;
+	hrv_weekly_average: number;
 	hrv_score: number;
 	hrv_feedback: string;
-	hrv_weekly_average: number;
 	sleep_history_score: number;
 	sleep_history_feedback: string;
-	recovery_score: number;
-	recovery_feedback: string;
-	stress_score: number;
-	stress_feedback: string;
-	acwr_score: number;
-	acwr_feedback: string;
-	recovery_time_minutes: number;
-	feedback: string;
 	sleep_score: number;
 	sleep_feedback: string;
+	recovery_score: number;
+	recovery_feedback: string;
+	acwr_score: number;
+	acwr_feedback: string;
+	stress_score: number;
+	stress_feedback: string;
+}
+
+export interface Readiness {
+	date: string;
+	morning: ReadinessEntry | null;
+	post_activity: ReadinessEntry | null;
 }
 
 // --- Race Predictions ---
