@@ -165,7 +165,7 @@
 		if (s.target_type === 'pace.zone' && s.target_value_one != null && s.target_value_two != null) {
 			parts.push(`${fmtPace(s.target_value_one)}–${fmtPace(s.target_value_two)}`);
 		} else if (s.target_type === 'heart.rate.zone' && s.target_value_one != null && s.target_value_two != null) {
-			parts.push(s.target_value_one === s.target_value_two ? `HR Z${s.target_value_one}` : `HR Z${s.target_value_one}–Z${s.target_value_two}`);
+			parts.push(s.target_value_one === s.target_value_two ? `${s.target_value_one} bpm` : `${s.target_value_one}–${s.target_value_two} bpm`);
 		}
 		return parts.join(' · ');
 	}
