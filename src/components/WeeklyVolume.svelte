@@ -31,11 +31,11 @@
 		if (sorted.length === 0) return [];
 
 		const result: { week: string; km: number; runs: number }[] = [];
-		const start = new Date(sorted[0][0]);
-		const end = new Date(sorted[sorted.length - 1][0]);
+		const start = new Date(sorted[0][0] + 'T00:00:00');
+		const end = new Date(sorted[sorted.length - 1][0] + 'T00:00:00');
 
 		for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-			const key = d.toISOString().slice(0, 10);
+			const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 			const data = weeks.get(key) ?? { km: 0, runs: 0 };
 			result.push({ week: key, ...data });
 		}
