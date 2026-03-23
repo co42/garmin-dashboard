@@ -26,6 +26,14 @@ export interface DailyTrainingStatus {
 	training_paused: boolean;
 }
 
+// --- HR Zones ---
+
+export interface HrZone {
+	zone: number;
+	min_bpm: number;
+	max_bpm: number;
+}
+
 // --- Readiness ---
 
 export interface ReadinessEntry {
@@ -286,6 +294,9 @@ export interface DashboardData {
 
 	// Calendar
 	calendar: CalendarEntry[];
+
+	// HR Zones
+	hrZones: HrZone[];
 
 	// Computed
 	lastRunDate: string | null;

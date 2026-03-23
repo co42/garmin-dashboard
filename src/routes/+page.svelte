@@ -94,7 +94,7 @@
 
 		<div class="grid gap-4 md:grid-cols-2">
 			<LoadBalanceChart status={d.currentStatus} />
-			<TrainingPolarization activities={d.activities} />
+			<TrainingPolarization activities={d.activities} hrZones={d.hrZones} />
 		</div>
 
 		<div class="grid gap-4 md:grid-cols-2">
@@ -107,7 +107,7 @@
 		<!-- ═══ LOG ═══ -->
 		<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Activity Log</h2>
 
-		<ActivityFeed activities={d.activities} />
+		<ActivityFeed activities={d.activities} hrZones={d.hrZones} />
 
 		<ShoeTracker gear={d.gear} />
 	</div>

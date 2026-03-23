@@ -12,6 +12,7 @@ import type {
 	CalendarItem,
 	CalendarEntry,
 	WorkoutStep,
+	HrZone,
 } from './types.js';
 
 export interface SyncResult {
@@ -61,6 +62,7 @@ export async function runSync(): Promise<SyncResult> {
 			activities,
 			hillScoreHistory,
 			enduranceScoreHistory,
+			hrZones,
 		] = await Promise.all([
 			garmin<DailyTrainingStatus[]>(['training', 'status', '--days', String(historyDays)]),
 			garminSafe(['training', 'readiness'], null),
@@ -79,6 +81,7 @@ export async function runSync(): Promise<SyncResult> {
 			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running']),
 			garminSafe<HillScore[]>(['training', 'hill-score', '--days', String(hillEnduranceDays)], []),
 			garminSafe<EnduranceScore[]>(['training', 'endurance-score', '--days', String(hillEnduranceDays)], []),
+			garminSafe<HrZone[]>(['training', 'zones'], []),
 		]);
 
 		// Phase 2: Store snapshots (always-fresh data)
@@ -97,6 +100,7 @@ export async function runSync(): Promise<SyncResult> {
 			if (bodyBattery) upsertSnapshot.run('body_battery', JSON.stringify(bodyBattery));
 			upsertSnapshot.run('records', JSON.stringify(records));
 			upsertSnapshot.run('gear', JSON.stringify(gear));
+			if (hrZones.length > 0) upsertSnapshot.run('hr_zones', JSON.stringify(hrZones));
 		});
 		snapshotBatch();
 

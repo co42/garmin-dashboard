@@ -4,10 +4,11 @@
 
 	interface Props {
 		text: string;
+		mono?: boolean;
 		children: Snippet;
 	}
 
-	let { text, children }: Props = $props();
+	let { text, mono = false, children }: Props = $props();
 	let show = $state(false);
 	let tipEl = $state<HTMLSpanElement>();
 	let style = $state('');
@@ -50,7 +51,7 @@
 >
 	{@render children()}
 	{#if show}
-		<span class="tip-content" bind:this={tipEl} {style}>
+		<span class="tip-content" class:mono bind:this={tipEl} {style}>
 			{#each text.split('\n') as line, i}
 				{#if i > 0}<br/>{/if}{line}
 			{/each}
@@ -82,5 +83,9 @@
 		white-space: normal;
 		pointer-events: none;
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+	}
+	.tip-content.mono {
+		font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+		white-space: pre;
 	}
 </style>

@@ -1,13 +1,14 @@
 <script lang="ts">
-	import type { Activity } from '$lib/types.js';
+	import type { Activity, HrZone } from '$lib/types.js';
 	import { formatDistance } from '$lib/format.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
 		activities: Activity[];
+		hrZones: HrZone[];
 	}
 
-	let { activities }: Props = $props();
+	let { activities, hrZones }: Props = $props();
 
 	function fmtDate(dateStr: string): string {
 		const d = new Date(dateStr);
@@ -133,15 +134,21 @@
 					<td class="py-2">
 						{#if zones.total > 0}
 							{@const maxPct = Math.max(...zones.pcts)}
-							<div class="flex items-end gap-px h-5 w-20">
-								{#each zones.pcts as pct, i}
-									<div
-										class="flex-1 rounded-t-sm"
-										style="height: {maxPct > 0 ? (pct / maxPct) * 100 : 0}%; background: {ZONE_COLORS[i]};"
-										title="Z{i+1}: {Math.round(pct)}%"
-									></div>
-								{/each}
-							</div>
+							{@const tipText = zones.pcts.map((p, i) => {
+								const hz = hrZones.find(h => h.zone === i + 1);
+								const bpm = hz ? `${String(hz.min_bpm).padStart(3)}–${hz.max_bpm === 999 ? 'max' : String(hz.max_bpm).padStart(3)}` : '';
+								return `Z${i + 1} ${bpm}: ${String(Math.round(p)).padStart(2)}%`;
+							}).join('\n')}
+							<Tip text={tipText} mono>
+								<div class="flex items-end gap-px h-5 w-20">
+									{#each zones.pcts as pct, i}
+										<div
+											class="flex-1 rounded-t-sm"
+											style="height: {maxPct > 0 ? (pct / maxPct) * 100 : 0}%; background: {ZONE_COLORS[i]};"
+										></div>
+									{/each}
+								</div>
+							</Tip>
 						{:else}
 							<span class="text-text-dim">-</span>
 						{/if}

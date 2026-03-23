@@ -1,13 +1,28 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { Activity } from '$lib/types.js';
+	import type { Activity, HrZone } from '$lib/types.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
 		activities: Activity[];
+		hrZones: HrZone[];
 	}
 
-	let { activities }: Props = $props();
+	let { activities, hrZones }: Props = $props();
+
+	const zoneLabels = $derived(
+		[1, 2, 3, 4, 5].map(z => {
+			const hz = hrZones.find(h => h.zone === z);
+			return hz ? `Z${z}\n${hz.min_bpm}–${hz.max_bpm === 999 ? '∞' : hz.max_bpm}` : `Z${z}`;
+		})
+	);
+
+	const zoneBpmTip = $derived(
+		[1, 2, 3, 4, 5].map(z => {
+			const hz = hrZones.find(h => h.zone === z);
+			return hz ? `${hz.min_bpm}–${hz.max_bpm === 999 ? 'max' : hz.max_bpm} bpm` : '';
+		})
+	);
 	let chartEl: HTMLDivElement;
 
 	const zoneTotals = $derived(() => {
@@ -105,11 +120,11 @@
 		const zoneColors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7'];
 
 		_chart.setOption({
-			grid: { top: 10, right: 10, bottom: 25, left: 35 },
+			grid: { top: 10, right: 10, bottom: 38, left: 35 },
 			xAxis: {
-				type: 'category', data: ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'],
+				type: 'category', data: zoneLabels,
 				axisLine: { lineStyle: { color: '#2a2a3a' } },
-				axisLabel: { color: '#8888a0', fontSize: 11 },
+				axisLabel: { color: '#8888a0', fontSize: 10, lineHeight: 14, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace' },
 			},
 			yAxis: {
 				type: 'value', max: 1,
@@ -124,8 +139,12 @@
 			}],
 			tooltip: {
 				trigger: 'axis', confine: true, backgroundColor: '#1e1e2a', borderColor: '#2a2a3a',
-				textStyle: { color: '#e8e8ed', fontSize: 12 },
-				formatter: (params: any) => `${params[0].name}: ${(params[0].value * 100).toFixed(1)}%`,
+				textStyle: { color: '#e8e8ed', fontSize: 12, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace' },
+				formatter: (params: any) => {
+					const i = params[0].dataIndex;
+					const bpm = zoneBpmTip[i];
+					return `Z${i + 1}${bpm ? ' (' + bpm + ')' : ''}: ${(params[0].value * 100).toFixed(1)}%`;
+				},
 			},
 		});
 
