@@ -64,10 +64,25 @@
 			.map((c): Row => ({ kind: 'event', id: c.id, date: c.date, entry: c }))
 	);
 
-	// Future scheduled workouts (exclude events, today onward)
+	// Activity dates by sport type (for marking workouts as done)
+	const activityDaySport = $derived(new Set(
+		activities.map(a => `${a.start_time.slice(0, 10)}:${a.activity_type}`)
+	));
+
+	function isWorkoutDone(entry: CalendarEntry): boolean {
+		if (!entry.sport_type) return false;
+		// trail_running activities match running workouts too
+		if (entry.sport_type === 'running') {
+			return activityDaySport.has(`${entry.date}:running`)
+				|| activityDaySport.has(`${entry.date}:trail_running`);
+		}
+		return activityDaySport.has(`${entry.date}:${entry.sport_type}`);
+	}
+
+	// Future scheduled workouts (only workouts, not activities/events, exclude done)
 	const scheduledRows = $derived(
 		sorted
-			.filter(c => c.item_type !== 'event' && c.date >= todayStr)
+			.filter(c => c.item_type === 'workout' && c.date >= todayStr && !isWorkoutDone(c))
 			.map((c): Row => ({ kind: 'scheduled', id: c.id, date: c.date, entry: c }))
 	);
 
