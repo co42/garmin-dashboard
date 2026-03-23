@@ -18,18 +18,18 @@
 
 	const bars = $derived([
 		{
-			label: 'Aero High',
-			value: status.monthly_load_aerobic_high,
-			min: status.monthly_load_aerobic_high_target_min,
-			max: status.monthly_load_aerobic_high_target_max,
-			color: LOAD_COLORS.aeroHigh,
-		},
-		{
 			label: 'Aero Low',
 			value: status.monthly_load_aerobic_low,
 			min: status.monthly_load_aerobic_low_target_min,
 			max: status.monthly_load_aerobic_low_target_max,
 			color: LOAD_COLORS.aeroLow,
+		},
+		{
+			label: 'Aero High',
+			value: status.monthly_load_aerobic_high,
+			min: status.monthly_load_aerobic_high_target_min,
+			max: status.monthly_load_aerobic_high_target_max,
+			color: LOAD_COLORS.aeroHigh,
 		},
 		{
 			label: 'Anaerobic',
@@ -75,16 +75,17 @@
 					<Tip text={barTips[bar.label]}>
 						<span class="text-xs font-medium text-text-secondary">{bar.label}</span>
 					</Tip>
-					<Tip text="Shaded band = target range ({bar.min}–{bar.max}). Garmin computes these from your training history. In range = balanced.">
+					<Tip text="Target: {bar.min}–{bar.max}. Garmin computes this from your training history. In range = balanced.">
 						<span class="num text-xs font-medium" style="color: {deltaColor(bar.value, bar.min, bar.max)}">
-							{Math.round(bar.value)} · {delta(bar.value, bar.min, bar.max)}
+							{Math.round(bar.value)} <span class="text-text-dim">/ {bar.min}–{bar.max}</span> · {delta(bar.value, bar.min, bar.max)}
 						</span>
 					</Tip>
 				</div>
-				<div class="relative h-5 rounded bg-card-border">
-					<div class="absolute top-0 h-full rounded opacity-30" style="left: {zoneLeft}%; width: {zoneWidth}%; background: {bar.color};"></div>
-					<div class="absolute top-0 h-full rounded opacity-70" style="left: {zoneLeft}%; width: {zoneWidth}%; border: 2px solid {bar.color};"></div>
-					<div class="absolute left-0 top-0 h-full rounded transition-all" style="width: {valueWidth}%; background: {bar.color}; opacity: 0.8;"></div>
+				<div class="relative h-5 rounded bg-card-border" title="Target: {bar.min}–{bar.max} · Current: {Math.round(bar.value)}">
+					<div class="absolute top-0 h-full rounded" style="left: {zoneLeft}%; width: {zoneWidth}%; background: repeating-linear-gradient(120deg, {bar.color}15 0px, {bar.color}15 3px, transparent 3px, transparent 7px);"></div>
+					<div class="absolute left-0 top-0 h-full rounded transition-all" style="width: {valueWidth}%; background: {bar.color}; opacity: 0.7;"></div>
+					<div class="absolute top-0 z-10 h-full" style="left: {zoneLeft}%; width: 1.5px; background: {C.text}; opacity: 0.5;"></div>
+					<div class="absolute top-0 z-10 h-full" style="left: {zoneLeft + zoneWidth}%; width: 1.5px; background: {C.text}; opacity: 0.5;"></div>
 				</div>
 			</div>
 		{/each}

@@ -28,7 +28,8 @@
 	let chartEl: HTMLDivElement;
 
 	const zoneTotals = $derived(() => {
-		const recent = activities.slice(0, 20);
+		const cutoff = Date.now() - 30 * 86400000;
+		const recent = activities.filter(a => new Date(a.start_time).getTime() >= cutoff);
 		const zones = [0, 0, 0, 0, 0];
 		for (const a of recent) {
 			zones[0] += a.hr_time_in_zone_1 ?? 0;
@@ -134,7 +135,7 @@
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full">
-	<Tip text={"HR zone distribution from your last 20 runs.\nBased on Seiler's polarized training model.\n\nIdeal: ~80% Z1–Z2 (easy), ~15% Z4–Z5 (hard), < 10% Z3.\nNot a Garmin metric — computed from your HR zone data."}>
+	<Tip text={"HR zone distribution from the last 30 days.\nBased on Seiler's polarized training model.\n\nIdeal: ~80% Z1–Z2 (easy), ~15% Z4–Z5 (hard), < 10% Z3.\nNot a Garmin metric — computed from your HR zone data."}>
 		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartPieSlice size={14} weight="bold" /> Training Polarization</h2>
 	</Tip>
 	<div bind:this={chartEl} class="h-[140px] w-full"></div>

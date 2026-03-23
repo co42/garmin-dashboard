@@ -61,6 +61,7 @@
 			},
 			yAxis: {
 				type: 'value',
+				min: (v: { min: number }) => Math.floor(v.min - 3),
 				axisLine: { show: false },
 				axisLabel: CHART_AXIS.axisLabel,
 				splitLine: CHART_AXIS.splitLine,
@@ -72,9 +73,9 @@
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					z: 1,
 				},
-				// Baseline corridor lower (hidden from legend)
+				// Baseline corridor lower (same name = linked toggle in legend)
 				{
-					type: 'line', name: 'Baseline lower', data: corridorLow, smooth: true, symbol: 'none',
+					type: 'line', name: 'Baseline', data: corridorLow, smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					z: 1,
 				},
