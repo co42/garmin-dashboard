@@ -19,14 +19,14 @@ export function formatDistance(meters: number): string {
 }
 
 export function formatDate(dateStr: string): string {
-	const d = new Date(dateStr);
-	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
+	return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 export function formatDateTime(dateStr: string): string {
-	const d = new Date(dateStr);
-	return d.toLocaleDateString('en-US', {
-		month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+	const d = new Date(dateStr.replace(' ', 'T'));
+	return d.toLocaleDateString('en-GB', {
+		day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
 	});
 }
 

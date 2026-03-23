@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CalendarEntry, WorkoutStep, Activity } from '$lib/types.js';
+	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
 	import FlagCheckered from 'phosphor-svelte/lib/FlagCheckered';
@@ -16,31 +17,10 @@
 
 	// ── Week boundaries (Monday-based) ──────────────────────────────────────
 
-	function getMonday(d: Date): Date {
-		const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-		const day = dt.getDay();
-		dt.setDate(dt.getDate() - (day === 0 ? 6 : day - 1));
-		return dt;
-	}
-
-	function toDateStr(d: Date): string {
-		const y = d.getFullYear();
-		const m = String(d.getMonth() + 1).padStart(2, '0');
-		const day = String(d.getDate()).padStart(2, '0');
-		return `${y}-${m}-${day}`;
-	}
-
-	const now = new Date();
-	const todayStr = toDateStr(now);
-	const thisMonday = getMonday(now);
-	const nextMonday = new Date(thisMonday);
-	nextMonday.setDate(nextMonday.getDate() + 7);
-	const nextSunday = new Date(nextMonday);
-	nextSunday.setDate(nextSunday.getDate() + 6);
-
-	const thisWeekStr = toDateStr(thisMonday);
-	const nextWeekStr = toDateStr(nextMonday);
-	const cutoffStr = toDateStr(new Date(nextSunday.getTime() + 86400000));
+	const todayStr = today();
+	const thisWeekStr = weekMonday(todayStr);
+	const nextWeekStr = addDays(thisWeekStr, 7);
+	const cutoffStr = addDays(thisWeekStr, 14);
 
 	// ── Unified row type ────────────────────────────────────────────────────
 
@@ -122,18 +102,17 @@
 	}
 
 	function dateLabel(dateStr: string): string {
-		const d = new Date(dateStr + 'T00:00:00');
-		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-		const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - today.getTime()) / 86400000);
+		const diff = daysBetween(todayStr, dateStr);
 		const jTag = diff === 0 ? 'J' : diff > 0 ? `J+${diff}` : `J${diff}`;
+		// Display formatting uses local parse — safe here since it's only for labels
+		const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
 		const wk = d.toLocaleDateString('en-GB', { weekday: 'short' });
 		const dm = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 		return `${wk} ${dm} (${jTag})`;
 	}
 
-	function daysUntil(dateStr: string): number {
-		const d = new Date(dateStr + 'T00:00:00');
-		return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86400000);
+	function daysUntilDate(dateStr: string): number {
+		return daysBetween(todayStr, dateStr);
 	}
 
 	function fmtDist(m: number): string {
@@ -261,7 +240,7 @@
 {#snippet rowCard(row: Row)}
 	<div class="rounded-lg bg-card px-4 py-3">
 		{#if row.kind === 'event'}
-			{@const days = daysUntil(row.date)}
+			{@const days = daysUntilDate(row.date)}
 			<div class="flex items-center gap-2.5">
 				<span class="shrink-0 text-text-dim"><FlagCheckered size={16} weight="fill" /></span>
 				<div class="min-w-0 flex-1">

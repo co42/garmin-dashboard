@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { DailyTrainingStatus, HillScore, EnduranceScore } from '$lib/types.js';
 	import { AXES, AXIS_ORDER, AXIS_COLORS, PROFILE_LABEL, normalize, estimate5kFromVo2, computeBalance } from '$lib/profile.js';
+	import { weekMonday, utcDate } from '$lib/dates.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -13,26 +14,19 @@
 	let { statusHistory, hillScoreHistory, enduranceScoreHistory }: Props = $props();
 	let chartEl: HTMLDivElement;
 
-	function getWeekKey(dateStr: string): string {
-		const d = new Date(dateStr + 'T00:00:00');
-		const day = d.getDay();
-		d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-	}
-
 	const weeklyData = $derived(() => {
 		const weekStatus = new Map<string, DailyTrainingStatus>();
 		for (const s of statusHistory) {
-			weekStatus.set(getWeekKey(s.date), s);
+			weekStatus.set(weekMonday(s.date), s);
 		}
 
 		const weekHill = new Map<string, HillScore>();
 		for (const h of hillScoreHistory) {
-			weekHill.set(getWeekKey(h.date), h);
+			weekHill.set(weekMonday(h.date), h);
 		}
 		const weekEndurance = new Map<string, EnduranceScore>();
 		for (const e of enduranceScoreHistory) {
-			weekEndurance.set(getWeekKey(e.date), e);
+			weekEndurance.set(weekMonday(e.date), e);
 		}
 
 		const weeks = [...weekStatus.keys()].sort();
@@ -43,10 +37,11 @@
 			const bal = computeBalance(s);
 			const hill = weekHill.get(week);
 			const endur = weekEndurance.get(week);
+			const dt = utcDate(week);
 
 			return {
 				week,
-				label: new Date(week + 'T00:00:00').toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+				label: `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`,
 				vo2max: normalize('vo2max', vo2),
 				speed: normalize('speed', estimate5kFromVo2(vo2)),
 				endurance: endur ? normalize('endurance', endur.score) : null,

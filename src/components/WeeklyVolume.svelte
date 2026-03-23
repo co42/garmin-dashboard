@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Activity } from '$lib/types.js';
+	import { weekMonday, utcDate, fmtDateISO, addDays } from '$lib/dates.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -10,17 +11,10 @@
 	let { activities }: Props = $props();
 	let chartEl: HTMLDivElement;
 
-	function getWeekKey(dateStr: string): string {
-		const d = new Date(dateStr + 'T00:00:00');
-		const day = d.getDay();
-		d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-	}
-
 	const weeklyData = $derived(() => {
 		const weeks = new Map<string, { km: number; runs: number }>();
 		for (const a of activities) {
-			const week = getWeekKey(a.start_time);
+			const week = weekMonday(a.start_time);
 			const existing = weeks.get(week) ?? { km: 0, runs: 0 };
 			existing.km += a.distance_meters / 1000;
 			existing.runs++;
@@ -30,12 +24,13 @@
 		const sorted = [...weeks.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 		if (sorted.length === 0) return [];
 
+		// Fill gaps so weeks with 0 runs still show on the chart
 		const result: { week: string; km: number; runs: number }[] = [];
-		const start = new Date(sorted[0][0] + 'T00:00:00');
-		const end = new Date(sorted[sorted.length - 1][0] + 'T00:00:00');
+		const start = utcDate(sorted[0][0]);
+		const end = utcDate(sorted[sorted.length - 1][0]);
 
-		for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-			const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+		for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 7)) {
+			const key = fmtDateISO(d);
 			const data = weeks.get(key) ?? { km: 0, runs: 0 };
 			result.push({ week: key, ...data });
 		}
@@ -50,7 +45,10 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 
 		const data = weeklyData();
-		const weeks = data.map(d => new Date(d.week + 'T00:00:00').toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }));
+		const weeks = data.map(d => {
+			const dt = utcDate(d.week);
+			return `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`;
+		});
 		const kms = data.map(d => Math.round(d.km * 10) / 10);
 		const runs = data.map(d => d.runs);
 
