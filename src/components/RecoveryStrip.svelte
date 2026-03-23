@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { BodyBattery, StressDay, SleepScoreDay, HeartRateDay } from '$lib/types.js';
+	import { C } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -15,21 +16,21 @@
 	const latestHr = $derived(heartRate.length > 0 ? heartRate[heartRate.length - 1] : null);
 
 	function bbColor(val: number): string {
-		if (val >= 60) return '#22c55e';
-		if (val >= 30) return '#f59e0b';
-		return '#ef4444';
+		if (val >= 60) return C.green;
+		if (val >= 30) return C.amber;
+		return C.red;
 	}
 
 	function sleepColor(score: number): string {
-		if (score >= 80) return '#22c55e';
-		if (score >= 60) return '#f59e0b';
-		return '#ef4444';
+		if (score >= 80) return C.green;
+		if (score >= 60) return C.amber;
+		return C.red;
 	}
 
 	function stressLabel(avg: number): { text: string; color: string } {
-		if (avg <= 25) return { text: 'Low', color: '#22c55e' };
-		if (avg <= 50) return { text: 'Medium', color: '#f59e0b' };
-		return { text: 'High', color: '#ef4444' };
+		if (avg <= 25) return { text: 'Low', color: C.green };
+		if (avg <= 50) return { text: 'Medium', color: C.amber };
+		return { text: 'High', color: C.red };
 	}
 
 	function rhrTrend(): string {
@@ -60,7 +61,7 @@
 				<span class="text-[10px] font-medium uppercase text-text-dim">Sleep Score</span>
 			</Tip>
 				<p class="num text-xl font-bold" style="color: {sleepColor(latestSleep.score)}">{latestSleep.score}</p>
-			<p class="text-[10px] text-text-dim">{new Date(latestSleep.date).toLocaleDateString('en-GB')}</p>
+			<p class="num text-[10px] text-text-dim">{new Date(latestSleep.date).toLocaleDateString('en-GB')}</p>
 		</div>
 	{/if}
 

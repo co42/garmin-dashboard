@@ -3,6 +3,8 @@
 	import type { DailyTrainingStatus, HillScore, EnduranceScore } from '$lib/types.js';
 	import { AXES, AXIS_ORDER, AXIS_COLORS, PROFILE_LABEL, normalize, estimate5kFromVo2, computeBalance } from '$lib/profile.js';
 	import { weekMonday, utcDate } from '$lib/dates.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
+	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -91,11 +93,9 @@
 		_chart.setOption({
 			grid: { top: 35, right: 16, bottom: 30, left: 35 },
 			tooltip: {
+				...CHART_TOOLTIP,
 				trigger: 'axis',
-				confine: true,
-				backgroundColor: '#1e1e2a',
-				borderColor: '#2a2a3a',
-				textStyle: { color: '#e8e8ed', fontSize: 11 },
+				textStyle: { color: C.text, fontSize: 11 },
 				formatter: (params: any) => {
 					if (!Array.isArray(params) || params.length === 0) return '';
 					const idx = params[0].dataIndex;
@@ -110,7 +110,7 @@
 							if (prev != null) {
 								const d = p.value - prev;
 								const sign = d > 0 ? '+' : '';
-								const color = d > 0 ? '#22c55e' : d < 0 ? '#ef4444' : '#555568';
+								const color = d > 0 ? C.green : d < 0 ? C.red : C.textDim;
 								delta = ` <span style="color:${color};font-size:10px">${sign}${d}</span>`;
 							}
 						}
@@ -122,23 +122,19 @@
 			legend: {
 				data: AXIS_ORDER.map(key => ({ name: AXES[key].name, itemStyle: { color: AXIS_COLORS[key] } })),
 				top: 4,
-				textStyle: { color: '#8888a0', fontSize: 10 },
+				textStyle: { color: C.textSecondary, fontSize: 10 },
 				itemWidth: 12,
 				itemHeight: 8,
 			},
 			xAxis: {
-				type: 'category',
-				data: labels,
-				axisLine: { lineStyle: { color: '#2a2a3a' } },
-				axisLabel: { color: '#555568', fontSize: 10 },
+				type: 'category', data: labels,
+				...CHART_AXIS,
 			},
 			yAxis: {
-				type: 'value',
-				min: 0,
-				max: 100,
+				type: 'value', min: 0, max: 100,
 				axisLine: { show: false },
-				axisLabel: { color: '#555568', fontSize: 10 },
-				splitLine: { lineStyle: { color: '#1e1e2a' } },
+				axisLabel: CHART_AXIS.axisLabel,
+				splitLine: CHART_AXIS.splitLine,
 			},
 			series: AXIS_ORDER.map(key => makeSeries(key, allSeries[key])),
 		});
@@ -150,7 +146,7 @@
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
 	<Tip text={`Same 6 dimensions as the radar, plotted weekly.\nAll values on the same 0–100 scale (${PROFILE_LABEL}).\nPolarization uses a rolling 4-week window.`}>
-		<h2 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-secondary">Profile Trend</h2>
+		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
 	</Tip>
 	<div bind:this={chartEl} class="flex-1 min-h-[200px] w-full"></div>
 </div>

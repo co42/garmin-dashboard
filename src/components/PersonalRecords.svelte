@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { PersonalRecord } from '$lib/types.js';
 	import { formatTime, formatDate, formatDistance } from '$lib/format.js';
+	import { C } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
+	import Trophy from 'phosphor-svelte/lib/Trophy';
 
 	interface Props {
 		records: PersonalRecord[];
@@ -36,7 +38,7 @@
 
 <div class="rounded-lg bg-card p-4">
 	<Tip text="Your all-time best performances. Records set in the last 30 days are highlighted. These only update when you beat a previous best during an activity.">
-		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Personal Records</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Trophy size={14} weight="bold" /> Personal Records</h2>
 	</Tip>
 
 	{#if displayRecords.length === 0}
@@ -47,10 +49,10 @@
 				{@const recent = isRecent(record.date)}
 				<div class="rounded bg-card-border/50 px-3 py-2" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
 					<span class="text-[10px] font-semibold uppercase text-text-dim">{RECORD_TYPES[record.type_id].label}</span>
-					<p class="text-sm font-bold text-text">{formatValue(record)}</p>
+					<p class="num text-sm font-bold text-text">{formatValue(record)}</p>
 					<p class="text-[10px] text-text-secondary">
 						{formatDate(record.date)}
-						{#if recent}<span style="color: #22c55e"> NEW</span>{/if}
+						{#if recent}<span style="color: {C.green}"> NEW</span>{/if}
 					</p>
 				</div>
 			{/each}

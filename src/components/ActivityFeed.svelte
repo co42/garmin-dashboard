@@ -1,7 +1,15 @@
 <script lang="ts">
 	import type { Activity, HrZone } from '$lib/types.js';
 	import { formatDistance } from '$lib/format.js';
+	import { C, ZONE_COLORS } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
+	import ListBullets from 'phosphor-svelte/lib/ListBullets';
+	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
+	import Mountains from 'phosphor-svelte/lib/Mountains';
+	import PersonSimpleBike from 'phosphor-svelte/lib/PersonSimpleBike';
+	import PersonSimpleSwim from 'phosphor-svelte/lib/PersonSimpleSwim';
+	import PersonSimpleHike from 'phosphor-svelte/lib/PersonSimpleHike';
+	import Barbell from 'phosphor-svelte/lib/Barbell';
 
 	interface Props {
 		activities: Activity[];
@@ -16,13 +24,13 @@
 	}
 
 	function badgeColor(label: string | null): string {
-		if (!label) return '#555568';
+		if (!label) return C.textDim;
 		const l = label.toUpperCase();
-		if (l.includes('TEMPO') || l.includes('THRESHOLD')) return '#f59e0b';
-		if (l.includes('INTERVAL') || l.includes('SPEED') || l.includes('VO2MAX')) return '#ef4444';
-		if (l.includes('RECOVERY') || l.includes('BASE')) return '#14b8a6';
-		if (l.includes('LONG')) return '#3b82f6';
-		return '#22c55e';
+		if (l.includes('TEMPO') || l.includes('THRESHOLD')) return C.amber;
+		if (l.includes('INTERVAL') || l.includes('SPEED') || l.includes('VO2MAX')) return C.red;
+		if (l.includes('RECOVERY') || l.includes('BASE')) return C.teal;
+		if (l.includes('LONG')) return C.blue;
+		return C.green;
 	}
 
 	function formatTELabel(label: string | null): string {
@@ -38,7 +46,7 @@
 		return `${m}:${s.toString().padStart(2, '0')}`;
 	}
 
-	const ZONE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7'];
+	// ZONE_COLORS imported from $lib/colors.js
 
 	// Color load relative to the median load across all activities
 	// Below median = easy (green), around median = moderate (amber), well above = hard (red)
@@ -49,13 +57,13 @@
 	});
 
 	function loadColor(load: number | null): string {
-		if (load == null) return '#555568';
+		if (load == null) return C.textDim;
 		const med = medianLoad();
 		const ratio = load / med;
-		if (ratio < 0.7) return '#3b82f6';   // easy session (blue, like Z1-Z2)
-		if (ratio < 1.0) return '#22c55e';    // moderate (green, normal)
-		if (ratio < 1.4) return '#f59e0b';    // hard (amber, above your usual)
-		return '#ef4444';                      // very hard (red, significantly above usual)
+		if (ratio < 0.7) return C.blue;       // easy session
+		if (ratio < 1.0) return C.green;      // moderate
+		if (ratio < 1.4) return C.amber;      // hard
+		return C.red;                          // very hard
 	}
 
 	function zoneData(a: Activity): { pcts: number[]; total: number } {
@@ -92,7 +100,7 @@
 </script>
 
 <div class="rounded-lg bg-card p-4">
-	<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Recent Activities</h2>
+	<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Recent Activities</h2>
 
 	<table class="w-full text-sm">
 		<thead>
@@ -121,7 +129,20 @@
 					<td class="py-2 pr-3 text-text-secondary whitespace-nowrap text-xs num">{fmtDate(activity.start_time)}</td>
 					<td class="py-2 pr-3">
 						<Tip text={teTip(activity.training_effect_label)}>
-							<span class="inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style="background: {teColor}20; color: {teColor};">
+							<span class="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style="background: {teColor}20; color: {teColor};">
+								{#if activity.activity_type === 'trail_running'}
+									<Mountains size={12} weight="bold" />
+								{:else if activity.activity_type === 'cycling' || activity.activity_type === 'indoor_cycling'}
+									<PersonSimpleBike size={12} weight="bold" />
+								{:else if activity.activity_type === 'swimming' || activity.activity_type === 'open_water_swimming'}
+									<PersonSimpleSwim size={12} weight="bold" />
+								{:else if activity.activity_type === 'hiking'}
+									<PersonSimpleHike size={12} weight="bold" />
+								{:else if activity.activity_type === 'strength_training' || activity.activity_type === 'cardio_training'}
+									<Barbell size={12} weight="bold" />
+								{:else}
+									<PersonSimpleRun size={12} weight="bold" />
+								{/if}
 								{formatTELabel(activity.training_effect_label)}
 							</span>
 						</Tip>
@@ -144,7 +165,7 @@
 									{#each zones.pcts as pct, i}
 										<div
 											class="flex-1 rounded-t-sm"
-											style="height: {maxPct > 0 ? (pct / maxPct) * 100 : 0}%; background: {ZONE_COLORS[i]};"
+											style="height: {maxPct > 0 ? Math.max((pct / maxPct) * 100, pct > 0 ? 12 : 0) : 0}%; background: {ZONE_COLORS[i]}; {pct === 0 ? `background: ${ZONE_COLORS[i]}30; min-height: 2px;` : ''}"
 										></div>
 									{/each}
 								</div>

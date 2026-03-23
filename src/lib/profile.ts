@@ -118,7 +118,7 @@ export const AXIS_COLORS: Record<string, string> = {
 	endurance: '#3b82f6',
 	balance: '#f59e0b',
 	hillStr: '#a855f7',
-	hillEnd: '#14b8a6',
+	hillEnd: '#06b6d4',
 };
 
 // --- Normalization functions ---

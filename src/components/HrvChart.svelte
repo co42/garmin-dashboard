@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { HrvDay } from '$lib/types.js';
-	import { hrvStatusColor } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, hrvStatusColor } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
+	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 
 	interface Props {
 		hrv: HrvDay[];
@@ -36,12 +37,18 @@
 		}));
 
 		_chart.setOption({
-			grid: { top: 20, right: 16, bottom: 30, left: 40 },
+			grid: { top: 35, right: 16, bottom: 30, left: 40 },
+			legend: {
+				data: [
+					{ name: 'Weekly avg', itemStyle: { color: C.blue } },
+					{ name: 'Baseline', itemStyle: { color: C.green }, lineStyle: { type: 'dashed' } },
+				],
+				top: 4,
+				textStyle: { color: C.textSecondary, fontSize: 10 },
+			},
 			tooltip: {
+				...CHART_TOOLTIP,
 				trigger: 'axis',
-				confine: true,
-				backgroundColor: '#1e1e2a', borderColor: '#2a2a3a',
-				textStyle: { color: '#e8e8ed', fontSize: 12 },
 				formatter(params: any) {
 					const idx = params[0]?.dataIndex ?? 0;
 					return `${dates[idx]}<br/>Weekly avg: <b>${values[idx]}</b> ms<br/>Baseline: ${corridorLow[idx]}–${corridorHigh[idx]}<br/>Status: ${statuses[idx]}`;
@@ -49,33 +56,33 @@
 			},
 			xAxis: {
 				type: 'category', data: dates,
-				axisLine: { lineStyle: { color: '#2a2a3a' } },
-				axisLabel: { color: '#555568', fontSize: 10, interval: 6 },
+				...CHART_AXIS,
+				axisLabel: { ...CHART_AXIS.axisLabel, interval: 6 },
 			},
 			yAxis: {
 				type: 'value',
 				axisLine: { show: false },
-				axisLabel: { color: '#555568', fontSize: 10 },
-				splitLine: { lineStyle: { color: '#1e1e2a' } },
+				axisLabel: CHART_AXIS.axisLabel,
+				splitLine: CHART_AXIS.splitLine,
 			},
 			series: [
-				// Baseline corridor upper (dashed, same style as ACWR zone lines)
+				// Baseline corridor upper
 				{
-					type: 'line', data: corridorHigh, smooth: true, symbol: 'none',
-					lineStyle: { width: 2, type: 'dashed', color: '#22c55e' },
+					type: 'line', name: 'Baseline', data: corridorHigh, smooth: true, symbol: 'none',
+					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					z: 1,
 				},
-				// Baseline corridor lower (dashed)
+				// Baseline corridor lower (hidden from legend)
 				{
-					type: 'line', data: corridorLow, smooth: true, symbol: 'none',
-					lineStyle: { width: 2, type: 'dashed', color: '#22c55e' },
+					type: 'line', name: 'Baseline lower', data: corridorLow, smooth: true, symbol: 'none',
+					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					z: 1,
 				},
-				// Weekly avg line (same as ACWR main line)
+				// Weekly avg line
 				{
-					type: 'line', data: values, smooth: true, symbol: 'none',
-					lineStyle: { width: 2.5, color: '#3b82f6' },
-					itemStyle: { color: '#3b82f6' },
+					type: 'line', name: 'Weekly avg', data: values, smooth: true, symbol: 'none',
+					lineStyle: { width: 2.5, color: C.blue },
+					itemStyle: { color: C.blue },
 					z: 3,
 				},
 			],
@@ -88,7 +95,7 @@
 
 <div class="rounded-lg bg-card p-4">
 	<Tip text={"Heart Rate Variability — variation between heartbeats.\nHigher = more recovered nervous system.\n\nDots:\n• Green = balanced (within baseline)\n• Amber = unbalanced\n• Red = low\n\nDashed green lines = your personal baseline corridor."}>
-		<h2 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-secondary">HRV Trend</h2>
+		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Heartbeat size={14} weight="bold" /> HRV Trend</h2>
 	</Tip>
 	<div bind:this={chartEl} class="h-[260px] w-full"></div>
 </div>

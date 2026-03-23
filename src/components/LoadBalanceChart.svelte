@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { DailyTrainingStatus } from '$lib/types.js';
-	import { LOAD_COLORS } from '$lib/colors.js';
+	import { C, LOAD_COLORS } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
+	import Scales from 'phosphor-svelte/lib/Scales';
 
 	interface Props {
 		status: DailyTrainingStatus;
@@ -46,9 +47,9 @@
 	}
 
 	function deltaColor(value: number, min: number, max: number): string {
-		if (value > max) return '#f59e0b';
-		if (value < min) return '#ef4444';
-		return '#22c55e';
+		if (value > max) return C.amber;
+		if (value < min) return C.red;
+		return C.green;
 	}
 
 	function scaleMax(items: { value: number; max: number }[]): number {
@@ -60,7 +61,7 @@
 
 <div class="rounded-lg bg-card p-4 h-full">
 	<Tip text={"Your 4-week training load broken into three types.\nEach has a personalized target range.\n\nAll three in range = balanced training.\nShortages or surpluses indicate imbalanced training."}>
-		<h2 class="mb-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Load Balance</h2>
+		<h2 class="mb-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Scales size={14} weight="bold" /> Load Balance</h2>
 	</Tip>
 
 	<div class="space-y-5">

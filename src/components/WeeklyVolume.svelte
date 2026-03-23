@@ -2,7 +2,9 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { Activity } from '$lib/types.js';
 	import { weekMonday, utcDate, fmtDateISO, addDays } from '$lib/dates.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
+	import ChartBar from 'phosphor-svelte/lib/ChartBar';
 
 	interface Props {
 		activities: Activity[];
@@ -59,8 +61,8 @@
 			grid: { top: 35, right: 16, bottom: 30, left: 45 },
 			legend: { show: false },
 			tooltip: {
-				trigger: 'axis', confine: true, backgroundColor: '#1e1e2a', borderColor: '#2a2a3a',
-				textStyle: { color: '#e8e8ed', fontSize: 12 },
+				...CHART_TOOLTIP,
+				trigger: 'axis',
 				formatter: (params: any) => {
 					const p = params[0];
 					return `${p.name}<br/>Distance: <b>${p.value} km</b><br/>Runs: ${runs[p.dataIndex]}`;
@@ -68,15 +70,15 @@
 			},
 			xAxis: {
 				type: 'category', data: weeks,
-				axisLine: { lineStyle: { color: '#2a2a3a' } },
-				axisLabel: { color: '#555568', fontSize: 10, rotate: 30 },
+				...CHART_AXIS,
+				axisLabel: { ...CHART_AXIS.axisLabel, rotate: 30 },
 			},
 			yAxis: {
 				type: 'value', name: 'km',
-				nameTextStyle: { color: '#555568', fontSize: 10 },
+				nameTextStyle: { color: C.textDim, fontSize: 10 },
 				axisLine: { show: false },
-				axisLabel: { color: '#555568', fontSize: 10 },
-				splitLine: { lineStyle: { color: '#1e1e2a' } },
+				axisLabel: CHART_AXIS.axisLabel,
+				splitLine: CHART_AXIS.splitLine,
 			},
 			series: [
 				{
@@ -84,7 +86,7 @@
 					name: 'Weekly km',
 					data: kms.map(k => ({
 						value: k,
-						itemStyle: { color: k > 0 ? '#3b82f6' : '#1e1e2a', borderRadius: [3, 3, 0, 0] },
+						itemStyle: { color: k > 0 ? C.blue : C.hover, borderRadius: [3, 3, 0, 0] },
 					})),
 					barWidth: '65%',
 				},
@@ -93,7 +95,7 @@
 					name: `Avg ${Math.round(avgKm)} km`,
 					data: kms.map(() => Math.round(avgKm * 10) / 10),
 					symbol: 'none',
-					lineStyle: { width: 1, type: 'dashed', color: '#555568' },
+					lineStyle: { width: 1, type: 'dashed', color: C.textDim },
 					tooltip: { show: false },
 				},
 			],
@@ -106,7 +108,7 @@
 
 <div class="rounded-lg bg-card p-4">
 	<Tip text={"Weekly running distance over time.\nConsistency matters more than peak weeks.\n\nDashed line = your average.\nAim for ≤ 10% increase week-over-week.\nGaps (0 km weeks) directly cause ACWR to drop."}>
-		<h2 class="mb-2 text-xs font-medium uppercase tracking-wider text-text-secondary">Weekly Volume</h2>
+		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartBar size={14} weight="bold" /> Weekly Volume</h2>
 	</Tip>
 	<div bind:this={chartEl} class="h-[200px] w-full"></div>
 </div>

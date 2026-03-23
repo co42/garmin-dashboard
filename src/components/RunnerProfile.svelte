@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { HillScore, DailyTrainingStatus, EnduranceScore, RacePredictions } from '$lib/types.js';
 	import { AXES, AXIS_ORDER, normalize, computeBalance, estimate5kFromVo2 } from '$lib/profile.js';
+	import { C, CHART_TOOLTIP } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -114,21 +115,19 @@
 				indicator: rd.map(d => ({ name: d.axis, max: 100 })),
 				shape: 'polygon',
 				radius: '75%',
-				axisName: { color: '#8888a0', fontSize: 11 },
-				axisLine: { lineStyle: { color: '#2a2a3a' } },
-				splitLine: { lineStyle: { color: '#1e1e2a' } },
+				axisName: { color: C.textSecondary, fontSize: 11 },
+				axisLine: { lineStyle: { color: C.hover } },
+				splitLine: { lineStyle: { color: C.cardBorder } },
 				splitArea: { show: false },
 			},
 			tooltip: {
+				...CHART_TOOLTIP,
 				trigger: 'item',
-				confine: true,
-				backgroundColor: '#1e1e2a', borderColor: '#2a2a3a',
-				textStyle: { color: '#e8e8ed', fontSize: 12 },
 				formatter: () => rd.map((d, i) => {
 					const a = AXES[d.key];
 					const rawStr = d.raw ? ` (${d.raw})` : '';
 					const range = floors[i] !== peaks[i] ? ` · 3m: ${floors[i]}–${peaks[i]}` : '';
-					return `<b>${d.axis}: ${d.value}</b>${rawStr}${range}<br/><span style="color:#555568;font-size:10px">0: ${a.zeroLabel}<br/>100: ${a.hundredLabel}</span>`;
+					return `<b>${d.axis}: ${d.value}</b>${rawStr}${range}<br/><span style="color:${C.textDim};font-size:10px">0: ${a.zeroLabel}<br/>100: ${a.hundredLabel}</span>`;
 				}).join('<br/><br/>'),
 			},
 			series: [{
@@ -138,9 +137,9 @@
 					{
 						value: floors,
 						name: '3m low',
-						areaStyle: { color: 'rgba(239, 68, 68, 0.08)' },
-						lineStyle: { color: 'rgba(239, 68, 68, 0.5)', width: 1.5, type: 'dashed' },
-						itemStyle: { color: 'rgba(239, 68, 68, 0.5)' },
+						areaStyle: { color: 'rgba(239, 68, 68, 0.15)' },
+						lineStyle: { color: 'rgba(239, 68, 68, 0.6)', width: 1.5, type: 'dashed' },
+						itemStyle: { color: 'rgba(239, 68, 68, 0.6)' },
 						symbol: 'circle',
 						symbolSize: 3,
 						z: 0,
@@ -149,9 +148,9 @@
 					{
 						value: peaks,
 						name: '3m peak',
-						areaStyle: { color: 'rgba(59, 130, 246, 0.08)' },
-						lineStyle: { color: 'rgba(59, 130, 246, 0.35)', width: 1.5, type: 'dashed' },
-						itemStyle: { color: 'rgba(59, 130, 246, 0.35)' },
+						areaStyle: { color: 'rgba(59, 130, 246, 0.12)' },
+						lineStyle: { color: 'rgba(59, 130, 246, 0.5)', width: 1.5, type: 'dashed' },
+						itemStyle: { color: 'rgba(59, 130, 246, 0.5)' },
 						symbol: 'circle',
 						symbolSize: 3,
 						z: 1,
@@ -161,8 +160,8 @@
 						value: rd.map(d => d.value),
 						name: 'Current',
 						areaStyle: { color: 'transparent' },
-						lineStyle: { color: '#3b82f6', width: 2 },
-						itemStyle: { color: '#3b82f6' },
+						lineStyle: { color: C.blue, width: 2 },
+						itemStyle: { color: C.blue },
 						symbol: 'circle',
 						symbolSize: 6,
 						z: 2,

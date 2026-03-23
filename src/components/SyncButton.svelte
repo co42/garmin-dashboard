@@ -44,13 +44,13 @@
 	</button>
 
 	{#if result?.status === 'ok'}
-		<span class="text-[10px] text-status-green">Done in {(result.duration_ms / 1000).toFixed(1)}s</span>
+		<span class="num text-[10px] text-status-green">Done in {(result.duration_ms / 1000).toFixed(1)}s</span>
 	{:else if result?.status === 'error'}
 		<span class="text-[10px] text-status-red">Sync failed</span>
 	{/if}
 
 	{#if lastSyncedAt}
-		<span class="text-[10px] text-text-dim">Last sync: {timeAgo(lastSyncedAt)}</span>
+		<span class="num text-[10px] text-text-dim">Last sync: {timeAgo(lastSyncedAt)}</span>
 	{:else}
 		<span class="text-[10px] text-text-dim">No data — click Sync to start</span>
 	{/if}

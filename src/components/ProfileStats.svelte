@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { RacePredictions, PersonalRecord } from '$lib/types.js';
 	import { formatTime } from '$lib/format.js';
+	import { C } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
+	import Timer from 'phosphor-svelte/lib/Timer';
 
 	interface Props {
 		predictions: RacePredictions;
@@ -36,7 +38,7 @@
 
 <div>
 	<Tip text={"PR = your actual best time from a real run.\nPredicted = Garmin estimate from current VO2max — tracks current fitness, drops when you detrain."}>
-		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Race Times</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Timer size={14} weight="bold" /> Race Times</h2>
 	</Tip>
 
 	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -52,7 +54,7 @@
 						<span class="num text-xs text-text-secondary">{pace(pr.value, dist.km)}</span>
 					</div>
 					<div class="mt-0.5 text-[10px] text-text-dim">
-						{yearLabel(pr.date)}{#if recent}<span style="color: #22c55e"> NEW</span>{/if}
+						{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}
 					</div>
 				{:else}
 					<div class="text-sm text-text-dim">no PR</div>

@@ -17,6 +17,11 @@
 	import ActivityFeed from '../components/ActivityFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
 	import UpcomingCard from '../components/UpcomingCard.svelte';
+	import favicon from '$lib/assets/favicon.svg';
+	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
+	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
+	import Lightning from 'phosphor-svelte/lib/Lightning';
+	import ListBullets from 'phosphor-svelte/lib/ListBullets';
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
@@ -24,7 +29,10 @@
 
 <header class="sticky top-0 z-40 border-b border-card-border bg-bg/90 px-6 py-3 backdrop-blur">
 	<div class="mx-auto flex max-w-[1400px] items-center justify-between">
-		<h1 class="text-lg font-semibold tracking-tight text-text">Training</h1>
+		<h1 class="flex items-center gap-2 text-lg font-semibold tracking-tight">
+			<img src={favicon} alt="" width="24" height="24" class="rounded-md" />
+			<span class="font-mono font-bold bg-gradient-to-r from-status-green to-load-aero-high bg-clip-text text-transparent">Training</span>
+		</h1>
 		<SyncButton lastSyncedAt={d?.lastSyncedAt ?? null} />
 	</div>
 </header>
@@ -50,7 +58,7 @@
 
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
 		<Tip text={`Calibrated for a ${PROFILE_LABEL}.\nAll axes: 0 = average untrained, 100 = elite (top 0.1%).\nDashed blue = 3-month peak · Dashed red = 3-month low.`}>
-			<h2 class="mt-2 text-xs font-medium uppercase tracking-wider text-text-secondary">Runner Profile</h2>
+			<h2 class="mt-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><PersonSimpleRun size={14} weight="bold" /> Runner Profile</h2>
 		</Tip>
 		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
 			<RunnerProfile
@@ -74,7 +82,7 @@
 
 		<!-- ═══ BODY: How am I right now? ═══ -->
 		<Tip text={"Your current physical state.\nChanges daily based on sleep, stress, and recovery.\nAnswers: can I train today?"}>
-			<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Body</h2>
+			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Heartbeat size={14} weight="bold" /> Body</h2>
 		</Tip>
 
 		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
@@ -89,7 +97,7 @@
 
 		<!-- ═══ TRAINING: How is my training going? ═══ -->
 		<Tip text={"Your training load, balance, and trends over weeks.\nAnswers: am I training the right amount and mix?"}>
-			<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Training</h2>
+			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Lightning size={14} weight="bold" /> Training</h2>
 		</Tip>
 
 		<div class="grid gap-4 md:grid-cols-2">
@@ -105,7 +113,7 @@
 		<WeeklyVolume activities={d.activities} />
 
 		<!-- ═══ LOG ═══ -->
-		<h2 class="mt-4 text-xs font-medium uppercase tracking-wider text-text-secondary">Activity Log</h2>
+		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>
 
 		<ActivityFeed activities={d.activities} hrZones={d.hrZones} />
 

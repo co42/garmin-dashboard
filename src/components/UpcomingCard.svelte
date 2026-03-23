@@ -7,6 +7,7 @@
 	import Mountains from 'phosphor-svelte/lib/Mountains';
 	import CaretRight from 'phosphor-svelte/lib/CaretRight';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
+	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
 
 	interface Props {
 		calendar: CalendarEntry[];
@@ -324,7 +325,7 @@
 
 <div class="grid gap-4 md:grid-cols-2">
 	<div>
-		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">This Week</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><CalendarBlank size={14} weight="bold" /> This Week</h2>
 		{#if thisWeekRows.length > 0}
 			<div class="grid gap-3">
 				{#each thisWeekRows as row}
@@ -337,7 +338,7 @@
 	</div>
 
 	<div>
-		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Next Week</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><CalendarBlank size={14} weight="bold" /> Next Week</h2>
 		{#if nextWeekRows.length > 0}
 			<div class="grid gap-3">
 				{#each nextWeekRows as row}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { fitnessTrend } from '$lib/colors.js';
+	import { C, fitnessTrend } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -14,13 +14,13 @@
 		sparklineColor?: string;
 	}
 
-	let { label, value, subtitle, tip, trend, delta, sparkline, sparklineColor = '#8888a0' }: Props = $props();
+	let { label, value, subtitle, tip, trend, delta, sparkline, sparklineColor = C.textSecondary }: Props = $props();
 
 	let sparkEl = $state<HTMLDivElement>();
 
 	const trendInfo = $derived(trend != null ? fitnessTrend(trend) : null);
 	const deltaColor = $derived(
-		delta != null ? (delta < 0 ? '#22c55e' : delta > 0 ? '#ef4444' : '#8888a0') : null
+		delta != null ? (delta < 0 ? C.green : delta > 0 ? C.red : C.textSecondary) : null
 	);
 	const deltaText = $derived(
 		delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} yrs` : null
@@ -71,7 +71,7 @@
 			<span class="num text-sm font-medium" style="color: {deltaColor}">{deltaText}</span>
 		{/if}
 	</div>
-	<span class="text-xs text-text-secondary">{subtitle}</span>
+	<span class="num text-xs text-text-secondary">{subtitle}</span>
 	{#if sparkline && sparkline.length > 1}
 		<div bind:this={sparkEl} class="mt-2 h-[40px] w-full"></div>
 	{/if}

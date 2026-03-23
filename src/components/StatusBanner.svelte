@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DailyTrainingStatus, Readiness } from '$lib/types.js';
-	import { statusColor, acwrColor, fitnessTrend, readinessColor } from '$lib/colors.js';
+	import { C, statusColor, acwrColor, fitnessTrend, readinessColor } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
 
@@ -16,7 +16,7 @@
 	const acwrC = $derived(acwrColor(status.acwr_status));
 	const trend = $derived(fitnessTrend(status.fitness_trend));
 	const latest = $derived(readiness.post_activity ?? readiness.morning);
-	const latestColor = $derived(latest ? readinessColor(latest.score) : '#555568');
+	const latestColor = $derived(latest ? readinessColor(latest.score) : C.textDim);
 
 	function fmt(s: string): string {
 		return s.replace(/_\d+$/, '').split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
@@ -32,10 +32,10 @@
 	}
 
 	function feedbackColor(fb: string): string {
-		if (fb === 'VERY_GOOD' || fb === 'GOOD') return '#22c55e';
-		if (fb === 'FAIR') return '#f59e0b';
-		if (fb === 'POOR') return '#ef4444';
-		return '#555568';
+		if (fb === 'VERY_GOOD' || fb === 'GOOD') return C.green;
+		if (fb === 'FAIR') return C.amber;
+		if (fb === 'POOR') return C.red;
+		return C.textDim;
 	}
 
 </script>

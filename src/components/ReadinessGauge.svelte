@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Readiness } from '$lib/types.js';
-	import { readinessColor } from '$lib/colors.js';
+	import { C, readinessColor } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
+	import Gauge from 'phosphor-svelte/lib/Gauge';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -52,14 +53,14 @@
 				radius: '90%',
 				progress: { show: true, width: 12, roundCap: true, itemStyle: { color } },
 				pointer: { show: false },
-				axisLine: { lineStyle: { width: 12, color: [[1, '#1e1e2a']] }, roundCap: true },
+				axisLine: { lineStyle: { width: 12, color: [[1, C.cardBorder]] }, roundCap: true },
 				axisTick: { show: false },
 				splitLine: { show: false },
 				axisLabel: { show: false },
 				title: { show: false },
 				detail: {
 					valueAnimation: true, fontSize: 28, fontWeight: 'bold',
-					color: '#e8e8ed', offsetCenter: [0, 0],
+					color: C.text, offsetCenter: [0, 0],
 				},
 				data: [{ value: entry.score }],
 			}],
@@ -70,15 +71,15 @@
 	});
 
 	function barColor(value: number): string {
-		if (value >= 80) return '#22c55e';
-		if (value >= 40) return '#f59e0b';
-		return '#ef4444';
+		if (value >= 80) return C.green;
+		if (value >= 40) return C.amber;
+		return C.red;
 	}
 </script>
 
 <div class="rounded-lg bg-card p-4">
 	<Tip text={"How ready is your body to train today? (0–100)\n\n70+ = push hard\n40–69 = moderate effort\n< 40 = rest\n\nComputed from HRV, sleep, recovery time, stress, and ACWR."}>
-		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Gauge size={14} weight="bold" /> Readiness</h2>
 	</Tip>
 
 	<div class="flex items-center gap-6">

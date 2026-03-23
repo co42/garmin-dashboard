@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { Readiness, DailyTrainingStatus } from '$lib/types.js';
-	import { readinessColor } from '$lib/colors.js';
+	import { C, readinessColor } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
+	import Watch from 'phosphor-svelte/lib/Watch';
 
 	interface Props {
 		readiness: Readiness;
@@ -38,25 +39,25 @@
 
 	function feedbackColor(fb: string): string {
 		switch (fb) {
-			case 'VERY_GOOD': return '#22c55e';
-			case 'GOOD': return '#22c55e';
-			case 'FAIR': return '#f59e0b';
-			case 'POOR': return '#ef4444';
-			default: return '#555568';
+			case 'VERY_GOOD': return C.green;
+			case 'GOOD': return C.green;
+			case 'FAIR': return C.amber;
+			case 'POOR': return C.red;
+			default: return C.textDim;
 		}
 	}
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full">
 	<Tip text={"Garmin's own feedback phrases — no interpretation added.\nStatus = VO2max trend × ACWR.\nReadiness factors show what's helping or hurting today."}>
-		<h2 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Garmin says</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Watch size={14} weight="bold" /> Garmin says</h2>
 	</Tip>
 
 	<!-- Readiness headline -->
 	<div class="mb-3 flex items-center gap-3">
 		<span class="num text-2xl font-bold" style="color: {color}">{entry.score}</span>
 		<div>
-			<span class="text-sm font-semibold text-text">{entry.level}</span>
+			<span class="num text-sm font-semibold text-text">{entry.level}</span>
 			<span class="text-sm text-text-secondary"> · {fmt(entry.feedback)}</span>
 		</div>
 		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(entry.recovery_time_minutes)}</span>
