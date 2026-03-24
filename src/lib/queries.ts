@@ -16,6 +16,7 @@ import type {
 	SleepScoreDay,
 	Activity,
 	ActivitySplit,
+	ActivityDetails,
 	PersonalRecord,
 	GearItem,
 	CalendarEntry,
@@ -131,16 +132,27 @@ export function loadDashboard(): DashboardData | null {
 	).all() as { data: string }[];
 	const activities = activityRows.map(r => JSON.parse(r.data) as Activity);
 
-	// Splits for last 5 activities (for pacing analysis)
+	// Splits for all displayed activities
 	const recentSplits: Record<number, ActivitySplit[]> = {};
-	const recentIds = activities.slice(0, 5).map(a => a.id);
-	for (const id of recentIds) {
+	for (const a of activities) {
 		const splitRows = db.prepare(
 			'SELECT data FROM activity_splits WHERE activity_id = ? ORDER BY split ASC'
-		).all(id) as { data: string }[];
+		).all(a.id) as { data: string }[];
 		if (splitRows.length > 0) {
-			recentSplits[id] = splitRows.map(r => JSON.parse(r.data) as ActivitySplit);
+			recentSplits[a.id] = splitRows.map(r => JSON.parse(r.data) as ActivitySplit);
 		}
+	}
+
+	// Activity details (polyline + timeseries)
+	const activityDetails: Record<number, ActivityDetails> = {};
+	const detailRows = db.prepare(
+		'SELECT activity_id, polyline, timeseries FROM activity_details'
+	).all() as { activity_id: number; polyline: string; timeseries: string }[];
+	for (const r of detailRows) {
+		activityDetails[r.activity_id] = {
+			polyline: JSON.parse(r.polyline),
+			timeseries: JSON.parse(r.timeseries),
+		};
 	}
 
 	// Computed
@@ -172,6 +184,7 @@ export function loadDashboard(): DashboardData | null {
 		enduranceScoreHistory,
 		activities,
 		recentSplits,
+		activityDetails,
 		records,
 		gear,
 		calendar,

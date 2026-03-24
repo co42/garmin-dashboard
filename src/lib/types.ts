@@ -203,6 +203,25 @@ export interface ActivitySplit {
 	duration_seconds: number;
 }
 
+// --- Activity Details (time-series + polyline) ---
+
+export interface ActivityDetailPoint {
+	dist: number;       // cumulative distance in meters
+	hr: number | null;
+	pace: number | null; // seconds per km (derived from speed)
+	elev: number | null; // elevation in meters
+	power: number | null;
+	cadence: number | null;
+	gap: number | null;  // grade adjusted pace seconds/km
+	lat: number | null;
+	lon: number | null;
+}
+
+export interface ActivityDetails {
+	polyline: [number, number][]; // [lat, lon][]
+	timeseries: ActivityDetailPoint[];
+}
+
 // --- Records ---
 
 export interface PersonalRecord {
@@ -287,6 +306,7 @@ export interface DashboardData {
 	// Activities
 	activities: Activity[];
 	recentSplits: Record<number, ActivitySplit[]>; // activity_id -> splits
+	activityDetails: Record<number, ActivityDetails>; // activity_id -> details
 
 	// Records & gear
 	records: PersonalRecord[];

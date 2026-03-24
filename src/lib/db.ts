@@ -72,6 +72,13 @@ CREATE TABLE IF NOT EXISTS weekly_endurance_score (
 	classification TEXT
 );
 
+CREATE TABLE IF NOT EXISTS activity_details (
+	activity_id INTEGER PRIMARY KEY,
+	polyline TEXT,
+	timeseries TEXT,
+	metric_keys TEXT
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	started_at TEXT NOT NULL DEFAULT (datetime('now')),

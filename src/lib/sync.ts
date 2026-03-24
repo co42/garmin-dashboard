@@ -162,6 +162,9 @@ export async function runSync(): Promise<SyncResult> {
 		const existingIds = new Set(
 			db.prepare('SELECT id FROM activities').all().map((r: any) => r.id)
 		);
+		const existingDetailIds = new Set(
+			db.prepare('SELECT activity_id FROM activity_details').all().map((r: any) => r.activity_id)
+		);
 		const newActivityIds: number[] = [];
 
 		const activityBatch = db.transaction(() => {
@@ -174,28 +177,53 @@ export async function runSync(): Promise<SyncResult> {
 		});
 		activityBatch();
 
-		// Phase 5: Fetch splits for new activities (parallel, batched)
+		// Phase 5: Fetch splits + details for new activities (parallel, batched)
 		const upsertSplit = db.prepare(
 			`INSERT INTO activity_splits (activity_id, split, data) VALUES (?, ?, ?)
 			 ON CONFLICT(activity_id, split) DO UPDATE SET data = excluded.data`
 		);
+		const upsertDetail = db.prepare(
+			`INSERT INTO activity_details (activity_id, polyline, timeseries, metric_keys) VALUES (?, ?, ?, ?)
+			 ON CONFLICT(activity_id) DO UPDATE SET polyline = excluded.polyline, timeseries = excluded.timeseries, metric_keys = excluded.metric_keys`
+		);
 
-		// Fetch splits in batches of 5 to avoid overwhelming the API
+		// Also backfill details for existing activities that don't have them yet
+		const backfillIds = activities
+			.filter(a => !newActivityIds.includes(a.id) && !existingDetailIds.has(a.id))
+			.map(a => a.id);
+
+		// Fetch splits + details in batches of 5
 		let totalSplits = 0;
-		for (let i = 0; i < newActivityIds.length; i += 5) {
-			const batch = newActivityIds.slice(i, i + 5);
+		const allIdsToFetch = [...newActivityIds, ...backfillIds];
+		for (let i = 0; i < allIdsToFetch.length; i += 5) {
+			const batch = allIdsToFetch.slice(i, i + 5);
+			const isNewSet = new Set(newActivityIds);
 			const results = await Promise.all(
-				batch.map(id =>
-					garminSafe<ActivitySplit[]>(['activities', 'splits', String(id)], [])
-						.then(splits => ({ id, splits }))
-				)
+				batch.map(async id => {
+					const isNew = isNewSet.has(id);
+					const [splits, details] = await Promise.all([
+						isNew ? garminSafe<ActivitySplit[]>(['activities', 'splits', String(id)], []) : Promise.resolve([]),
+						garminSafe<any>(['activities', 'details', String(id)], null),
+					]);
+					return { id, splits, details, isNew };
+				})
 			);
 
 			const splitBatch = db.transaction(() => {
-				for (const { id, splits } of results) {
+				for (const { id, splits, details, isNew } of results) {
 					for (const s of splits) {
 						upsertSplit.run(id, s.split, JSON.stringify(s));
 						totalSplits++;
+					}
+					if (details) {
+						const polyline = extractPolyline(details);
+						const { timeseries, metricKeys } = extractTimeseries(details);
+						upsertDetail.run(
+							id,
+							JSON.stringify(polyline),
+							JSON.stringify(timeseries),
+							JSON.stringify(metricKeys),
+						);
 					}
 				}
 			});
@@ -274,6 +302,66 @@ export async function runSync(): Promise<SyncResult> {
 			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, activities: 0, splits: 0 },
 		};
 	}
+}
+
+function extractPolyline(details: any): [number, number][] {
+	const poly = details?.geoPolylineDTO?.polyline;
+	if (!Array.isArray(poly)) return [];
+	return poly
+		.filter((p: any) => p.lat != null && p.lon != null)
+		.map((p: any) => [p.lat, p.lon]);
+}
+
+function extractTimeseries(details: any): { timeseries: any[]; metricKeys: string[] } {
+	const descriptors: any[] = details?.metricDescriptors ?? [];
+	const metrics: any[] = details?.activityDetailMetrics ?? [];
+
+	// Build index map: key -> metricsIndex (= position in the metrics[] array)
+	// The API pre-decodes FIT data — values are already in real units (m/s, meters, bpm).
+	// The factor field is a display hint, NOT a scaling factor to apply.
+	const indexMap = new Map<string, number>();
+	for (const d of descriptors) {
+		indexMap.set(d.key, d.metricsIndex);
+	}
+
+	const idx = {
+		dist: indexMap.get('sumDistance'),
+		hr: indexMap.get('directHeartRate'),
+		speed: indexMap.get('directSpeed'),
+		elev: indexMap.get('directElevation'),
+		power: indexMap.get('directPower'),
+		cadence: indexMap.get('directDoubleCadence') ?? indexMap.get('directRunCadence'),
+		gap: indexMap.get('directGradeAdjustedSpeed'),
+		lat: indexMap.get('directLatitude'),
+		lon: indexMap.get('directLongitude'),
+	};
+
+	const timeseries = [];
+	for (const point of metrics) {
+		const m = point.metrics;
+		if (!m) continue;
+
+		const rawSpeed = idx.speed != null ? m[idx.speed] : null;
+		const rawGap = idx.gap != null ? m[idx.gap] : null;
+
+		// Speed already in m/s → pace in sec/km
+		const pace = rawSpeed && rawSpeed > 0 ? 1000 / rawSpeed : null;
+		const gapPace = rawGap && rawGap > 0 ? 1000 / rawGap : null;
+
+		timeseries.push({
+			dist: idx.dist != null && m[idx.dist] != null ? m[idx.dist] : 0,
+			hr: idx.hr != null ? m[idx.hr] : null,
+			pace: pace != null ? Math.round(pace * 10) / 10 : null,
+			elev: idx.elev != null ? m[idx.elev] : null,
+			power: idx.power != null ? m[idx.power] : null,
+			cadence: idx.cadence != null ? m[idx.cadence] : null,
+			gap: gapPace != null ? Math.round(gapPace * 10) / 10 : null,
+			lat: idx.lat != null ? m[idx.lat] : null,
+			lon: idx.lon != null ? m[idx.lon] : null,
+		});
+	}
+
+	return { timeseries, metricKeys: [...indexMap.keys()] };
 }
 
 function parseRawStep(step: any): WorkoutStep {
