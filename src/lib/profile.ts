@@ -26,6 +26,8 @@ export const PROFILE_LABEL = `${PROFILE_AGE}yo ${PROFILE_SEX}`;
 export interface AxisDef {
 	/** Display name on the radar / legend */
 	name: string;
+	/** Unit for raw value display */
+	unit: string;
 	/** Raw value corresponding to score 0 */
 	floor: number;
 	/** Raw value corresponding to score 100 */
@@ -36,89 +38,101 @@ export interface AxisDef {
 	hundredLabel: string;
 	/** One-line scale description for trend chart tooltip */
 	scaleTip: string;
-	/** Whether the raw scale is inverted (lower raw = higher score, e.g. pace) */
-	inverted?: boolean;
 }
 
 export const AXES: Record<string, AxisDef> = {
 	vo2max: {
-		// ACSM percentile tables for PROFILE_SEX, age range including PROFILE_AGE:
-		// Males 30-39: 50th percentile ≈ 40 mL/kg/min, 99.9th ≈ 65
+		// Percentile among runners (ACSM + runner-specific adjustments):
+		// ~5th pct runner ≈ 35, ~50th pct ≈ 48, ~99.5th pct ≈ 70
 		name: 'VO2max',
-		floor: 40,
-		ceil: 65,
-		zeroLabel: '40 mL/kg/min (untrained)',
-		hundredLabel: '65 (elite)',
-		scaleTip: '0 = 40 mL/kg/min (untrained) · 100 = 65 (elite)',
-	},
-	speed: {
-		// 5K race time for PROFILE_SEX ~PROFILE_AGE:
-		// Untrained ≈ 30:00 (1800s), elite ≈ 14:30 (870s)
-		// Inverted: faster (lower seconds) = higher score
-		name: 'Speed',
-		floor: 1800,
-		ceil: 870,
-		zeroLabel: '6:00 /km pace (untrained)',
-		hundredLabel: '2:54 /km pace (elite)',
-		scaleTip: '0 = 6:00 /km pace · 100 = 2:54 /km pace',
-		inverted: true,
+		unit: '',
+		floor: 35,
+		ceil: 70,
+		zeroLabel: '35 mL/kg/min (beginner)',
+		hundredLabel: '70 (elite)',
+		scaleTip: '0% = 35 mL/kg/min · 100% = 70',
 	},
 	endurance: {
 		// Garmin endurance score 0–10,000:
-		// Casual jogger ≈ 3,500. Elite threshold is 8,800+, using 9,500 as practical ceiling.
+		// ~5th pct ≈ 1,500 (new/casual), ~50th ≈ 5,500, ~99.5th ≈ 9,500
 		name: 'Endurance',
-		floor: 3500,
+		unit: '',
+		floor: 1500,
 		ceil: 9500,
-		zeroLabel: '3,500 (casual jogger)',
+		zeroLabel: '1,500 (casual)',
 		hundredLabel: '9,500 (elite)',
-		scaleTip: '0 = 3,500 (casual jogger) · 100 = 9,500 (elite)',
+		scaleTip: '0% = 1,500 · 100% = 9,500',
 	},
 	balance: {
-		// Garmin training load balance — how well your training mix matches target ranges
-		// for aerobic high, aerobic low, and anaerobic.
-		// Score: each of the 3 types contributes up to 33.3 points when in range.
-		// Out of range = scaled down based on distance from target.
-		// 100 = all three in range, 0 = all three completely off.
+		// Training load balance — how well your mix matches target ranges.
+		// 0 = all three types out of range, 100 = all in range.
 		name: 'Balance',
+		unit: '%',
 		floor: 0,
 		ceil: 100,
 		zeroLabel: 'all load types out of range',
 		hundredLabel: 'all load types in target range',
-		scaleTip: '0 = all out of range · 100 = all in target',
+		scaleTip: '0% = all out of range · 100% = all in target',
 	},
 	hillStr: {
 		// Garmin hill score — strength component (0–100):
-		// Untrained flat runner ≈ 10, elite mountain runner ≈ 90
+		// ~5th pct ≈ 5 (flat-only), ~50th ≈ 35, ~99.5th ≈ 90
 		name: 'Hill Str',
-		floor: 10,
+		unit: '',
+		floor: 5,
 		ceil: 90,
-		zeroLabel: '10 (flat runner)',
-		hundredLabel: '90 (mountain runner)',
-		scaleTip: '0 = 10 (flat runner) · 100 = 90 (mountain runner)',
+		zeroLabel: '5 (flat-only)',
+		hundredLabel: '90 (elite mountain)',
+		scaleTip: '0% = 5 · 100% = 90',
 	},
 	hillEnd: {
 		// Garmin hill score — endurance component (0–100):
 		// Same scale as strength
 		name: 'Hill End',
-		floor: 10,
+		unit: '',
+		floor: 5,
 		ceil: 90,
-		zeroLabel: '10 (no climbing)',
+		zeroLabel: '5 (no climbing)',
 		hundredLabel: '90 (elite climber)',
-		scaleTip: '0 = 10 (no climbing) · 100 = 90 (elite climber)',
+		scaleTip: '0% = 5 · 100% = 90',
+	},
+	hill: {
+		// Garmin hill score — overall composite (0–100):
+		name: 'Hill',
+		unit: '',
+		floor: 5,
+		ceil: 90,
+		zeroLabel: '5 (flat-only)',
+		hundredLabel: '90 (elite mountain)',
+		scaleTip: '0% = 5 · 100% = 90',
+	},
+	productivity: {
+		// % of productive days in rolling 30-day window
+		name: 'Productivity',
+		unit: '%',
+		floor: 0,
+		ceil: 100,
+		zeroLabel: 'no productive days',
+		hundredLabel: 'all days productive',
+		scaleTip: '0% = no productive days · 100% = all productive',
 	},
 };
 
-/** Canonical axis order — used by both radar and trend chart */
-export const AXIS_ORDER = ['vo2max', 'speed', 'endurance', 'balance', 'hillStr', 'hillEnd'] as const;
+/** Axis order for the trend chart (hill split into str/end) */
+export const AXIS_ORDER = ['vo2max', 'endurance', 'balance', 'hillStr', 'hillEnd'] as const;
+
+/** Axis order for the radar (hill as overall, + productivity) */
+export const RADAR_AXIS_ORDER = ['vo2max', 'endurance', 'balance', 'productivity', 'hill'] as const;
 
 /** Colors per axis — used by both charts */
 export const AXIS_COLORS: Record<string, string> = {
 	vo2max: '#22c55e',
-	speed: '#ef4444',
 	endurance: '#3b82f6',
 	balance: '#f59e0b',
 	hillStr: '#a855f7',
 	hillEnd: '#06b6d4',
+	hill: '#a855f7',
+	productivity: '#ec4899',
 };
 
 // --- Normalization functions ---
@@ -127,19 +141,40 @@ export const AXIS_COLORS: Record<string, string> = {
 export function normalize(axisKey: string, rawValue: number): number {
 	const axis = AXES[axisKey];
 	if (!axis) return 0;
-	if (axis.inverted) {
-		return Math.max(0, Math.min(100, Math.round(((axis.floor - rawValue) / (axis.floor - axis.ceil)) * 100)));
-	}
 	return Math.max(0, Math.min(100, Math.round(((rawValue - axis.floor) / (axis.ceil - axis.floor)) * 100)));
 }
 
+/** Format a raw value for display (with unit if applicable) */
+export function formatRaw(axisKey: string, rawValue: number): string {
+	const axis = AXES[axisKey];
+	if (!axis) return String(rawValue);
+	switch (axisKey) {
+		case 'vo2max': return rawValue.toFixed(1);
+		case 'endurance': return rawValue.toLocaleString();
+		case 'balance':
+		case 'productivity': return Math.round(rawValue) + '%';
+		case 'hillStr':
+		case 'hillEnd':
+		case 'hill': return String(Math.round(rawValue));
+		default: return String(rawValue);
+	}
+}
+
 /**
- * Estimate 5K time from VO2max using the ACSM relationship.
- * Used by the trend chart where we don't have per-week race predictions.
- * Linear interpolation: VO2max 40 → 1800s, VO2max 65 → 870s.
+ * Compute % of productive days in a 30-day window ending at `atDate`.
+ * "Productive" = status starts with PRODUCTIVE or PEAKING.
+ * Returns 0–100. Returns -1 if no data in the window.
  */
-export function estimate5kFromVo2(vo2: number): number {
-	return AXES.speed.floor - (vo2 - AXES.vo2max.floor) * ((AXES.speed.floor - AXES.speed.ceil) / (AXES.vo2max.ceil - AXES.vo2max.floor));
+export function computeProductivity(history: DailyTrainingStatus[], atDate?: string): number {
+	const endDate = atDate ?? new Date().toISOString().slice(0, 10);
+	const cutoff = new Date(new Date(endDate + 'T00:00:00Z').getTime() - 30 * 86400000).toISOString().slice(0, 10);
+	const window = history.filter(s => s.date >= cutoff && s.date <= endDate);
+	if (window.length === 0) return -1;
+	const productive = window.filter(s => {
+		const base = s.status.replace(/_\d+$/, '');
+		return base === 'PRODUCTIVE' || base === 'PEAKING';
+	}).length;
+	return Math.round((productive / window.length) * 100);
 }
 
 /**

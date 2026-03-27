@@ -2,6 +2,7 @@
 
 export interface DailyTrainingStatus {
 	date: string;
+	since_date: string;
 	acwr: number;
 	acwr_status: string;
 	acute_load: number;
@@ -116,6 +117,17 @@ export interface LactateThreshold {
 	speed_meters_per_second: number;
 }
 
+export interface UserSettings {
+	birth_date: string;
+	gender: string;
+	height_cm: number;
+	weight_kg: number;
+	lactate_threshold_hr: number;
+	vo2max_running: number;
+	sleep_time: string;
+	wake_time: string;
+}
+
 // --- HRV ---
 
 export interface HrvDay {
@@ -164,17 +176,23 @@ export interface Activity {
 	start_time: string;
 	distance_meters: number;
 	duration_seconds: number;
+	moving_duration: number | null;
 	avg_hr: number | null;
 	max_hr: number | null;
 	calories: number | null;
 	pace_min_km: string | null;
+	avg_pace: string | null;
 	training_effect_label: string | null;
 	activity_training_load: number | null;
 	aerobic_training_effect: number | null;
 	anaerobic_training_effect: number | null;
+	aerobic_training_effect_message: string | null;
+	anaerobic_training_effect_message: string | null;
 	elevation_gain: number | null;
 	elevation_loss: number | null;
 	avg_power: number | null;
+	max_power: number | null;
+	norm_power: number | null;
 	avg_stride_length: number | null;
 	avg_ground_contact_time: number | null;
 	avg_vertical_oscillation: number | null;
@@ -184,10 +202,24 @@ export interface Activity {
 	hr_time_in_zone_3: number | null;
 	hr_time_in_zone_4: number | null;
 	hr_time_in_zone_5: number | null;
+	power_time_in_zone_1: number | null;
+	power_time_in_zone_2: number | null;
+	power_time_in_zone_3: number | null;
+	power_time_in_zone_4: number | null;
+	power_time_in_zone_5: number | null;
 	difference_body_battery: number | null;
 	location_name: string | null;
 	vo2max_value: number | null;
 	avg_grade_adjusted_speed: number | null;
+	fastest_split_1000: number | null;
+	fastest_split_1609: number | null;
+	fastest_split_5000: number | null;
+	start_latitude: number | null;
+	start_longitude: number | null;
+	steps: number | null;
+	moderate_intensity_minutes: number | null;
+	vigorous_intensity_minutes: number | null;
+	workout_id: number | null;
 }
 
 export interface ActivitySplit {
@@ -195,12 +227,20 @@ export interface ActivitySplit {
 	pace: string;
 	pace_seconds?: number;
 	avg_hr: number;
+	max_hr: number | null;
 	elevation_gain: number;
 	elevation_loss: number;
 	avg_power: number;
+	norm_power: number | null;
 	avg_cadence: number;
+	avg_ground_contact_time: number | null;
+	avg_stride_length: number | null;
+	avg_vertical_oscillation: number | null;
+	avg_vertical_ratio: number | null;
 	distance_meters: number;
 	duration_seconds: number;
+	moving_duration_seconds: number | null;
+	calories: number | null;
 }
 
 // --- Activity Details (time-series + polyline) ---
@@ -292,6 +332,7 @@ export interface DashboardData {
 	hillScore: HillScore;
 	fitnessAge: FitnessAge;
 	lactateThreshold: LactateThreshold;
+	userSettings: UserSettings | null;
 	stress: StressDay;
 	bodyBattery: BodyBattery;
 
@@ -300,6 +341,7 @@ export interface DashboardData {
 	hrvHistory: HrvDay[];
 	heartRateHistory: HeartRateDay[];
 	sleepScoreHistory: SleepScoreDay[];
+	stressHistory: StressDay[];
 	hillScoreHistory: HillScore[];
 	enduranceScoreHistory: EnduranceScore[];
 

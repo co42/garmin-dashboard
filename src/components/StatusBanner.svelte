@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DailyTrainingStatus, Readiness } from '$lib/types.js';
-	import { C, statusColor, acwrColor, fitnessTrend, readinessColor } from '$lib/colors.js';
+	import { C, statusColor, acwrColor, fitnessTrend, readinessColor, readinessLabel } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
 
@@ -76,11 +76,11 @@
 
 		<!-- Right: Readiness + Recovery + Last run -->
 		<div class="ml-auto flex items-center gap-4">
-			<Tip text={"How ready is your body to train today? (0–100)\n\n70+ = push hard\n40–69 = moderate\n< 40 = rest" + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + readiness.morning.score : "")}>
+			<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor" + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + readiness.morning.score + "%" : "")}>
 				<div class="text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</span>
 					<p class="num text-xl font-bold">
-						<span style="color: {latestColor}">{latest?.score ?? '—'}</span>
+						<span style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</span>
 					</p>
 				</div>
 			</Tip>

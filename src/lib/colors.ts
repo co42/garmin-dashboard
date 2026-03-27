@@ -68,9 +68,19 @@ export function statusColor(status: string): string {
 }
 
 export function readinessColor(score: number): string {
-	if (score >= 80) return C.green;
-	if (score >= 40) return C.amber;
-	return C.red;
+	if (score >= 95) return C.purple;  // Prime
+	if (score >= 75) return C.blue;    // High
+	if (score >= 50) return C.green;   // Moderate
+	if (score >= 25) return C.orange;  // Low
+	return C.red;                      // Poor
+}
+
+export function readinessLabel(score: number): string {
+	if (score >= 95) return 'Prime';
+	if (score >= 75) return 'High';
+	if (score >= 50) return 'Moderate';
+	if (score >= 25) return 'Low';
+	return 'Poor';
 }
 
 export function acwrColor(status: string): string {

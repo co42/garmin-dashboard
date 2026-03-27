@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { DailyTrainingStatus, HillScore, EnduranceScore } from '$lib/types.js';
-	import { AXES, AXIS_ORDER, AXIS_COLORS, PROFILE_LABEL, normalize, estimate5kFromVo2, computeBalance } from '$lib/profile.js';
+	import { AXES, AXIS_ORDER, AXIS_COLORS, PROFILE_LABEL, normalize, formatRaw, computeBalance } from '$lib/profile.js';
 	import { weekMonday, utcDate } from '$lib/dates.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
 	import TrendUp from 'phosphor-svelte/lib/TrendUp';
@@ -11,46 +11,74 @@
 		statusHistory: DailyTrainingStatus[];
 		hillScoreHistory: HillScore[];
 		enduranceScoreHistory: EnduranceScore[];
+		daily?: boolean;
 	}
 
-	let { statusHistory, hillScoreHistory, enduranceScoreHistory }: Props = $props();
+	let { statusHistory, hillScoreHistory, enduranceScoreHistory, daily = false }: Props = $props();
 	let chartEl: HTMLDivElement;
 
-	const weeklyData = $derived(() => {
+	interface DataPoint {
+		key: string;
+		label: string;
+		vo2max: number;
+		endurance: number | null;
+		balance: number | null;
+		hillStr: number | null;
+		hillEnd: number | null;
+		rawVo2: number;
+		rawEndurance: number | null;
+		rawBalance: number | null;
+		rawHillStr: number | null;
+		rawHillEnd: number | null;
+	}
+
+	function buildPoint(key: string, label: string, s: DailyTrainingStatus, hill: HillScore | undefined, endur: EnduranceScore | undefined): DataPoint {
+		const vo2 = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
+		const bal = computeBalance(s);
+		return {
+			key, label,
+			vo2max: normalize('vo2max', vo2),
+			endurance: endur ? normalize('endurance', endur.score) : null,
+			balance: bal >= 0 ? bal : null,
+			hillStr: hill ? normalize('hillStr', hill.strength) : null,
+			hillEnd: hill ? normalize('hillEnd', hill.endurance) : null,
+			rawVo2: vo2,
+			rawEndurance: endur?.score ?? null,
+			rawBalance: bal >= 0 ? bal : null,
+			rawHillStr: hill?.strength ?? null,
+			rawHillEnd: hill?.endurance ?? null,
+		};
+	}
+
+	const chartData = $derived((): DataPoint[] => {
+		const hillByDate = new Map<string, HillScore>();
+		for (const h of hillScoreHistory) hillByDate.set(h.date, h);
+		const endurByDate = new Map<string, EnduranceScore>();
+		for (const e of enduranceScoreHistory) endurByDate.set(e.date, e);
+
+		if (daily) {
+			// Daily mode: one point per day from statusHistory
+			return statusHistory.map(s => {
+				const dt = utcDate(s.date);
+				const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`;
+				return buildPoint(s.date, label, s, hillByDate.get(s.date), endurByDate.get(s.date));
+			});
+		}
+
+		// Weekly mode: group by Monday, take last entry per week
+		const hillByWeek = new Map<string, HillScore>();
+		for (const h of hillScoreHistory) hillByWeek.set(weekMonday(h.date), h);
+		const endurByWeek = new Map<string, EnduranceScore>();
+		for (const e of enduranceScoreHistory) endurByWeek.set(weekMonday(e.date), e);
+
 		const weekStatus = new Map<string, DailyTrainingStatus>();
-		for (const s of statusHistory) {
-			weekStatus.set(weekMonday(s.date), s);
-		}
+		for (const s of statusHistory) weekStatus.set(weekMonday(s.date), s);
 
-		const weekHill = new Map<string, HillScore>();
-		for (const h of hillScoreHistory) {
-			weekHill.set(weekMonday(h.date), h);
-		}
-		const weekEndurance = new Map<string, EnduranceScore>();
-		for (const e of enduranceScoreHistory) {
-			weekEndurance.set(weekMonday(e.date), e);
-		}
-
-		const weeks = [...weekStatus.keys()].sort();
-
-		return weeks.map(week => {
+		return [...weekStatus.keys()].sort().map(week => {
 			const s = weekStatus.get(week)!;
-			const vo2 = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
-			const bal = computeBalance(s);
-			const hill = weekHill.get(week);
-			const endur = weekEndurance.get(week);
 			const dt = utcDate(week);
-
-			return {
-				week,
-				label: `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`,
-				vo2max: normalize('vo2max', vo2),
-				speed: normalize('speed', estimate5kFromVo2(vo2)),
-				endurance: endur ? normalize('endurance', endur.score) : null,
-				balance: bal >= 0 ? bal : null,
-				hillStr: hill ? normalize('hillStr', hill.strength) : null,
-				hillEnd: hill ? normalize('hillEnd', hill.endurance) : null,
-			};
+			const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`;
+			return buildPoint(week, label, s, hillByWeek.get(week), endurByWeek.get(week));
 		});
 	});
 
@@ -61,7 +89,7 @@
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 
-		const data = weeklyData();
+		const data = chartData();
 		const labels = data.map(d => d.label);
 
 		const makeSeries = (key: string, values: (number | null)[]) => ({
@@ -76,18 +104,28 @@
 			connectNulls: false,
 		});
 
-		// Pre-compute series arrays for delta calculation in tooltip
-		const valueMap: Record<string, (d: any) => number | null> = {
+		// Series values (normalized for y-axis)
+		const normalizedMap: Record<string, (d: DataPoint) => number | null> = {
 			vo2max: d => d.vo2max,
-			speed: d => d.speed,
 			endurance: d => d.endurance,
 			balance: d => d.balance,
 			hillStr: d => d.hillStr,
 			hillEnd: d => d.hillEnd,
 		};
-		const allSeries: Record<string, (number | null)[]> = {};
+		// Raw values for tooltips
+		const rawMap: Record<string, (d: DataPoint) => number | null> = {
+			vo2max: d => d.rawVo2,
+			endurance: d => d.rawEndurance,
+			balance: d => d.rawBalance,
+			hillStr: d => d.rawHillStr,
+			hillEnd: d => d.rawHillEnd,
+		};
+
+		const allNormalized: Record<string, (number | null)[]> = {};
+		const allRaw: Record<string, (number | null)[]> = {};
 		for (const key of AXIS_ORDER) {
-			allSeries[key] = data.map(valueMap[key]);
+			allNormalized[key] = data.map(normalizedMap[key]);
+			allRaw[key] = data.map(rawMap[key]);
 		}
 
 		_chart.setOption({
@@ -102,19 +140,23 @@
 					let html = `<b>${params[0].axisValueLabel}</b><br/>`;
 					for (const p of params) {
 						if (p.value == null) continue;
+						const key = AXIS_ORDER.find(k => AXES[k].name === p.seriesName);
+						if (!key) continue;
 						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>`;
+						const raw = allRaw[key]?.[idx];
+						const rawStr = raw != null ? formatRaw(key, raw) : '';
+						const pct = p.value;
 						let delta = '';
 						if (idx > 0) {
-							const key = AXIS_ORDER.find(k => AXES[k].name === p.seriesName);
-							const prev = key ? allSeries[key]?.[idx - 1] : null;
+							const prev = allNormalized[key]?.[idx - 1];
 							if (prev != null) {
-								const d = p.value - prev;
+								const d = pct - prev;
 								const sign = d > 0 ? '+' : '';
 								const color = d > 0 ? C.green : d < 0 ? C.red : C.textDim;
-								delta = ` <span style="color:${color};font-size:10px">${sign}${d}</span>`;
+								delta = ` <span style="color:${color};font-size:10px">${sign}${d}%</span>`;
 							}
 						}
-						html += `${dot}${p.seriesName}: <b>${p.value}</b>${delta}<br/>`;
+						html += `${dot}${p.seriesName}: <b>${rawStr}</b> <span style="color:${C.textDim}">(${pct}%)</span>${delta}<br/>`;
 					}
 					return html;
 				},
@@ -133,10 +175,10 @@
 			yAxis: {
 				type: 'value', min: 0, max: 100,
 				axisLine: { show: false },
-				axisLabel: CHART_AXIS.axisLabel,
+				axisLabel: { ...CHART_AXIS.axisLabel, formatter: (v: number) => `${v}%` },
 				splitLine: CHART_AXIS.splitLine,
 			},
-			series: AXIS_ORDER.map(key => makeSeries(key, allSeries[key])),
+			series: AXIS_ORDER.map(key => makeSeries(key, allNormalized[key])),
 		});
 
 		_ro = new ResizeObserver(() => _chart.resize());
@@ -145,7 +187,7 @@
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
-	<Tip text={`Same 6 dimensions as the radar, plotted weekly.\nAll values on the same 0–100 scale (${PROFILE_LABEL}).\nPolarization uses a rolling 4-week window.`}>
+	<Tip text={`5 dimensions plotted weekly.\nY-axis: normalized 0–100% (${PROFILE_LABEL}).\nTooltips show raw values.`}>
 		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
 	</Tip>
 	<div bind:this={chartEl} class="flex-1 min-h-[200px] w-full"></div>

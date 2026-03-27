@@ -25,6 +25,33 @@
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
+
+	// Global time window: 4 weeks (1M) or 13 weeks (3M), always starts on a Monday
+	let windowWeeks = $state(4);
+	const windowStart = $derived(() => {
+		const now = new Date();
+		const day = now.getUTCDay();
+		// Find this week's Monday
+		const monday = new Date(now);
+		monday.setUTCDate(now.getUTCDate() - (day === 0 ? 6 : day - 1));
+		// Go back N weeks from this Monday
+		monday.setUTCDate(monday.getUTCDate() - (windowWeeks * 7));
+		return monday.toISOString().slice(0, 10);
+	});
+
+	// Windowed slices for all time-series components
+	function filterWindow(dash: DashboardData) {
+		const start = windowStart();
+		return {
+			status: dash.statusHistory.filter(s => s.date >= start),
+			hrv: dash.hrvHistory.filter(h => h.date >= start),
+			heartRate: dash.heartRateHistory.filter(h => h.date >= start),
+			sleep: dash.sleepScoreHistory.filter(s => s.date >= start),
+			hillScore: dash.hillScoreHistory.filter(h => h.date >= start),
+			endurance: dash.enduranceScoreHistory.filter(e => e.date >= start),
+			activities: dash.activities.filter(a => a.start_time.slice(0, 10) >= start),
+		};
+	}
 </script>
 
 <header class="sticky top-0 z-40 border-b border-card-border bg-bg/90 px-6 py-3 backdrop-blur">
@@ -33,7 +60,19 @@
 			<img src={favicon} alt="" width="24" height="24" class="rounded-md" />
 			<span class="font-mono font-bold bg-gradient-to-r from-status-green to-load-aero-high bg-clip-text text-transparent">Training</span>
 		</h1>
-		<SyncButton lastSyncedAt={d?.lastSyncedAt ?? null} />
+		<div class="flex items-center gap-3">
+			<div class="flex rounded-md border border-card-border text-xs font-mono font-medium">
+				<button
+					class="cursor-pointer px-2.5 py-1 rounded-l-md transition-colors {windowWeeks === 4 ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => windowWeeks = 4}
+				>1M</button>
+				<button
+					class="cursor-pointer px-2.5 py-1 rounded-r-md transition-colors {windowWeeks === 13 ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => windowWeeks = 13}
+				>3M</button>
+			</div>
+			<SyncButton lastSyncedAt={d?.lastSyncedAt ?? null} />
+		</div>
 	</div>
 </header>
 
@@ -45,6 +84,7 @@
 		</div>
 	</div>
 {:else}
+	{@const w = filterWindow(d)}
 	<main class="mx-auto max-w-[1400px] p-4 md:p-6">
 	<div class="grid gap-4">
 
@@ -60,25 +100,29 @@
 		<Tip text={`Calibrated for a ${PROFILE_LABEL}.\nAll axes: 0 = average untrained, 100 = elite (top 0.1%).\nDashed blue = 3-month peak · Dashed red = 3-month low.`}>
 			<h2 class="mt-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><PersonSimpleRun size={14} weight="bold" /> Runner Profile</h2>
 		</Tip>
+		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
 			<RunnerProfile
 				hillScore={d.hillScore}
 				currentStatus={d.currentStatus}
 				enduranceScore={d.enduranceScore}
 				vo2max={d.currentStatus.vo2max_precise}
-				racePredictions={d.racePredictions}
-				statusHistory={d.statusHistory}
-				hillScoreHistory={d.hillScoreHistory}
-				enduranceScoreHistory={d.enduranceScoreHistory}
+				statusHistory={w.status}
+				fullStatusHistory={d.statusHistory}
+				hillScoreHistory={w.hillScore}
+				enduranceScoreHistory={w.endurance}
+				hrZones={d.hrZones}
+				maxHr={(() => { const cutoff = new Date(Date.now() - 91 * 86400000).toISOString().slice(0, 10); const hrs = d.activities.filter(a => a.start_time.slice(0, 10) >= cutoff && a.max_hr != null && a.max_hr > 0).map(a => a.max_hr!); return hrs.length > 0 ? Math.max(...hrs) : null; })()}
+				lactateHr={d.userSettings?.lactate_threshold_hr ?? d.lactateThreshold.heart_rate ?? null}
 			/>
 			<ProfileTrend
-				statusHistory={d.statusHistory}
-				hillScoreHistory={d.hillScoreHistory}
-				enduranceScoreHistory={d.enduranceScoreHistory}
+				statusHistory={w.status}
+				hillScoreHistory={w.hillScore}
+				enduranceScoreHistory={w.endurance}
+				daily={true}
 			/>
 		</div>
-
-		<ProfileStats predictions={d.racePredictions} records={d.records} />
+		{/key}
 
 		<!-- ═══ BODY: How am I right now? ═══ -->
 		<Tip text={"Your current physical state.\nChanges daily based on sleep, stress, and recovery.\nAnswers: can I train today?"}>
@@ -89,8 +133,8 @@
 			<RecoveryStrip
 				bodyBattery={d.bodyBattery}
 				stress={d.stress}
-				sleepScores={d.sleepScoreHistory}
-				heartRate={d.heartRateHistory}
+				sleepScores={w.sleep}
+				heartRate={w.heartRate}
 			/>
 			<ReadinessGauge readiness={d.readiness} />
 		</div>
@@ -100,17 +144,21 @@
 			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Lightning size={14} weight="bold" /> Training</h2>
 		</Tip>
 
+		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-2">
-			<LoadBalanceChart status={d.currentStatus} />
-			<TrainingPolarization activities={d.activities} hrZones={d.hrZones} />
+			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} />
+			<TrainingPolarization activities={w.activities} hrZones={d.hrZones} />
 		</div>
 
 		<div class="grid gap-4 md:grid-cols-2">
-			<AcwrChart history={d.statusHistory} />
-			<HrvChart hrv={d.hrvHistory} />
+			<AcwrChart history={w.status} />
+			<HrvChart hrv={w.hrv} />
 		</div>
 
-		<WeeklyVolume activities={d.activities} />
+		<WeeklyVolume activities={w.activities} />
+		{/key}
+
+		<ProfileStats predictions={d.racePredictions} records={d.records} />
 
 		<!-- ═══ LOG ═══ -->
 		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>

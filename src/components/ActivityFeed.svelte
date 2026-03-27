@@ -48,7 +48,7 @@
 
 	{#if hasMore}
 		<button
-			class="w-full rounded-lg border border-card-border bg-card px-4 py-2.5 text-xs font-medium text-text-secondary hover:bg-card-border/30 transition-colors"
+			class="cursor-pointer w-full rounded-lg border border-card-border bg-card px-4 py-2.5 text-xs font-medium text-text-secondary hover:bg-card-border/30 transition-colors"
 			onclick={() => showCount += 15}
 		>
 			Show more ({activities.length - showCount} remaining)

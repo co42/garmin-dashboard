@@ -22,30 +22,43 @@ CREATE TABLE IF NOT EXISTS snapshots (
 	synced_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS daily_status (
+-- Daily time-series (all JSON blobs)
+CREATE TABLE IF NOT EXISTS daily_training_status (
 	date TEXT PRIMARY KEY,
 	data TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS daily_hrv (
 	date TEXT PRIMARY KEY,
-	status TEXT,
-	weekly_average REAL
+	data TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS daily_heart_rate (
 	date TEXT PRIMARY KEY,
-	resting_hr INTEGER,
-	avg_7day_resting INTEGER,
-	max_hr INTEGER,
-	min_hr INTEGER
+	data TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS daily_sleep_score (
 	date TEXT PRIMARY KEY,
-	score INTEGER
+	data TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS daily_stress (
+	date TEXT PRIMARY KEY,
+	data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS daily_hill_score (
+	date TEXT PRIMARY KEY,
+	data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS daily_endurance_score (
+	date TEXT PRIMARY KEY,
+	data TEXT NOT NULL
+);
+
+-- Activities
 CREATE TABLE IF NOT EXISTS activities (
 	id INTEGER PRIMARY KEY,
 	data TEXT NOT NULL,
@@ -59,21 +72,9 @@ CREATE TABLE IF NOT EXISTS activity_splits (
 	PRIMARY KEY (activity_id, split)
 );
 
-CREATE TABLE IF NOT EXISTS weekly_hill_score (
-	date TEXT PRIMARY KEY,
-	overall INTEGER,
-	strength INTEGER,
-	endurance INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS weekly_endurance_score (
-	date TEXT PRIMARY KEY,
-	score INTEGER,
-	classification TEXT
-);
-
 CREATE TABLE IF NOT EXISTS activity_details (
 	activity_id INTEGER PRIMARY KEY,
+	raw TEXT NOT NULL,
 	polyline TEXT,
 	timeseries TEXT,
 	metric_keys TEXT

@@ -3,7 +3,6 @@ import type {
 	DashboardData,
 	DailyTrainingStatus,
 	Readiness,
-	ReadinessEntry,
 	RacePredictions,
 	EnduranceScore,
 	HillScore,
@@ -21,7 +20,12 @@ import type {
 	GearItem,
 	CalendarEntry,
 	HrZone,
+	UserSettings,
 } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Generic helpers
+// ---------------------------------------------------------------------------
 
 function snapshot<T>(command: string, fallback: T): T {
 	const db = getDb();
@@ -29,9 +33,19 @@ function snapshot<T>(command: string, fallback: T): T {
 	return row ? JSON.parse(row.data) : fallback;
 }
 
+function loadDaily<T>(table: string): T[] {
+	const db = getDb();
+	const rows = db.prepare(`SELECT data FROM ${table} ORDER BY date ASC`).all() as { data: string }[];
+	return rows.map(r => JSON.parse(r.data));
+}
+
 function daysBetween(a: string, b: string): number {
 	return Math.floor((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard loader
+// ---------------------------------------------------------------------------
 
 export function loadDashboard(): DashboardData | null {
 	const db = getDb();
@@ -40,9 +54,9 @@ export function loadDashboard(): DashboardData | null {
 	const hasData = db.prepare('SELECT 1 FROM snapshots LIMIT 1').get();
 	if (!hasData) return null;
 
-	// Current status (latest day from daily_status)
+	// Current status (latest day)
 	const latestStatusRow = db.prepare(
-		'SELECT data FROM daily_status ORDER BY date DESC LIMIT 1'
+		'SELECT data FROM daily_training_status ORDER BY date DESC LIMIT 1'
 	).get() as { data: string } | undefined;
 	const currentStatus: DailyTrainingStatus = latestStatusRow
 		? JSON.parse(latestStatusRow.data)
@@ -50,11 +64,14 @@ export function loadDashboard(): DashboardData | null {
 
 	if (!currentStatus) return null;
 
-	// Status history (all daily_status, ordered)
-	const statusRows = db.prepare(
-		'SELECT data FROM daily_status ORDER BY date ASC'
-	).all() as { data: string }[];
-	const statusHistory = statusRows.map(r => JSON.parse(r.data) as DailyTrainingStatus);
+	// Time-series (all uniform JSON blob reads)
+	const statusHistory = loadDaily<DailyTrainingStatus>('daily_training_status');
+	const hrvHistory = loadDaily<HrvDay>('daily_hrv');
+	const heartRateHistory = loadDaily<HeartRateDay>('daily_heart_rate');
+	const sleepScoreHistory = loadDaily<SleepScoreDay>('daily_sleep_score');
+	const stressHistory = loadDaily<StressDay>('daily_stress');
+	const hillScoreHistory = loadDaily<HillScore>('daily_hill_score');
+	const enduranceScoreHistory = loadDaily<EnduranceScore>('daily_endurance_score');
 
 	// Snapshots
 	const readiness = snapshot<Readiness>('readiness', {
@@ -98,33 +115,7 @@ export function loadDashboard(): DashboardData | null {
 	const gear = snapshot<GearItem[]>('gear', []);
 	const calendar = snapshot<CalendarEntry[]>('calendar', []);
 	const hrZones = snapshot<HrZone[]>('hr_zones', []);
-
-	// Time-series
-	const hrvRows = db.prepare(
-		'SELECT date, status, weekly_average FROM daily_hrv ORDER BY date ASC'
-	).all() as HrvDay[];
-
-	const hrRows = db.prepare(
-		'SELECT date, resting_hr, avg_7day_resting, max_hr, min_hr FROM daily_heart_rate ORDER BY date ASC'
-	).all() as HeartRateDay[];
-
-	const sleepRows = db.prepare(
-		'SELECT date, score FROM daily_sleep_score ORDER BY date ASC'
-	).all() as SleepScoreDay[];
-
-	const hillScoreRows = db.prepare(
-		'SELECT date, overall, strength, endurance FROM weekly_hill_score ORDER BY date ASC'
-	).all() as { date: string; overall: number; strength: number; endurance: number }[];
-	const hillScoreHistory: HillScore[] = hillScoreRows.map(r => ({
-		date: r.date, overall: r.overall, strength: r.strength, endurance: r.endurance, vo2max: 0,
-	}));
-
-	const enduranceScoreRows = db.prepare(
-		'SELECT date, score, classification FROM weekly_endurance_score ORDER BY date ASC'
-	).all() as { date: string; score: number; classification: string }[];
-	const enduranceScoreHistory: EnduranceScore[] = enduranceScoreRows.map(r => ({
-		date: r.date, score: r.score, classification: r.classification,
-	}));
+	const userSettings = snapshot<UserSettings | null>('user_settings', null);
 
 	// Activities
 	const activityRows = db.prepare(
@@ -143,7 +134,7 @@ export function loadDashboard(): DashboardData | null {
 		}
 	}
 
-	// Activity details (polyline + timeseries)
+	// Activity details (polyline + timeseries from cache columns)
 	const activityDetails: Record<number, ActivityDetails> = {};
 	const detailRows = db.prepare(
 		'SELECT activity_id, polyline, timeseries FROM activity_details'
@@ -177,9 +168,10 @@ export function loadDashboard(): DashboardData | null {
 		stress,
 		bodyBattery,
 		statusHistory,
-		hrvHistory: hrvRows,
-		heartRateHistory: hrRows,
-		sleepScoreHistory: sleepRows,
+		hrvHistory,
+		heartRateHistory,
+		sleepScoreHistory,
+		stressHistory,
 		hillScoreHistory,
 		enduranceScoreHistory,
 		activities,
@@ -189,6 +181,7 @@ export function loadDashboard(): DashboardData | null {
 		gear,
 		calendar,
 		hrZones,
+		userSettings,
 		lastRunDate,
 		daysSinceLastRun,
 		lastSyncedAt: syncRow?.synced_at ?? null,

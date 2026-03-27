@@ -5,6 +5,7 @@ import type {
 	HrvDay,
 	HeartRateDay,
 	SleepScoreDay,
+	StressDay,
 	Activity,
 	ActivitySplit,
 	HillScore,
@@ -13,6 +14,7 @@ import type {
 	CalendarEntry,
 	WorkoutStep,
 	HrZone,
+	UserSettings,
 } from './types.js';
 
 export interface SyncResult {
@@ -24,10 +26,86 @@ export interface SyncResult {
 		hrv_days: number;
 		hr_days: number;
 		sleep_days: number;
+		stress_days: number;
+		hill_days: number;
+		endurance_days: number;
 		activities: number;
 		splits: number;
 	};
 }
+
+// ---------------------------------------------------------------------------
+// Date helpers
+// ---------------------------------------------------------------------------
+
+function todayISO(): string {
+	const d = new Date();
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function addDays(dateStr: string, n: number): string {
+	const d = new Date(dateStr + 'T00:00:00Z');
+	d.setUTCDate(d.getUTCDate() + n);
+	return d.toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
+// Paginated date-range fetching
+// ---------------------------------------------------------------------------
+
+/** Fetch a time-series endpoint in 30-day chunks using --from/--to. */
+async function fetchDateRange<T extends { date: string }>(
+	args: string[],
+	fromDate: string,
+	toDate: string,
+	chunkDays: number = 30,
+): Promise<T[]> {
+	// Generate chunks
+	const chunks: { from: string; to: string }[] = [];
+	let cursor = fromDate;
+	while (cursor <= toDate) {
+		const chunkEnd = addDays(cursor, chunkDays - 1);
+		chunks.push({ from: cursor, to: chunkEnd > toDate ? toDate : chunkEnd });
+		cursor = addDays(chunkEnd, 1);
+	}
+
+	// Fetch in parallel batches of 3
+	const results: T[] = [];
+	for (let i = 0; i < chunks.length; i += 3) {
+		const batch = chunks.slice(i, i + 3);
+		const batchResults = await Promise.all(
+			batch.map(c =>
+				garminSafe<T[]>([...args, '--from', c.from, '--to', c.to], [])
+			)
+		);
+		for (const arr of batchResults) {
+			results.push(...arr);
+		}
+	}
+
+	// Deduplicate by date (keep last occurrence = freshest)
+	const byDate = new Map<string, T>();
+	for (const item of results) {
+		const key = item.date.slice(0, 10);
+		byDate.set(key, item);
+	}
+	return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ---------------------------------------------------------------------------
+// Sync window computation
+// ---------------------------------------------------------------------------
+
+function getLastSuccessfulSync(db: ReturnType<typeof getDb>): string | null {
+	const row = db.prepare(
+		"SELECT finished_at FROM sync_log WHERE status = 'ok' ORDER BY finished_at DESC LIMIT 1"
+	).get() as { finished_at: string } | undefined;
+	return row?.finished_at?.slice(0, 10) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Main sync
+// ---------------------------------------------------------------------------
 
 export async function runSync(): Promise<SyncResult> {
 	const start = Date.now();
@@ -37,51 +115,65 @@ export async function runSync(): Promise<SyncResult> {
 	const { lastInsertRowid: logId } = logStmt.run('running');
 
 	try {
-		const isFirstSync = !db.prepare('SELECT 1 FROM daily_status LIMIT 1').get();
-		const needsHillBackfill = !db.prepare('SELECT 1 FROM weekly_hill_score LIMIT 1').get();
-		const historyDays = isFirstSync ? 90 : 7;
-		const hillEnduranceDays = (isFirstSync || needsHillBackfill) ? 90 : 7;
-		const activityLimit = isFirstSync ? 100 : 20;
+		const today = todayISO();
+		const lastSync = getLastSuccessfulSync(db);
+		const isFirstSync = !lastSync;
+
+		// Sync window: first sync = 365 days back, incremental = since last sync - 1 day overlap
+		const fromDate = isFirstSync ? addDays(today, -365) : addDays(lastSync, -1);
+		const activityLimit = isFirstSync ? 500 : 50;
+		const activityAfter = isFirstSync ? addDays(today, -365) : lastSync;
 
 		// Phase 1: Fetch all data in parallel
+		// Snapshots (latest-only) + time-series (date-range paginated)
 		const [
-			statusHistory,
+			// Snapshots
 			readiness,
 			racePredictions,
 			enduranceScore,
 			hillScore,
 			fitnessAge,
 			lactateThreshold,
-			hrvHistory,
-			heartRateHistory,
-			sleepScoreHistory,
-			stress,
+			stressSnapshot,
 			bodyBattery,
 			records,
 			gear,
-			activities,
+			hrZones,
+			userSettings,
+			// Time-series (paginated)
+			statusHistory,
+			hrvHistory,
+			heartRateHistory,
+			sleepScoreHistory,
+			stressHistory,
 			hillScoreHistory,
 			enduranceScoreHistory,
-			hrZones,
+			// Activities
+			activities,
 		] = await Promise.all([
-			garmin<DailyTrainingStatus[]>(['training', 'status', '--days', String(historyDays)]),
+			// Snapshots
 			garminSafe(['training', 'readiness'], null),
 			garminSafe(['training', 'race-predictions'], null),
 			garminSafe(['training', 'endurance-score'], null),
 			garminSafe(['training', 'hill-score'], null),
 			garminSafe(['training', 'fitness-age'], null),
 			garminSafe(['training', 'lactate-threshold'], null),
-			garminSafe<HrvDay[]>(['health', 'hrv', '--days', String(Math.min(historyDays, 30))], []),
-			garminSafe<HeartRateDay[]>(['health', 'heart-rate', '--days', String(historyDays)], []),
-			garminSafe<SleepScoreDay[]>(['health', 'sleep-scores', '--days', String(Math.min(historyDays, 30))], []),
 			garminSafe(['health', 'stress'], null),
 			garminSafe(['health', 'body-battery'], null),
 			garminSafe(['records'], []),
 			garminSafe(['gear', 'list'], []),
-			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running']),
-			garminSafe<HillScore[]>(['training', 'hill-score', '--days', String(hillEnduranceDays)], []),
-			garminSafe<EnduranceScore[]>(['training', 'endurance-score', '--days', String(hillEnduranceDays)], []),
 			garminSafe<HrZone[]>(['training', 'zones'], []),
+			garminSafe<UserSettings | null>(['profile', 'settings'], null),
+			// Time-series
+			fetchDateRange<DailyTrainingStatus>(['training', 'status'], fromDate, today),
+			fetchDateRange<HrvDay>(['health', 'hrv'], fromDate, today),
+			fetchDateRange<HeartRateDay>(['health', 'heart-rate'], fromDate, today),
+			fetchDateRange<SleepScoreDay>(['health', 'sleep-scores'], fromDate, today),
+			fetchDateRange<StressDay>(['health', 'stress'], fromDate, today),
+			fetchDateRange<HillScore>(['training', 'hill-score'], fromDate, today),
+			fetchDateRange<EnduranceScore>(['training', 'endurance-score'], fromDate, today),
+			// Activities
+			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running', '--after', activityAfter]),
 		]);
 
 		// Phase 2: Store snapshots (always-fresh data)
@@ -96,60 +188,52 @@ export async function runSync(): Promise<SyncResult> {
 			if (hillScore) upsertSnapshot.run('hill_score', JSON.stringify(hillScore));
 			if (fitnessAge) upsertSnapshot.run('fitness_age', JSON.stringify(fitnessAge));
 			if (lactateThreshold) upsertSnapshot.run('lactate_threshold', JSON.stringify(lactateThreshold));
-			if (stress) upsertSnapshot.run('stress', JSON.stringify(stress));
+			if (stressSnapshot) upsertSnapshot.run('stress', JSON.stringify(stressSnapshot));
 			if (bodyBattery) upsertSnapshot.run('body_battery', JSON.stringify(bodyBattery));
 			upsertSnapshot.run('records', JSON.stringify(records));
 			upsertSnapshot.run('gear', JSON.stringify(gear));
 			if (hrZones.length > 0) upsertSnapshot.run('hr_zones', JSON.stringify(hrZones));
+			if (userSettings) upsertSnapshot.run('user_settings', JSON.stringify(userSettings));
 		});
 		snapshotBatch();
 
-		// Phase 3: Store time-series data (upsert to deduplicate)
-		const upsertStatus = db.prepare(
-			`INSERT INTO daily_status (date, data) VALUES (?, ?)
+		// Phase 3: Store time-series (all JSON blobs, uniform pattern)
+		const upsertDaily = (table: string) => db.prepare(
+			`INSERT INTO ${table} (date, data) VALUES (?, ?)
 			 ON CONFLICT(date) DO UPDATE SET data = excluded.data`
 		);
-		const upsertHrv = db.prepare(
-			`INSERT INTO daily_hrv (date, status, weekly_average) VALUES (?, ?, ?)
-			 ON CONFLICT(date) DO UPDATE SET status = excluded.status, weekly_average = excluded.weekly_average`
-		);
-		const upsertHr = db.prepare(
-			`INSERT INTO daily_heart_rate (date, resting_hr, avg_7day_resting, max_hr, min_hr) VALUES (?, ?, ?, ?, ?)
-			 ON CONFLICT(date) DO UPDATE SET resting_hr = excluded.resting_hr, avg_7day_resting = excluded.avg_7day_resting,
-			 max_hr = excluded.max_hr, min_hr = excluded.min_hr`
-		);
-		const upsertSleep = db.prepare(
-			`INSERT INTO daily_sleep_score (date, score) VALUES (?, ?)
-			 ON CONFLICT(date) DO UPDATE SET score = excluded.score`
-		);
-		const upsertHill = db.prepare(
-			`INSERT INTO weekly_hill_score (date, overall, strength, endurance) VALUES (?, ?, ?, ?)
-			 ON CONFLICT(date) DO UPDATE SET overall = excluded.overall, strength = excluded.strength, endurance = excluded.endurance`
-		);
-		const upsertEndurance = db.prepare(
-			`INSERT INTO weekly_endurance_score (date, score, classification) VALUES (?, ?, ?)
-			 ON CONFLICT(date) DO UPDATE SET score = excluded.score, classification = excluded.classification`
-		);
+
+		const stmtStatus = upsertDaily('daily_training_status');
+		const stmtHrv = upsertDaily('daily_hrv');
+		const stmtHr = upsertDaily('daily_heart_rate');
+		const stmtSleep = upsertDaily('daily_sleep_score');
+		const stmtStress = upsertDaily('daily_stress');
+		const stmtHill = upsertDaily('daily_hill_score');
+		const stmtEndurance = upsertDaily('daily_endurance_score');
 
 		const timeseriesBatch = db.transaction(() => {
 			for (const s of statusHistory) {
-				upsertStatus.run(s.date, JSON.stringify(s));
+				stmtStatus.run(s.date, JSON.stringify(s));
 			}
 			for (const h of hrvHistory) {
-				const d = h.date.slice(0, 10);
-				upsertHrv.run(d, h.status, h.weekly_average);
+				// HRV dates come as timestamps — normalize to YYYY-MM-DD
+				const date = h.date.slice(0, 10);
+				stmtHrv.run(date, JSON.stringify({ ...h, date }));
 			}
 			for (const hr of heartRateHistory) {
-				upsertHr.run(hr.date, hr.resting_hr, hr.avg_7day_resting, hr.max_hr, hr.min_hr);
+				stmtHr.run(hr.date, JSON.stringify(hr));
 			}
 			for (const ss of sleepScoreHistory) {
-				if (ss.score) upsertSleep.run(ss.date, ss.score);
+				if (ss.score) stmtSleep.run(ss.date, JSON.stringify(ss));
+			}
+			for (const st of stressHistory) {
+				stmtStress.run(st.date, JSON.stringify(st));
 			}
 			for (const hs of hillScoreHistory) {
-				if (hs.date && hs.overall != null) upsertHill.run(hs.date, hs.overall, hs.strength, hs.endurance);
+				if (hs.date && hs.overall != null) stmtHill.run(hs.date, JSON.stringify(hs));
 			}
 			for (const es of enduranceScoreHistory) {
-				if (es.date && es.score != null) upsertEndurance.run(es.date, es.score, es.classification);
+				if (es.date && es.score != null) stmtEndurance.run(es.date, JSON.stringify(es));
 			}
 		});
 		timeseriesBatch();
@@ -183,8 +267,8 @@ export async function runSync(): Promise<SyncResult> {
 			 ON CONFLICT(activity_id, split) DO UPDATE SET data = excluded.data`
 		);
 		const upsertDetail = db.prepare(
-			`INSERT INTO activity_details (activity_id, polyline, timeseries, metric_keys) VALUES (?, ?, ?, ?)
-			 ON CONFLICT(activity_id) DO UPDATE SET polyline = excluded.polyline, timeseries = excluded.timeseries, metric_keys = excluded.metric_keys`
+			`INSERT INTO activity_details (activity_id, raw, polyline, timeseries, metric_keys) VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT(activity_id) DO UPDATE SET raw = excluded.raw, polyline = excluded.polyline, timeseries = excluded.timeseries, metric_keys = excluded.metric_keys`
 		);
 
 		// Also backfill details for existing activities that don't have them yet
@@ -216,10 +300,12 @@ export async function runSync(): Promise<SyncResult> {
 						totalSplits++;
 					}
 					if (details) {
+						const rawJson = JSON.stringify(details);
 						const polyline = extractPolyline(details);
 						const { timeseries, metricKeys } = extractTimeseries(details);
 						upsertDetail.run(
 							id,
+							rawJson,
 							JSON.stringify(polyline),
 							JSON.stringify(timeseries),
 							JSON.stringify(metricKeys),
@@ -287,6 +373,9 @@ export async function runSync(): Promise<SyncResult> {
 				hrv_days: hrvHistory.length,
 				hr_days: heartRateHistory.length,
 				sleep_days: sleepScoreHistory.filter(s => s.score).length,
+				stress_days: stressHistory.length,
+				hill_days: hillScoreHistory.length,
+				endurance_days: enduranceScoreHistory.length,
 				activities: activities.length,
 				splits: totalSplits,
 			},
@@ -299,10 +388,14 @@ export async function runSync(): Promise<SyncResult> {
 			status: 'error',
 			duration_ms: Date.now() - start,
 			error: err.message,
-			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, activities: 0, splits: 0 },
+			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0 },
 		};
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Activity detail extraction (cached derivations from raw)
+// ---------------------------------------------------------------------------
 
 function extractPolyline(details: any): [number, number][] {
 	const poly = details?.geoPolylineDTO?.polyline;
@@ -363,6 +456,10 @@ function extractTimeseries(details: any): { timeseries: any[]; metricKeys: strin
 
 	return { timeseries, metricKeys: [...indexMap.keys()] };
 }
+
+// ---------------------------------------------------------------------------
+// Calendar / workout parsing
+// ---------------------------------------------------------------------------
 
 function parseRawStep(step: any): WorkoutStep {
 	return {

@@ -4,6 +4,8 @@
 	import { C } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import Timer from 'phosphor-svelte/lib/Timer';
+	import Trophy from 'phosphor-svelte/lib/Trophy';
+	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 
 	interface Props {
 		predictions: RacePredictions;
@@ -28,7 +30,7 @@
 
 	function yearLabel(date: string): string {
 		const d = new Date(date);
-		return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+		return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 	}
 
 	function isRecent(date: string): boolean {
@@ -37,32 +39,41 @@
 </script>
 
 <div>
-	<Tip text={"PR = your actual best time from a real run.\nPredicted = Garmin estimate from current VO2max — tracks current fitness, drops when you detrain."}>
-		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Timer size={14} weight="bold" /> Race Times</h2>
-	</Tip>
+	<div class="mb-3 flex items-center justify-between">
+		<Tip text={"PR = your actual best time from a real run.\nPredicted = Garmin estimate from current VO2max — tracks current fitness, drops when you detrain."}>
+			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Timer size={14} weight="bold" /> Race Times</h2>
+		</Tip>
+		{#if predictions.date}
+			<span class="num text-xs text-text-secondary">{new Date(predictions.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+		{/if}
+	</div>
 
 	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 		{#each DISTANCES as dist}
 			{@const pr = recordMap.get(dist.typeId)}
 			{@const recent = pr ? isRecent(pr.date) : false}
 			<div class="rounded-lg bg-card px-4 py-3" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
-				<div class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-secondary">{dist.label}</div>
+				<div class="mb-2 flex items-baseline justify-between">
+					<span class="text-xs font-semibold uppercase tracking-wider text-text-secondary">{dist.label}</span>
+					{#if pr}
+						<span class="num text-[10px] text-text-dim">{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</span>
+					{/if}
+				</div>
 
-				{#if pr}
-					<div class="flex items-baseline justify-between">
+			{#if pr}
+					<div class="flex items-center gap-2">
+						<Trophy size={16} weight="bold" class="text-text-dim shrink-0" />
 						<span class="num text-lg font-bold text-text">{formatTime(pr.value)}</span>
-						<span class="num text-xs text-text-secondary">{pace(pr.value, dist.km)}</span>
-					</div>
-					<div class="mt-0.5 text-[10px] text-text-dim">
-						{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}
+						<span class="num text-sm text-text-secondary ml-auto">{pace(pr.value, dist.km)}</span>
 					</div>
 				{:else}
-					<div class="text-sm text-text-dim">no PR</div>
+					<div class="flex items-center gap-2 text-sm text-text-dim"><Trophy size={16} weight="bold" class="shrink-0" /> no PR</div>
 				{/if}
 
-				<div class="mt-2 flex items-baseline justify-between border-t border-card-border/50 pt-2">
+				<div class="mt-2 flex items-center gap-2 border-t border-card-border/50 pt-2">
+					<TrendUp size={16} weight="bold" class="text-text-dim shrink-0" />
 					<span class="num text-lg font-bold text-text-dim">{formatTime(dist.predTime)}</span>
-					<span class="num text-xs text-text-dim">{dist.predPace} /km</span>
+					<span class="num text-sm text-text-dim ml-auto">{dist.predPace} /km</span>
 				</div>
 			</div>
 		{/each}

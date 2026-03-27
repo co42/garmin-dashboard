@@ -31,7 +31,7 @@
 	<button
 		onclick={sync}
 		disabled={syncing}
-		class="rounded-md bg-card-border px-3 py-1.5 text-xs font-medium text-text transition hover:bg-[#2a2a3a] disabled:opacity-50"
+		class="cursor-pointer rounded-md bg-card-border px-3 py-1.5 text-xs font-medium text-text transition hover:bg-[#2a2a3a] disabled:opacity-50"
 	>
 		{#if syncing}
 			<span class="inline-flex items-center gap-1.5">

@@ -51,8 +51,8 @@
 		<Tip text={"Garmin's energy reserve (0–100).\nDrains with activity and stress.\nRecharges with rest and sleep.\n\n< 25 = skip training\n> 60 = green light for hard efforts"}>
 			<span class="text-[10px] font-medium uppercase text-text-dim">Body Battery</span>
 		</Tip>
-		<p class="num text-xl font-bold" style="color: {bbColor(bodyBattery.latest)}">{bodyBattery.latest}</p>
-		<p class="num text-[10px] text-text-dim">{bodyBattery.low}–{bodyBattery.high} today</p>
+		<p class="num text-xl font-bold" style="color: {bbColor(bodyBattery.latest)}">{bodyBattery.latest}%</p>
+		<p class="num text-[10px] text-text-dim">{bodyBattery.low}–{bodyBattery.high}% today</p>
 	</div>
 
 	{#if latestSleep}
@@ -60,7 +60,7 @@
 			<Tip text={"Sleep quality (0–100).\n\n80+ = good\n60–79 = okay\n< 60 = poor — recovery compromised"}>
 				<span class="text-[10px] font-medium uppercase text-text-dim">Sleep Score</span>
 			</Tip>
-				<p class="num text-xl font-bold" style="color: {sleepColor(latestSleep.score)}">{latestSleep.score}</p>
+				<p class="num text-xl font-bold" style="color: {sleepColor(latestSleep.score)}">{latestSleep.score}%</p>
 			<p class="num text-[10px] text-text-dim">{new Date(latestSleep.date).toLocaleDateString('en-GB')}</p>
 		</div>
 	{/if}

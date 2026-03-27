@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { HillScore, DailyTrainingStatus, EnduranceScore, RacePredictions } from '$lib/types.js';
-	import { AXES, AXIS_ORDER, normalize, computeBalance, estimate5kFromVo2 } from '$lib/profile.js';
-	import { C, CHART_TOOLTIP } from '$lib/colors.js';
+	import type { HillScore, DailyTrainingStatus, EnduranceScore, HrZone } from '$lib/types.js';
+	import { AXES, RADAR_AXIS_ORDER, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
+	import { C, CHART_TOOLTIP, ZONE_COLORS } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -10,93 +10,97 @@
 		currentStatus: DailyTrainingStatus;
 		enduranceScore: EnduranceScore;
 		vo2max: number;
-		racePredictions: RacePredictions;
-		statusHistory: DailyTrainingStatus[];
+		statusHistory: DailyTrainingStatus[];       // windowed (for iteration bounds)
+		fullStatusHistory: DailyTrainingStatus[];    // full (for rolling 30d computations)
 		hillScoreHistory: HillScore[];
 		enduranceScoreHistory: EnduranceScore[];
+		hrZones: HrZone[];
+		maxHr: number | null;
+		lactateHr: number | null;
 	}
 
-	let { hillScore, currentStatus, enduranceScore, vo2max, racePredictions, statusHistory, hillScoreHistory, enduranceScoreHistory }: Props = $props();
+	let { hillScore, currentStatus, enduranceScore, vo2max, statusHistory, fullStatusHistory, hillScoreHistory, enduranceScoreHistory, hrZones, maxHr, lactateHr }: Props = $props();
 
 	let radarEl: HTMLDivElement;
 
-	function currentValue(key: string): number {
+	// Rolling 30-day average of balance scores
+	function rolling30dBalance(history: DailyTrainingStatus[], atDate?: string): number {
+		const cutoff = atDate
+			? new Date(new Date(atDate).getTime() - 30 * 86400000).toISOString().slice(0, 10)
+			: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+		const endDate = atDate ?? new Date().toISOString().slice(0, 10);
+		const window = history.filter(s => s.date >= cutoff && s.date <= endDate);
+		const scores = window.map(s => computeBalance(s)).filter(b => b >= 0);
+		if (scores.length === 0) return 0;
+		return Math.round(scores.reduce((s, v) => s + v, 0) / scores.length);
+	}
+
+	function rawValue(key: string): number {
 		switch (key) {
-			case 'vo2max': return normalize(key, vo2max);
-			case 'speed': return normalize(key, racePredictions.time_5k_seconds);
-			case 'endurance': return normalize(key, enduranceScore.score);
-			case 'balance': return Math.max(0, computeBalance(currentStatus));
-			case 'hillStr': return normalize(key, hillScore.strength);
-			case 'hillEnd': return normalize(key, hillScore.endurance);
+			case 'vo2max': return vo2max;
+			case 'endurance': return enduranceScore.score;
+			case 'balance': return rolling30dBalance(fullStatusHistory);
+			case 'hill': return hillScore.overall;
+			case 'productivity': return Math.max(0, computeProductivity(fullStatusHistory));
 			default: return 0;
 		}
 	}
 
-	function rawLabel(key: string): string {
-		switch (key) {
-			case 'vo2max': return vo2max.toFixed(1);
-			case 'speed': return racePredictions.pace_5k + ' /km';
-			case 'endurance': return enduranceScore.score.toLocaleString();
-			case 'balance': return currentStatus.load_balance_feedback.toLowerCase().replace(/_/g, ' ');
-			case 'hillStr': return String(hillScore.strength);
-			case 'hillEnd': return String(hillScore.endurance);
-			default: return '';
-		}
-	}
-
-	// Compute 3-month peak per axis from history
 	function peakValues(): number[] {
 		const peaks: Record<string, number> = {};
-		for (const key of AXIS_ORDER) peaks[key] = 0;
+		for (const key of RADAR_AXIS_ORDER) peaks[key] = 0;
 
+		// Iterate windowed dates, but compute rolling 30d from full history
 		for (const s of statusHistory) {
 			const v = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
 			peaks.vo2max = Math.max(peaks.vo2max, normalize('vo2max', v));
-			peaks.speed = Math.max(peaks.speed, normalize('speed', estimate5kFromVo2(v)));
-			const bal = computeBalance(s);
-			if (bal >= 0) peaks.balance = Math.max(peaks.balance, bal);
+			peaks.balance = Math.max(peaks.balance, rolling30dBalance(fullStatusHistory, s.date));
+			const prod = computeProductivity(fullStatusHistory, s.date);
+			if (prod >= 0) peaks.productivity = Math.max(peaks.productivity, prod);
 		}
 		for (const h of hillScoreHistory) {
-			peaks.hillStr = Math.max(peaks.hillStr, normalize('hillStr', h.strength));
-			peaks.hillEnd = Math.max(peaks.hillEnd, normalize('hillEnd', h.endurance));
+			peaks.hill = Math.max(peaks.hill, normalize('hill', h.overall));
 		}
 		for (const e of enduranceScoreHistory) {
 			peaks.endurance = Math.max(peaks.endurance, normalize('endurance', e.score));
 		}
 
-		return AXIS_ORDER.map(key => peaks[key]);
+		return RADAR_AXIS_ORDER.map(key => peaks[key]);
 	}
 
-	// Compute 3-month floor per axis from history
 	function floorValues(): number[] {
 		const floors: Record<string, number> = {};
-		for (const key of AXIS_ORDER) floors[key] = 100;
+		for (const key of RADAR_AXIS_ORDER) floors[key] = 100;
 
 		for (const s of statusHistory) {
 			const v = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
 			floors.vo2max = Math.min(floors.vo2max, normalize('vo2max', v));
-			floors.speed = Math.min(floors.speed, normalize('speed', estimate5kFromVo2(v)));
-			const bal = computeBalance(s);
-			if (bal >= 0) floors.balance = Math.min(floors.balance, bal);
+			floors.balance = Math.min(floors.balance, rolling30dBalance(fullStatusHistory, s.date));
+			const prod = computeProductivity(fullStatusHistory, s.date);
+			if (prod >= 0) floors.productivity = Math.min(floors.productivity, prod);
 		}
 		for (const h of hillScoreHistory) {
-			floors.hillStr = Math.min(floors.hillStr, normalize('hillStr', h.strength));
-			floors.hillEnd = Math.min(floors.hillEnd, normalize('hillEnd', h.endurance));
+			floors.hill = Math.min(floors.hill, normalize('hill', h.overall));
 		}
 		for (const e of enduranceScoreHistory) {
 			floors.endurance = Math.min(floors.endurance, normalize('endurance', e.score));
 		}
 
-		return AXIS_ORDER.map(key => floors[key]);
+		return RADAR_AXIS_ORDER.map(key => floors[key]);
 	}
 
 	const radarData = $derived(() =>
-		AXIS_ORDER.map(key => ({
-			key,
-			axis: AXES[key].name,
-			value: currentValue(key),
-			raw: rawLabel(key),
-		}))
+		RADAR_AXIS_ORDER.map(key => {
+			const raw = rawValue(key);
+			const pct = normalize(key, raw);
+			return {
+				key,
+				axis: AXES[key].name,
+				value: pct,
+				raw,
+				rawStr: formatRaw(key, raw),
+			};
+		})
 	);
 
 	let _chart: any;
@@ -124,19 +128,16 @@
 				...CHART_TOOLTIP,
 				trigger: 'item',
 				formatter: () => rd.map((d, i) => {
-					const a = AXES[d.key];
-					const rawStr = d.raw ? ` (${d.raw})` : '';
-					const range = floors[i] !== peaks[i] ? ` · 3m: ${floors[i]}–${peaks[i]}` : '';
-					return `<b>${d.axis}: ${d.value}</b>${rawStr}${range}<br/><span style="color:${C.textDim};font-size:10px">0: ${a.zeroLabel}<br/>100: ${a.hundredLabel}</span>`;
-				}).join('<br/><br/>'),
+					const range = floors[i] !== peaks[i] ? ` · ${floors[i]}–${peaks[i]}%` : '';
+					return `<b>${d.axis}: ${d.rawStr}</b> <span style="color:${C.textDim}">(${d.value}%)</span>${range}`;
+				}).join('<br/>'),
 			},
 			series: [{
 				type: 'radar',
 				data: [
-					// 3-month floor (background, subtle)
 					{
 						value: floors,
-						name: '3m low',
+						name: 'Low',
 						areaStyle: { color: 'rgba(239, 68, 68, 0.15)' },
 						lineStyle: { color: 'rgba(239, 68, 68, 0.6)', width: 1.5, type: 'dashed' },
 						itemStyle: { color: 'rgba(239, 68, 68, 0.6)' },
@@ -144,10 +145,9 @@
 						symbolSize: 3,
 						z: 0,
 					},
-					// 3-month peak (background)
 					{
 						value: peaks,
-						name: '3m peak',
+						name: 'Peak',
 						areaStyle: { color: 'rgba(59, 130, 246, 0.12)' },
 						lineStyle: { color: 'rgba(59, 130, 246, 0.5)', width: 1.5, type: 'dashed' },
 						itemStyle: { color: 'rgba(59, 130, 246, 0.5)' },
@@ -155,7 +155,6 @@
 						symbolSize: 3,
 						z: 1,
 					},
-					// Current values (foreground)
 					{
 						value: rd.map(d => d.value),
 						name: 'Current',
@@ -175,6 +174,30 @@
 	});
 </script>
 
-<div class="rounded-lg bg-card p-2 h-full">
-	<div bind:this={radarEl} class="h-full min-h-[240px] w-full"></div>
+<div class="rounded-lg bg-card p-2 h-full flex">
+	<div bind:this={radarEl} class="flex-1 min-h-[200px] w-full"></div>
+	{#if hrZones.length > 0}
+		<div class="flex flex-col justify-center gap-1 pr-2 pl-0 shrink-0">
+			{#each [1, 2, 3, 4, 5] as z}
+				{@const hz = hrZones.find(h => h.zone === z)}
+				{#if hz}
+					<div class="flex items-center gap-1.5">
+						<div class="w-1.5 h-5 rounded-full" style="background: {ZONE_COLORS[z - 1]};"></div>
+						<div class="leading-none">
+							<span class="num text-[10px] font-semibold" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
+							<span class="num text-[10px] text-text-secondary ml-0.5">{hz.min_bpm}–{#if hz.max_bpm === 999}<b class="text-text">{maxHr ?? '?'}</b>{:else}{hz.max_bpm}{/if}</span>
+						</div>
+					</div>
+				{/if}
+			{/each}
+			{#if lactateHr}
+				<Tip text={"Lactate Threshold heart rate.\nThe intensity above which lactate accumulates faster than your body can clear it.\nUsed by Garmin to set your HR zones.\n\nAbove LT = anaerobic, time-limited.\nBelow LT = aerobic, sustainable."}>
+					<div class="mt-1 pt-1 border-t border-card-border/30">
+						<span class="num text-[10px] text-text-dim">LT</span>
+						<span class="num text-[10px] text-text-secondary font-medium ml-0.5">{lactateHr} bpm</span>
+					</div>
+				</Tip>
+			{/if}
+		</div>
+	{/if}
 </div>

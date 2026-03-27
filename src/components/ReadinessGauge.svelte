@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Readiness } from '$lib/types.js';
-	import { C, readinessColor } from '$lib/colors.js';
+	import { C, readinessColor, readinessLabel } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
 	import Gauge from 'phosphor-svelte/lib/Gauge';
 	import Tip from './Tip.svelte';
@@ -61,6 +61,7 @@
 				detail: {
 					valueAnimation: true, fontSize: 28, fontWeight: 'bold',
 					color: C.text, offsetCenter: [0, 0],
+					formatter: (v: number) => `${v}%`,
 				},
 				data: [{ value: entry.score }],
 			}],
@@ -71,14 +72,12 @@
 	});
 
 	function barColor(value: number): string {
-		if (value >= 80) return C.green;
-		if (value >= 40) return C.amber;
-		return C.red;
+		return readinessColor(value);
 	}
 </script>
 
 <div class="rounded-lg bg-card p-4">
-	<Tip text={"How ready is your body to train today? (0–100)\n\n70+ = push hard\n40–69 = moderate effort\n< 40 = rest\n\nComputed from HRV, sleep, recovery time, stress, and ACWR."}>
+	<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor\n\nComputed from HRV, sleep, recovery time, stress, and ACWR."}>
 		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Gauge size={14} weight="bold" /> Readiness</h2>
 	</Tip>
 
@@ -87,9 +86,9 @@
 		<div class="shrink-0">
 			<div bind:this={chartEl} class="h-[120px] w-[140px]"></div>
 			<div class="-mt-1 text-center text-xs text-text-secondary">
-				{entry.level}
+				{readinessLabel(entry.score)}
 				{#if hasBoth && readiness.morning}
-					<span class="text-text-dim">· morning {readiness.morning.score}</span>
+					<span class="text-text-dim">· morning {readiness.morning.score}%</span>
 				{/if}
 			</div>
 		</div>
@@ -107,7 +106,7 @@
 							style="width: {factor.value}%; background: {barColor(factor.value)};"
 						></div>
 					</div>
-					<span class="num text-right text-[11px] font-medium text-text">{factor.value}</span>
+					<span class="num text-right text-[11px] font-medium text-text">{factor.value}%</span>
 				</div>
 			{/each}
 		</div>
