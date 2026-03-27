@@ -5,9 +5,10 @@
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
+		showGap?: boolean;
 	}
 
-	let { timeseries }: Props = $props();
+	let { timeseries, showGap = false }: Props = $props();
 	let chartEl: HTMLDivElement;
 
 	let _chart: any; let _ro: ResizeObserver;
@@ -37,33 +38,22 @@
 
 		const dists = sampled.map(p => (p.dist / 1000).toFixed(1));
 		const paces = sampled.map(p => p.pace);
+		const gaps = sampled.map(p => p.gap);
 		const hrs = sampled.map(p => p.hr);
-		const elevs = sampled.map(p => p.elev);
 		const powers = sampled.map(p => p.power);
 		const cadences = sampled.map(p => p.cadence);
 
 		const hasPower = powers.some(p => p != null && p > 0);
 		const hasCadence = cadences.some(c => c != null && c > 0);
-		const hasElev = elevs.some(e => e != null);
+		const hasGap = showGap && gaps.some(g => g != null && g > 0);
 
 		// Pace range (filter outliers)
-		const validPaces = paces.filter((p): p is number => p != null && p > 120 && p < 900);
-		const paceMin = validPaces.length > 0 ? Math.min(...validPaces) : 200;
-		const paceMax = validPaces.length > 0 ? Math.max(...validPaces) : 500;
+		const allPaces = [...paces, ...(hasGap ? gaps : [])].filter((p): p is number => p != null && p > 120 && p < 900);
+		const paceMin = allPaces.length > 0 ? Math.min(...allPaces) : 200;
+		const paceMax = allPaces.length > 0 ? Math.max(...allPaces) : 500;
 		const pacePad = (paceMax - paceMin) * 0.1 || 15;
 
 		const series: any[] = [];
-
-		// Elevation area (background, first so it's behind)
-		if (hasElev) {
-			series.push({
-				type: 'line', name: 'Elevation', yAxisIndex: 2,
-				data: elevs, smooth: true, symbol: 'none',
-				lineStyle: { width: 0 },
-				areaStyle: { color: C.green + '20' },
-				z: 1,
-			});
-		}
 
 		// Pace line
 		series.push({
@@ -73,6 +63,17 @@
 			itemStyle: { color: C.blue },
 			z: 4,
 		});
+
+		// GAP line (when trail)
+		if (hasGap) {
+			series.push({
+				type: 'line', name: 'GAP', yAxisIndex: 0,
+				data: gaps, smooth: true, symbol: 'none',
+				lineStyle: { width: 1.5, color: C.teal, type: 'dashed' },
+				itemStyle: { color: C.teal },
+				z: 3,
+			});
+		}
 
 		// HR line
 		series.push({
@@ -104,7 +105,7 @@
 		}
 
 		const defaultSelected: Record<string, boolean> = {
-			'Pace': true, 'HR': true, 'Elevation': true,
+			'Pace': true, 'GAP': true, 'HR': true,
 			'Power': false, 'Cadence': false,
 		};
 
@@ -126,9 +127,8 @@
 						if (p.value == null) continue;
 						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>`;
 						let val = '';
-						if (p.seriesName === 'Pace') val = `${paceStr(p.value)} /km`;
+						if (p.seriesName === 'Pace' || p.seriesName === 'GAP') val = `${paceStr(p.value)} /km`;
 						else if (p.seriesName === 'HR') val = `${Math.round(p.value)} bpm`;
-						else if (p.seriesName === 'Elevation') val = `${Math.round(p.value)}m`;
 						else if (p.seriesName === 'Power') val = `${Math.round(p.value)}W`;
 						else if (p.seriesName === 'Cadence') val = `${Math.round(p.value)} spm`;
 						html += `${dot}${p.seriesName}: <b>${val}</b><br/>`;
@@ -157,13 +157,6 @@
 				},
 				{
 					// HR / Power / Cadence (hidden axis)
-					type: 'value',
-					axisLine: { show: false },
-					axisLabel: { show: false },
-					splitLine: { show: false },
-				},
-				{
-					// Elevation (hidden axis)
 					type: 'value',
 					axisLine: { show: false },
 					axisLabel: { show: false },

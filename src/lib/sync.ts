@@ -8,6 +8,7 @@ import type {
 	StressDay,
 	Activity,
 	ActivitySplit,
+	ActivityWeather,
 	HillScore,
 	EnduranceScore,
 	CalendarItem,
@@ -31,6 +32,7 @@ export interface SyncResult {
 		endurance_days: number;
 		activities: number;
 		splits: number;
+		weather: number;
 	};
 }
 
@@ -122,7 +124,7 @@ export async function runSync(): Promise<SyncResult> {
 		// Sync window: first sync = 365 days back, incremental = since last sync - 1 day overlap
 		const fromDate = isFirstSync ? addDays(today, -365) : addDays(lastSync, -1);
 		const activityLimit = isFirstSync ? 500 : 50;
-		const activityAfter = isFirstSync ? addDays(today, -365) : lastSync;
+		const activityAfter = isFirstSync ? addDays(today, -365) : addDays(lastSync, -1);
 
 		// Phase 1: Fetch all data in parallel
 		// Snapshots (latest-only) + time-series (date-range paginated)
@@ -270,31 +272,46 @@ export async function runSync(): Promise<SyncResult> {
 			`INSERT INTO activity_details (activity_id, raw, polyline, timeseries, metric_keys) VALUES (?, ?, ?, ?, ?)
 			 ON CONFLICT(activity_id) DO UPDATE SET raw = excluded.raw, polyline = excluded.polyline, timeseries = excluded.timeseries, metric_keys = excluded.metric_keys`
 		);
+		const upsertWeather = db.prepare(
+			`INSERT INTO activity_weather (activity_id, data) VALUES (?, ?)
+			 ON CONFLICT(activity_id) DO UPDATE SET data = excluded.data`
+		);
+		const existingWeatherIds = new Set(
+			db.prepare('SELECT activity_id FROM activity_weather').all().map((r: any) => r.activity_id)
+		);
 
 		// Also backfill details for existing activities that don't have them yet
 		const backfillIds = activities
 			.filter(a => !newActivityIds.includes(a.id) && !existingDetailIds.has(a.id))
 			.map(a => a.id);
 
-		// Fetch splits + details in batches of 5
+		// Fetch splits + details + weather in batches of 5
 		let totalSplits = 0;
+		let totalWeather = 0;
 		const allIdsToFetch = [...newActivityIds, ...backfillIds];
+		// Also fetch weather for activities that don't have it yet
+		const weatherIds = activities.filter(a => !existingWeatherIds.has(a.id)).map(a => a.id);
+		const weatherIdsSet = new Set(weatherIds);
+
 		for (let i = 0; i < allIdsToFetch.length; i += 5) {
 			const batch = allIdsToFetch.slice(i, i + 5);
 			const isNewSet = new Set(newActivityIds);
 			const results = await Promise.all(
 				batch.map(async id => {
 					const isNew = isNewSet.has(id);
-					const [splits, details] = await Promise.all([
+					const needsWeather = weatherIdsSet.has(id);
+					const [splits, details, weather] = await Promise.all([
 						isNew ? garminSafe<ActivitySplit[]>(['activities', 'splits', String(id)], []) : Promise.resolve([]),
 						garminSafe<any>(['activities', 'details', String(id)], null),
+						needsWeather ? garminSafe<ActivityWeather | null>(['activities', 'weather', String(id)], null) : Promise.resolve(null),
 					]);
-					return { id, splits, details, isNew };
+					if (needsWeather) weatherIdsSet.delete(id);
+					return { id, splits, details, weather, isNew };
 				})
 			);
 
 			const splitBatch = db.transaction(() => {
-				for (const { id, splits, details, isNew } of results) {
+				for (const { id, splits, details, weather } of results) {
 					for (const s of splits) {
 						upsertSplit.run(id, s.split, JSON.stringify(s));
 						totalSplits++;
@@ -311,9 +328,39 @@ export async function runSync(): Promise<SyncResult> {
 							JSON.stringify(metricKeys),
 						);
 					}
+					if (weather) {
+						upsertWeather.run(id, JSON.stringify(weather));
+						totalWeather++;
+					}
 				}
 			});
 			splitBatch();
+		}
+
+		// Fetch weather for ALL activities in DB that don't have it yet
+		// Re-query since we may have just inserted weather for some
+		const currentWeatherIds = new Set(
+			db.prepare('SELECT activity_id FROM activity_weather').all().map((r: any) => r.activity_id)
+		);
+		const allDbActivityIds = db.prepare('SELECT id FROM activities').all().map((r: any) => r.id as number);
+		const remainingWeatherIds = allDbActivityIds.filter(id => !currentWeatherIds.has(id));
+		for (let i = 0; i < remainingWeatherIds.length; i += 5) {
+			const batch = remainingWeatherIds.slice(i, i + 5);
+			const results = await Promise.all(
+				batch.map(async id => {
+					const weather = await garminSafe<ActivityWeather | null>(['activities', 'weather', String(id)], null);
+					return { id, weather };
+				})
+			);
+			const weatherBatch = db.transaction(() => {
+				for (const { id, weather } of results) {
+					if (weather) {
+						upsertWeather.run(id, JSON.stringify(weather));
+						totalWeather++;
+					}
+				}
+			});
+			weatherBatch();
 		}
 
 		// Phase 6: Calendar + workout steps
@@ -378,6 +425,7 @@ export async function runSync(): Promise<SyncResult> {
 				endurance_days: enduranceScoreHistory.length,
 				activities: activities.length,
 				splits: totalSplits,
+				weather: totalWeather,
 			},
 		};
 	} catch (err: any) {
@@ -388,7 +436,7 @@ export async function runSync(): Promise<SyncResult> {
 			status: 'error',
 			duration_ms: Date.now() - start,
 			error: err.message,
-			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0 },
+			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0 },
 		};
 	}
 }

@@ -167,6 +167,17 @@ export interface BodyBattery {
 	latest: number;
 }
 
+// --- Activity Weather ---
+
+export interface ActivityWeather {
+	temperature_celsius: number;
+	feels_like_celsius: number;
+	humidity_percent: number;
+	wind_speed_kmh: number;
+	wind_direction_compass: string;
+	weather_description: string;
+}
+
 // --- Activities ---
 
 export interface Activity {
@@ -349,6 +360,7 @@ export interface DashboardData {
 	activities: Activity[];
 	recentSplits: Record<number, ActivitySplit[]>; // activity_id -> splits
 	activityDetails: Record<number, ActivityDetails>; // activity_id -> details
+	activityWeather: Record<number, ActivityWeather>; // activity_id -> weather
 
 	// Records & gear
 	records: PersonalRecord[];

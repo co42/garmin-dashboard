@@ -96,6 +96,31 @@ export function hrvStatusColor(status: string): string {
 	return C.red;
 }
 
+export function computeMedianLoad(loads: (number | null)[]): number {
+	const valid = loads.filter((l): l is number => l != null).sort((a, b) => a - b);
+	if (valid.length === 0) return 100;
+	return valid[Math.floor(valid.length / 2)];
+}
+
+export function loadColor(load: number | null, medianLoad: number): string {
+	if (load == null) return C.textDim;
+	const ratio = load / medianLoad;
+	if (ratio < 0.7) return C.blue;
+	if (ratio < 1.0) return C.green;
+	if (ratio < 1.4) return C.amber;
+	return C.red;
+}
+
+/** Elevation gradient colors */
+export const GRADIENT_COLORS = {
+	steepDown: C.blue,     // < -8%
+	modDown: C.cyan,       // -8% to -2%
+	flat: C.green,         // -2% to 2%
+	modUp: C.amber,        // 2% to 8%
+	steepUp: C.orange,     // 8% to 15%
+	vSteepUp: C.red,       // > 15%
+} as const;
+
 export function fitnessTrend(trend: number): { label: string; arrow: string; color: string } {
 	if (trend >= 2) return { label: 'Improving', arrow: '↑', color: C.green };
 	if (trend === 1) return { label: 'Steady', arrow: '→', color: C.amber };

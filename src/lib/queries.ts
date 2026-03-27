@@ -16,6 +16,7 @@ import type {
 	Activity,
 	ActivitySplit,
 	ActivityDetails,
+	ActivityWeather,
 	PersonalRecord,
 	GearItem,
 	CalendarEntry,
@@ -146,6 +147,15 @@ export function loadDashboard(): DashboardData | null {
 		};
 	}
 
+	// Activity weather
+	const activityWeather: Record<number, ActivityWeather> = {};
+	const weatherRows = db.prepare(
+		'SELECT activity_id, data FROM activity_weather'
+	).all() as { activity_id: number; data: string }[];
+	for (const r of weatherRows) {
+		activityWeather[r.activity_id] = JSON.parse(r.data) as ActivityWeather;
+	}
+
 	// Computed
 	const lastRunDate = activities.length > 0 ? activities[0].start_time : null;
 	const daysSinceLastRun = lastRunDate
@@ -177,6 +187,7 @@ export function loadDashboard(): DashboardData | null {
 		activities,
 		recentSplits,
 		activityDetails,
+		activityWeather,
 		records,
 		gear,
 		calendar,

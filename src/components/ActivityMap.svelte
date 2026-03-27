@@ -34,14 +34,35 @@
 
 		_map = new maplibregl.Map({
 			container: mapEl,
-			style: 'https://api.maptiler.com/maps/outdoor-v2/style.json?key=ZuAr9fwLm91IzJLZq7s8',
+			style: 'https://api.maptiler.com/maps/outdoor-v2-dark/style.json?key=ZuAr9fwLm91IzJLZq7s8',
 			center: [centerLon, centerLat],
 			zoom: 12,
-			interactive: false,
+			interactive: true,
 			attributionControl: false,
 		});
 
+		_map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+
 		_map.on('load', () => {
+			// Hide noisy layers (admin boundaries, land use, colored trails)
+			const HIDDEN = [
+				'Park outline', 'Forest', 'Wood',
+				'Trails outline', 'Other trails',
+				'Yellow trail', 'Green trail', 'Blue trail', 'Brown trail',
+				'Black trail', 'Purple trail', 'Orange trail', 'Red trail',
+				'Longdistance trail', 'Via ferrata',
+				'Bicycle outline', 'Bicycle local', 'Bicycle longdistance',
+			];
+			for (const id of HIDDEN) {
+				if (_map.getLayer(id)) _map.setLayoutProperty(id, 'visibility', 'none');
+			}
+			// Also hide any admin/boundary layers by pattern
+			for (const layer of _map.getStyle().layers) {
+				if (layer.id.toLowerCase().includes('admin') || layer.id.toLowerCase().includes('boundary')) {
+					_map.setLayoutProperty(layer.id, 'visibility', 'none');
+				}
+			}
+
 			// Fit bounds with padding
 			_map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 24, duration: 0 });
 
@@ -98,4 +119,18 @@
 	});
 </script>
 
-<div bind:this={mapEl} class="h-full w-full rounded"></div>
+<div bind:this={mapEl} class="map-container h-full w-full rounded"></div>
+
+<style>
+	.map-container :global(.maplibregl-ctrl-group) {
+		background: #13131a;
+		border: 1px solid #1e1e2a;
+	}
+	.map-container :global(.maplibregl-ctrl-group button) {
+		background: transparent;
+		border-color: #1e1e2a;
+	}
+	.map-container :global(.maplibregl-ctrl-group button span) {
+		filter: invert(1);
+	}
+</style>

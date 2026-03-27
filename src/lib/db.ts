@@ -80,6 +80,11 @@ CREATE TABLE IF NOT EXISTS activity_details (
 	metric_keys TEXT
 );
 
+CREATE TABLE IF NOT EXISTS activity_weather (
+	activity_id INTEGER PRIMARY KEY,
+	data TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	started_at TEXT NOT NULL DEFAULT (datetime('now')),

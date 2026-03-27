@@ -93,7 +93,7 @@
 
 		<!-- ═══ UPCOMING ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
-			<UpcomingCard calendar={d.calendar} activities={d.activities} />
+			<UpcomingCard calendar={d.calendar} activities={d.activities} hrZones={d.hrZones} activityWeather={d.activityWeather} />
 		{/if}
 
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
@@ -163,7 +163,7 @@
 		<!-- ═══ LOG ═══ -->
 		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>
 
-		<ActivityFeed activities={d.activities} splits={d.recentSplits} details={d.activityDetails} hrZones={d.hrZones} />
+		<ActivityFeed activities={d.activities} splits={d.recentSplits} details={d.activityDetails} weather={d.activityWeather} hrZones={d.hrZones} />
 
 		<ShoeTracker gear={d.gear} />
 	</div>

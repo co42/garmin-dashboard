@@ -1,6 +1,8 @@
 <script lang="ts">
-	import type { CalendarEntry, WorkoutStep, Activity } from '$lib/types.js';
+	import type { CalendarEntry, WorkoutStep, Activity, ActivityWeather, HrZone } from '$lib/types.js';
 	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
+	import { computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
+	import ActivityRow from './ActivityRow.svelte';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
 	import FlagCheckered from 'phosphor-svelte/lib/FlagCheckered';
@@ -12,9 +14,12 @@
 	interface Props {
 		calendar: CalendarEntry[];
 		activities: Activity[];
+		hrZones: HrZone[];
+		activityWeather: Record<number, ActivityWeather>;
 	}
 
-	let { calendar, activities }: Props = $props();
+	let { calendar, activities, hrZones, activityWeather }: Props = $props();
+	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
 	// ── Week boundaries (Monday-based) ──────────────────────────────────────
 
@@ -65,19 +70,14 @@
 			.map((c): Row => ({ kind: 'event', id: c.id, date: c.date, entry: c }))
 	);
 
-	// Activity dates by sport type (for marking workouts as done)
-	const activityDaySport = $derived(new Set(
-		activities.map(a => `${a.start_time.slice(0, 10)}:${a.activity_type}`)
+	// Completed workout IDs (from activity.workout_id)
+	const completedWorkoutIds = $derived(new Set(
+		activities.map(a => a.workout_id).filter((id): id is number => id != null)
 	));
 
 	function isWorkoutDone(entry: CalendarEntry): boolean {
-		if (!entry.sport_type) return false;
-		// trail_running activities match running workouts too
-		if (entry.sport_type === 'running') {
-			return activityDaySport.has(`${entry.date}:running`)
-				|| activityDaySport.has(`${entry.date}:trail_running`);
-		}
-		return activityDaySport.has(`${entry.date}:${entry.sport_type}`);
+		if (entry.workout_id != null && completedWorkoutIds.has(entry.workout_id)) return true;
+		return false;
 	}
 
 	// Future scheduled workouts (only workouts, not activities/events, exclude done)
@@ -254,9 +254,20 @@
 {/snippet}
 
 {#snippet rowCard(row: Row)}
-	<div class="rounded-lg bg-card px-4 py-3">
-		{#if row.kind === 'event'}
-			{@const days = daysUntilDate(row.date)}
+	{#if row.kind === 'done'}
+		<!-- Completed activity — shared row component (has its own padding) -->
+		<div class="rounded-lg bg-card">
+			<ActivityRow
+				activity={row.activity}
+				weather={activityWeather[row.activity.id] ?? null}
+				{hrZones}
+				loadColor={computeLoadColor(row.activity.activity_training_load, medianLoad)}
+				context="calendar"
+			/>
+		</div>
+	{:else if row.kind === 'event'}
+		{@const days = daysUntilDate(row.date)}
+		<div class="rounded-lg bg-card px-4 py-3">
 			<div class="flex items-center gap-2.5">
 				<span class="shrink-0 text-text-dim"><FlagCheckered size={16} weight="fill" /></span>
 				<div class="min-w-0 flex-1">
@@ -266,25 +277,11 @@
 					in {days} days
 				</span>
 			</div>
-		{:else if row.kind === 'done'}
-			<!-- Completed activity -->
-			<div class="flex items-center gap-2.5">
-				<span class="shrink-0 text-green-500">
-					{#if row.activity.activity_type === 'trail_running'}
-						<Mountains size={16} />
-					{:else}
-						<PersonSimpleRun size={16} />
-					{/if}
-				</span>
-				<div class="min-w-0 flex-1">
-					<div class="text-sm font-semibold text-text">{row.activity.name}</div>
-					<div class="num text-xs text-text-dim">{activitySummary(row.activity)}</div>
-				</div>
-				<span class="shrink-0 text-xs text-text-dim font-mono tabular-nums">{dateLabel(row.date)}</span>
-			</div>
-		{:else}
-			<!-- Scheduled workout: collapsible -->
-			{@const entry = row.entry}
+		</div>
+	{:else}
+		<!-- Scheduled workout: collapsible -->
+		{@const entry = row.entry}
+		<div class="rounded-lg bg-card px-4 py-3">
 			<button
 				class="flex w-full items-center gap-2.5 text-left cursor-pointer"
 				onclick={() => toggle(entry.id)}
@@ -317,8 +314,8 @@
 					{@render nonRunningSteps(entry.steps)}
 				{/if}
 			{/if}
-		{/if}
-	</div>
+		</div>
+	{/if}
 {/snippet}
 
 <!-- ── Layout ────────────────────────────────────────────────────────────── -->
