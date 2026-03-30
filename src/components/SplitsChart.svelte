@@ -21,6 +21,18 @@
 		return `${m}:${s.toString().padStart(2, '0')}`;
 	}
 
+	/** Snap a pace value to the nearest clean interval (multiples of step seconds) */
+	function paceFloor(sec: number, step: number): number { return Math.floor(sec / step) * step; }
+	function paceCeil(sec: number, step: number): number { return Math.ceil(sec / step) * step; }
+
+	/** Choose a nice interval for pace axis labels based on range */
+	function niceInterval(range: number): number {
+		if (range <= 60) return 15;       // ≤1min range: every 15s
+		if (range <= 150) return 30;      // ≤2.5min range: every 30s
+		if (range <= 360) return 60;      // ≤6min range: every 1min
+		return 120;                        // wide range: every 2min
+	}
+
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
@@ -47,11 +59,30 @@
 		const hasCadence = cadences.some(c => c != null && c > 0);
 		const hasGap = showGap && gaps.some(g => g != null && g > 0);
 
-		// Pace range (filter outliers)
+		// Pace range — use actual data extremes, snap to clean intervals
 		const allPaces = [...paces, ...(hasGap ? gaps : [])].filter((p): p is number => p != null && p > 120 && p < 900);
-		const paceMin = allPaces.length > 0 ? Math.min(...allPaces) : 200;
-		const paceMax = allPaces.length > 0 ? Math.max(...allPaces) : 500;
-		const pacePad = (paceMax - paceMin) * 0.1 || 15;
+		const rawPaceMin = allPaces.length > 0 ? Math.min(...allPaces) : 200;
+		const rawPaceMax = allPaces.length > 0 ? Math.max(...allPaces) : 500;
+		const paceStep = niceInterval(rawPaceMax - rawPaceMin);
+		const paceMin = paceFloor(rawPaceMin - paceStep * 0.3, paceStep);
+		const paceMax = paceCeil(rawPaceMax + paceStep * 0.3, paceStep);
+
+		// HR range — snap to multiples of 10
+		const allHrs = hrs.filter((h): h is number => h != null && h > 0);
+		const rawHrMin = allHrs.length > 0 ? Math.min(...allHrs) : 100;
+		const rawHrMax = allHrs.length > 0 ? Math.max(...allHrs) : 180;
+		const hrMin = Math.floor((rawHrMin - 5) / 10) * 10;
+		const hrMax = Math.ceil((rawHrMax + 5) / 10) * 10;
+
+		// Power range — snap to multiples of 50
+		const allPowers = powers.filter((p): p is number => p != null && p > 0);
+		const pwrMin = allPowers.length > 0 ? Math.floor((Math.min(...allPowers) - 20) / 50) * 50 : 0;
+		const pwrMax = allPowers.length > 0 ? Math.ceil((Math.max(...allPowers) + 20) / 50) * 50 : 500;
+
+		// Cadence range — snap to multiples of 10
+		const allCadences = cadences.filter((c): c is number => c != null && c > 0);
+		const cadMin = allCadences.length > 0 ? Math.floor((Math.min(...allCadences) - 5) / 10) * 10 : 140;
+		const cadMax = allCadences.length > 0 ? Math.ceil((Math.max(...allCadences) + 5) / 10) * 10 : 200;
 
 		const series: any[] = [];
 
@@ -86,7 +117,7 @@
 
 		if (hasPower) {
 			series.push({
-				type: 'line', name: 'Power', yAxisIndex: 1,
+				type: 'line', name: 'Power', yAxisIndex: 2,
 				data: powers, smooth: true, symbol: 'none',
 				lineStyle: { width: 1.5, color: C.amber, type: 'dashed' },
 				itemStyle: { color: C.amber },
@@ -96,7 +127,7 @@
 
 		if (hasCadence) {
 			series.push({
-				type: 'line', name: 'Cadence', yAxisIndex: 1,
+				type: 'line', name: 'Cadence', yAxisIndex: 3,
 				data: cadences, smooth: true, symbol: 'none',
 				lineStyle: { width: 1.5, color: C.purple, type: 'dashed' },
 				itemStyle: { color: C.purple },
@@ -110,7 +141,7 @@
 		};
 
 		_chart.setOption({
-			grid: { top: 32, right: 8, bottom: 24, left: 40 },
+			grid: { top: 32, right: 48, bottom: 24, left: 40 },
 			legend: {
 				data: series.map(s => ({ name: s.name, itemStyle: { color: s.itemStyle?.color ?? C.green } })),
 				selected: defaultSelected,
@@ -148,19 +179,37 @@
 				{
 					// Pace (inverted — lower = faster)
 					type: 'value',
-					min: Math.floor(paceMin - pacePad),
-					max: Math.ceil(paceMax + pacePad),
+					min: paceMin,
+					max: paceMax,
+					interval: paceStep,
 					inverse: true,
 					axisLine: { show: false },
 					axisLabel: { color: C.textDim, fontSize: 10, formatter: (v: number) => paceStr(v) },
 					splitLine: CHART_AXIS.splitLine,
 				},
 				{
-					// HR / Power / Cadence (hidden axis)
+					// HR (right axis, visible)
 					type: 'value',
+					min: hrMin,
+					max: hrMax,
+					interval: Math.max(10, Math.round((hrMax - hrMin) / 4 / 10) * 10),
 					axisLine: { show: false },
-					axisLabel: { show: false },
+					axisLabel: { color: C.red + '99', fontSize: 10, formatter: (v: number) => String(Math.round(v)) },
 					splitLine: { show: false },
+				},
+				{
+					// Power (hidden axis, own scale)
+					type: 'value',
+					min: pwrMin,
+					max: pwrMax,
+					show: false,
+				},
+				{
+					// Cadence (hidden axis, own scale)
+					type: 'value',
+					min: cadMin,
+					max: cadMax,
+					show: false,
 				},
 			],
 			series,

@@ -41,7 +41,9 @@ function loadDaily<T>(table: string): T[] {
 }
 
 function daysBetween(a: string, b: string): number {
-	return Math.floor((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+	const da = new Date(a.slice(0, 10) + 'T00:00:00Z');
+	const db = new Date(b.slice(0, 10) + 'T00:00:00Z');
+	return Math.round((db.getTime() - da.getTime()) / 86400000);
 }
 
 // ---------------------------------------------------------------------------
@@ -158,9 +160,11 @@ export function loadDashboard(): DashboardData | null {
 	}
 
 	// Computed
-	const lastRunDate = activities.length > 0 ? activities[0].start_time : null;
+	const lastRunDate = activities.length > 0 ? activities[0].start_time.slice(0, 10) : null;
+	const now = new Date();
+	const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 	const daysSinceLastRun = lastRunDate
-		? daysBetween(lastRunDate, new Date().toISOString())
+		? Math.max(0, daysBetween(lastRunDate, todayStr))
 		: null;
 
 	// Last sync time

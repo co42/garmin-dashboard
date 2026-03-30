@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import type { Activity, ActivitySplit, ActivityDetails, ActivityWeather, HrZone } from '$lib/types.js';
 	import { computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
+	import { formatDistance } from '$lib/format.js';
 	import ActivityRow from './ActivityRow.svelte';
 	import ActivityDetailsComp from './ActivityDetails.svelte';
 
@@ -50,6 +52,20 @@
 		});
 	});
 
+	// Stats for selected year
+	const yearStats = $derived(() => {
+		const yearActivities = activities.filter(a => new Date(a.start_time).getFullYear() === selectedYear);
+		const totalKm = yearActivities.reduce((s, a) => s + (a.distance_meters ?? 0), 0) / 1000;
+		return { count: yearActivities.length, km: totalKm };
+	});
+
+	// Stats for selected month
+	const monthStats = $derived(() => {
+		const d = displayed();
+		const totalKm = d.reduce((s, a) => s + (a.distance_meters ?? 0), 0) / 1000;
+		return { count: d.length, km: totalKm };
+	});
+
 	// Median load across ALL activities (not just filtered)
 	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
@@ -61,19 +77,17 @@
 		expandedId = expandedId === id ? null : id;
 	}
 
-	/** Called from calendar to navigate to a specific activity */
-	export function navigateTo(activityId: number) {
+	/** Called from calendar/race times to navigate to a specific activity */
+	export async function navigateTo(activityId: number) {
 		const a = activities.find(a => a.id === activityId);
 		if (!a) return;
 		const d = new Date(a.start_time);
 		selectedYear = d.getFullYear();
 		selectedMonth = d.getMonth();
-		expandedId = null;
-		// Wait for DOM update then scroll
-		requestAnimationFrame(() => {
-			const el = document.getElementById(`activity-${activityId}`);
-			if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		});
+		expandedId = activityId;
+		await tick();
+		const el = document.getElementById(`activity-${activityId}`);
+		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 </script>
 
@@ -88,6 +102,7 @@
 				{year}
 			</button>
 		{/each}
+		<span class="ml-2 num text-[10px] text-text-dim">{formatDistance(yearStats().km * 1000)} km</span>
 	</div>
 
 	<!-- Month tabs -->
@@ -100,11 +115,12 @@
 				disabled={count === 0}
 			>
 				{month}
-				{#if count > 0 && i !== selectedMonth}
+				{#if count > 0}
 					<span class="text-[9px] text-text-dim ml-0.5">{count}</span>
 				{/if}
 			</button>
 		{/each}
+		<span class="ml-2 num text-[10px] text-text-dim">{formatDistance(monthStats().km * 1000)} km</span>
 	</div>
 
 	<!-- Activity list -->

@@ -8,6 +8,7 @@
 	import FlagCheckered from 'phosphor-svelte/lib/FlagCheckered';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
 	import CaretRight from 'phosphor-svelte/lib/CaretRight';
+	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
 
@@ -16,17 +17,28 @@
 		activities: Activity[];
 		hrZones: HrZone[];
 		activityWeather: Record<number, ActivityWeather>;
+		onNavigate?: (activityId: number) => void;
 	}
 
-	let { calendar, activities, hrZones, activityWeather }: Props = $props();
+	let { calendar, activities, hrZones, activityWeather, onNavigate }: Props = $props();
 	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
 	// ── Week boundaries (Monday-based) ──────────────────────────────────────
 
 	const todayStr = today();
-	const thisWeekStr = weekMonday(todayStr);
-	const nextWeekStr = addDays(thisWeekStr, 7);
-	const cutoffStr = addDays(thisWeekStr, 14);
+	const currentWeekStr = weekMonday(todayStr);
+	let weekOffset = $state(0);
+	const thisWeekStr = $derived(addDays(currentWeekStr, weekOffset * 7));
+	const nextWeekStr = $derived(addDays(thisWeekStr, 7));
+	const cutoffStr = $derived(addDays(thisWeekStr, 14));
+	const isCurrentWeek = $derived(weekOffset === 0);
+
+	function weekLabel(dateStr: string): string {
+		const d = new Date(dateStr + 'T12:00:00Z');
+		const end = new Date(addDays(dateStr, 6) + 'T12:00:00Z');
+		const fmt = (dt: Date) => dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+		return `${fmt(d)} – ${fmt(end)}`;
+	}
 
 	// ── Unified row type ────────────────────────────────────────────────────
 
@@ -49,26 +61,7 @@
 
 	// ── Build rows ──────────────────────────────────────────────────────────
 
-	// Activities this week (Mon → today), keyed by date
-	const thisWeekActivities = $derived(
-		activities
-			.filter(a => {
-				const d = a.start_time.slice(0, 10);
-				return d >= thisWeekStr && d <= todayStr;
-			})
-			.map((a): Row => ({
-				kind: 'done',
-				id: a.id,
-				date: a.start_time.slice(0, 10),
-				activity: a,
-			}))
-	);
-
 	const sorted = $derived([...calendar].sort((a, b) => a.date.localeCompare(b.date)));
-	const events = $derived(
-		sorted.filter(c => c.item_type === 'event' && c.date >= thisWeekStr)
-			.map((c): Row => ({ kind: 'event', id: c.id, date: c.date, entry: c }))
-	);
 
 	// Completed workout IDs (from activity.workout_id)
 	const completedWorkoutIds = $derived(new Set(
@@ -76,29 +69,38 @@
 	));
 
 	function isWorkoutDone(entry: CalendarEntry): boolean {
-		if (entry.workout_id != null && completedWorkoutIds.has(entry.workout_id)) return true;
-		return false;
+		return entry.workout_id != null && completedWorkoutIds.has(entry.workout_id);
 	}
 
-	// Future scheduled workouts (only workouts, not activities/events, exclude done)
-	const scheduledRows = $derived(
-		sorted
-			.filter(c => c.item_type === 'workout' && c.date >= todayStr && !isWorkoutDone(c))
-			.map((c): Row => ({ kind: 'scheduled', id: c.id, date: c.date, entry: c }))
-	);
+	function weekRows(weekStart: string, weekEnd: string): Row[] {
+		// Activities in this week range
+		const activityRows: Row[] = activities
+			.filter(a => {
+				const d = a.start_time.slice(0, 10);
+				return d >= weekStart && d < weekEnd;
+			})
+			.map((a): Row => ({
+				kind: 'done',
+				id: a.id,
+				date: a.start_time.slice(0, 10),
+				activity: a,
+			}));
 
-	// This week: done activities + today's and future scheduled (within this week)
-	const thisWeekRows = $derived(
-		[
-			...thisWeekActivities,
-			...scheduledRows.filter(r => r.date < nextWeekStr),
-		].sort((a, b) => a.date.localeCompare(b.date))
-	);
+		// Scheduled workouts in this week range (future only, not done)
+		const scheduledInWeek: Row[] = sorted
+			.filter(c => c.item_type === 'workout' && c.date >= weekStart && c.date < weekEnd && c.date >= todayStr && !isWorkoutDone(c))
+			.map((c): Row => ({ kind: 'scheduled', id: c.id, date: c.date, entry: c }));
 
-	// Next week: only scheduled
-	const nextWeekRows = $derived(
-		scheduledRows.filter(r => r.date >= nextWeekStr && r.date < cutoffStr)
-	);
+		// Events in this week range
+		const eventRows: Row[] = sorted
+			.filter(c => c.item_type === 'event' && c.date >= weekStart && c.date < weekEnd)
+			.map((c): Row => ({ kind: 'event', id: c.id, date: c.date, entry: c }));
+
+		return [...activityRows, ...scheduledInWeek, ...eventRows].sort((a, b) => a.date.localeCompare(b.date));
+	}
+
+	const thisWeekRows = $derived(weekRows(thisWeekStr, nextWeekStr));
+	const nextWeekRows = $derived(weekRows(nextWeekStr, cutoffStr));
 
 	// ── Expand/collapse ─────────────────────────────────────────────────────
 
@@ -263,6 +265,7 @@
 				{hrZones}
 				loadColor={computeLoadColor(row.activity.activity_training_load, medianLoad)}
 				context="calendar"
+				{onNavigate}
 			/>
 		</div>
 	{:else if row.kind === 'event'}
@@ -320,9 +323,36 @@
 
 <!-- ── Layout ────────────────────────────────────────────────────────────── -->
 
+<div class="flex items-center justify-between mb-3">
+	<div class="flex items-center gap-2">
+		<button
+			class="cursor-pointer rounded p-1 text-text-dim hover:text-text-secondary hover:bg-card-border/30 transition-colors"
+			onclick={() => weekOffset--}
+			aria-label="Previous weeks"
+		><CaretLeft size={14} weight="bold" /></button>
+		<span class="text-xs font-medium uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+			<CalendarBlank size={14} weight="bold" />
+			{#if isCurrentWeek}Schedule{:else}{weekLabel(thisWeekStr)}{/if}
+		</span>
+		<button
+			class="cursor-pointer rounded p-1 text-text-dim hover:text-text-secondary hover:bg-card-border/30 transition-colors"
+			onclick={() => weekOffset++}
+			aria-label="Next weeks"
+		><CaretRight size={14} weight="bold" /></button>
+		{#if !isCurrentWeek}
+			<button
+				class="cursor-pointer rounded px-2 py-0.5 text-[10px] font-medium text-text-dim hover:text-text-secondary hover:bg-card-border/30 transition-colors"
+				onclick={() => weekOffset = 0}
+			>Today</button>
+		{/if}
+	</div>
+</div>
+
 <div class="grid gap-4 md:grid-cols-2">
 	<div>
-		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><CalendarBlank size={14} weight="bold" /> This Week</h2>
+		<h3 class="mb-2 text-[10px] font-medium uppercase tracking-wider text-text-dim">
+			{#if isCurrentWeek}This Week{:else}{weekLabel(thisWeekStr)}{/if}
+		</h3>
 		{#if thisWeekRows.length > 0}
 			<div class="grid gap-3">
 				{#each thisWeekRows as row}
@@ -330,12 +360,14 @@
 				{/each}
 			</div>
 		{:else}
-			<div class="rounded-lg bg-card px-4 py-3 text-xs text-text-dim">No workouts scheduled</div>
+			<div class="rounded-lg bg-card px-4 py-3 text-xs text-text-dim">Nothing this week</div>
 		{/if}
 	</div>
 
 	<div>
-		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><CalendarBlank size={14} weight="bold" /> Next Week</h2>
+		<h3 class="mb-2 text-[10px] font-medium uppercase tracking-wider text-text-dim">
+			{#if isCurrentWeek}Next Week{:else}{weekLabel(nextWeekStr)}{/if}
+		</h3>
 		{#if nextWeekRows.length > 0}
 			<div class="grid gap-3">
 				{#each nextWeekRows as row}
@@ -343,15 +375,7 @@
 				{/each}
 			</div>
 		{:else}
-			<div class="rounded-lg bg-card px-4 py-3 text-xs text-text-dim">No workouts scheduled</div>
+			<div class="rounded-lg bg-card px-4 py-3 text-xs text-text-dim">Nothing this week</div>
 		{/if}
 	</div>
 </div>
-
-{#if events.length > 0}
-	<div class="grid gap-3">
-		{#each events as row}
-			{@render rowCard(row)}
-		{/each}
-	</div>
-{/if}

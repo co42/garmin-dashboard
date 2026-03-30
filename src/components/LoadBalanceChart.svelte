@@ -98,14 +98,16 @@
 			{@const weekDelta = Math.round(bar.value - bar.prevValue)}
 			<div>
 				<div class="mb-1.5 flex items-baseline justify-between">
-					<Tip text={barTips[bar.label]}>
-						<span class="text-xs font-medium text-text-secondary">{bar.label}</span>
-					</Tip>
+					<span class="flex items-baseline gap-1.5">
+						<Tip text={barTips[bar.label]}>
+							<span class="text-xs font-medium text-text-secondary">{bar.label}</span>
+						</Tip>
+						{#if weekDelta !== 0}
+							<span class="num text-[10px] text-text-dim">({weekDelta > 0 ? '+' : ''}{weekDelta} this wk)</span>
+						{/if}
+					</span>
 					<span class="num text-xs font-medium" style="color: {deltaColor(bar.value, bar.min, bar.max)}">
 						{delta(bar.value, bar.min, bar.max)}
-						{#if weekDelta !== 0}
-							<span class="text-text-dim ml-1">({weekDelta > 0 ? '+' : ''}{weekDelta} this wk)</span>
-						{/if}
 					</span>
 				</div>
 				<Tip text="{Math.round(bar.value)} / target {bar.min}–{bar.max}{weekDelta !== 0 ? '\n' + (weekDelta > 0 ? '+' : '') + weekDelta + ' since Monday' : ''}">

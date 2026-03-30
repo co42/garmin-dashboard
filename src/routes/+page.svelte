@@ -25,6 +25,7 @@
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
+	let feedRef: ActivityFeed | undefined = $state();
 
 	// Global time window: 4 weeks (1M) or 13 weeks (3M), always starts on a Monday
 	let windowWeeks = $state(4);
@@ -93,7 +94,7 @@
 
 		<!-- ═══ UPCOMING ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
-			<UpcomingCard calendar={d.calendar} activities={d.activities} hrZones={d.hrZones} activityWeather={d.activityWeather} />
+			<UpcomingCard calendar={d.calendar} activities={d.activities} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} />
 		{/if}
 
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
@@ -158,12 +159,12 @@
 		<WeeklyVolume activities={w.activities} />
 		{/key}
 
-		<ProfileStats predictions={d.racePredictions} records={d.records} />
+		<ProfileStats predictions={d.racePredictions} records={d.records} activities={d.activities} onNavigate={(id) => feedRef?.navigateTo(id)} />
 
 		<!-- ═══ LOG ═══ -->
 		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>
 
-		<ActivityFeed activities={d.activities} splits={d.recentSplits} details={d.activityDetails} weather={d.activityWeather} hrZones={d.hrZones} />
+		<ActivityFeed bind:this={feedRef} activities={d.activities} splits={d.recentSplits} details={d.activityDetails} weather={d.activityWeather} hrZones={d.hrZones} />
 
 		<ShoeTracker gear={d.gear} />
 	</div>

@@ -31,9 +31,10 @@
 		context: 'feed' | 'calendar';
 		expanded?: boolean;
 		ontoggle?: () => void;
+		onNavigate?: (activityId: number) => void;
 	}
 
-	let { activity, splits = [], weather = null, hrZones, loadColor, context, expanded = false, ontoggle }: Props = $props();
+	let { activity, splits = [], weather = null, hrZones, loadColor, context, expanded = false, ontoggle, onNavigate }: Props = $props();
 
 	// Inline title editing
 	let editingTitle = $state(false);
@@ -148,7 +149,11 @@
 	}
 </script>
 
-<div class="w-full text-left px-4 py-3">
+<button
+	type="button"
+	class="w-full text-left px-4 py-3 cursor-pointer hover:bg-card-border/20 transition-colors rounded-lg"
+	onclick={() => { if (context === 'feed') ontoggle?.(); else if (onNavigate) onNavigate(activity.id); else scrollToActivity(); }}
+>
 	<!-- Row 1: Name + badge + weather + date -->
 	<div class="flex items-center gap-2 mb-1.5">
 		<span style="color: {teColor};">
@@ -212,21 +217,13 @@
 				</Tip>
 			{/if}
 			{#if context === 'feed'}
-				<button
-					class="cursor-pointer p-1 -m-1 rounded hover:bg-card-border/30 transition-colors"
-					onclick={ontoggle}
-					aria-label={expanded ? 'Collapse' : 'Expand'}
-				>
+				<span class="text-text-dim">
 					<CaretDown size={12} weight="bold" class="transition-transform {expanded ? 'rotate-180' : ''}" />
-				</button>
+				</span>
 			{:else}
-				<button
-					class="cursor-pointer text-text-dim hover:text-text-secondary transition-colors"
-					onclick={(e: MouseEvent) => { e.stopPropagation(); scrollToActivity(); }}
-					title="Jump to activity"
-				>
+				<span class="text-text-dim">
 					<ArrowSquareOut size={14} weight="bold" />
-				</button>
+				</span>
 			{/if}
 		</span>
 	</div>
@@ -247,7 +244,7 @@
 			<span class="num text-text-secondary">D+ {activity.elevation_gain}m</span>
 		{/if}
 		{#if activity.avg_hr}
-			<span class="num text-text-secondary">&#9829; {activity.avg_hr}{#if activity.max_hr} <span class="inline-flex items-center text-text-dim"><CaretUp size={10} weight="fill" />{activity.max_hr}</span>{/if}</span>
+			<span class="num text-text-secondary inline-flex items-center gap-0.5">&#9829; {activity.avg_hr}{#if activity.max_hr}<span class="inline-flex items-center text-text-dim"><CaretUp size={10} weight="fill" />{activity.max_hr}</span>{/if}</span>
 		{/if}
 
 		<!-- Right group: sparkline + load + zones -->
@@ -291,4 +288,4 @@
 			{/if}
 		</span>
 	</div>
-</div>
+</button>
