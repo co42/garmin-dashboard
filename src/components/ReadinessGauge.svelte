@@ -12,7 +12,7 @@
 
 	let { readiness }: Props = $props();
 
-	const latest = $derived(readiness.post_activity ?? readiness.morning);
+	const latest = $derived(readiness.latest ?? readiness.post_activity ?? readiness.morning);
 	const entry = $derived(latest ?? resolveReadiness(readiness));
 	const hasBoth = $derived(!!readiness.morning && !!readiness.post_activity);
 

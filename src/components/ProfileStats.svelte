@@ -15,13 +15,13 @@
 	let { predictions, records }: Props = $props();
 
 	const DISTANCES = $derived([
-		{ label: '5K', km: 5, typeId: 3, predTime: predictions.time_5k_seconds, predPace: predictions.pace_5k },
-		{ label: '10K', km: 10, typeId: 4, predTime: predictions.time_10k_seconds, predPace: predictions.pace_10k },
-		{ label: 'Semi', km: 21.0975, typeId: 5, predTime: predictions.time_half_marathon_seconds, predPace: predictions.pace_half_marathon },
-		{ label: 'Marathon', km: 42.195, typeId: 6, predTime: predictions.time_marathon_seconds, predPace: predictions.pace_marathon },
+		{ label: '5K', km: 5, recordType: '5K Run', predTime: predictions.time_5k_seconds, predTimeStr: predictions.time_5k, predPace: predictions.pace_5k },
+		{ label: '10K', km: 10, recordType: '10K Run', predTime: predictions.time_10k_seconds, predTimeStr: predictions.time_10k, predPace: predictions.pace_10k },
+		{ label: 'Semi', km: 21.0975, recordType: 'Half Marathon', predTime: predictions.time_half_marathon_seconds, predTimeStr: predictions.time_half_marathon, predPace: predictions.pace_half_marathon },
+		{ label: 'Marathon', km: 42.195, recordType: 'Full Marathon', predTime: predictions.time_marathon_seconds, predTimeStr: predictions.time_marathon, predPace: predictions.pace_marathon },
 	]);
 
-	const recordMap = $derived(new Map(records.map(r => [r.type_id, r])));
+	const recordMap = $derived(new Map(records.map(r => [r.record_type, r])));
 
 	function pace(seconds: number, km: number): string {
 		const p = seconds / km;
@@ -50,12 +50,12 @@
 
 	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 		{#each DISTANCES as dist}
-			{@const pr = recordMap.get(dist.typeId)}
-			{@const recent = pr ? isRecent(pr.date) : false}
+			{@const pr = recordMap.get(dist.recordType)}
+			{@const recent = pr?.date ? isRecent(pr.date) : false}
 			<div class="rounded-lg bg-card px-4 py-3" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
 				<div class="mb-2 flex items-baseline justify-between">
 					<span class="text-xs font-semibold uppercase tracking-wider text-text-secondary">{dist.label}</span>
-					{#if pr}
+					{#if pr?.date}
 						<span class="num text-[10px] text-text-dim">{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</span>
 					{/if}
 				</div>
@@ -63,8 +63,8 @@
 			{#if pr}
 					<div class="flex items-center gap-2">
 						<Trophy size={16} weight="bold" class="text-text-dim shrink-0" />
-						<span class="num text-lg font-bold text-text">{formatTime(pr.value)}</span>
-						<span class="num text-sm text-text-secondary ml-auto">{pace(pr.value, dist.km)}</span>
+						<span class="num text-lg font-bold text-text">{pr.formatted_value}</span>
+						<span class="num text-sm text-text-secondary ml-auto">{pr.pace_min_km ?? pace(pr.value, dist.km)}</span>
 					</div>
 				{:else}
 					<div class="flex items-center gap-2 text-sm text-text-dim"><Trophy size={16} weight="bold" class="shrink-0" /> no PR</div>
@@ -72,7 +72,7 @@
 
 				<div class="mt-2 flex items-center gap-2 border-t border-card-border/50 pt-2">
 					<TrendUp size={16} weight="bold" class="text-text-dim shrink-0" />
-					<span class="num text-lg font-bold text-text-dim">{formatTime(dist.predTime)}</span>
+					<span class="num text-lg font-bold text-text-dim">{dist.predTimeStr}</span>
 					<span class="num text-sm text-text-dim ml-auto">{dist.predPace} /km</span>
 				</div>
 			</div>

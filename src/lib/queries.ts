@@ -79,11 +79,13 @@ export function loadDashboard(): DashboardData | null {
 		date: '',
 		morning: null,
 		post_activity: null,
+		latest: null,
 	});
 
 	const racePredictions = snapshot<RacePredictions>('race_predictions', {
 		date: '', time_5k_seconds: 0, time_10k_seconds: 0, time_half_marathon_seconds: 0,
-		time_marathon_seconds: 0, pace_5k: '', pace_10k: '', pace_half_marathon: '', pace_marathon: '',
+		time_marathon_seconds: 0, time_5k: '', time_10k: '', time_half_marathon: '', time_marathon: '',
+		pace_5k: '', pace_10k: '', pace_half_marathon: '', pace_marathon: '',
 	});
 
 	const enduranceScore = snapshot<EnduranceScore>('endurance_score', {
@@ -104,12 +106,11 @@ export function loadDashboard(): DashboardData | null {
 	});
 
 	const stress = snapshot<StressDay>('stress', {
-		date: '', avg_stress: 0, max_stress: 0, body_battery_high: 0,
-		body_battery_low: 0, body_battery_latest: 0,
+		date: '', avg_stress: 0, max_stress: 0,
 	});
 
 	const bodyBattery = snapshot<BodyBattery>('body_battery', {
-		date: '', high: 0, low: 0, latest: 0,
+		date: '', body_battery_high: 0, body_battery_low: 0, body_battery_latest: 0,
 	});
 
 	const records = snapshot<PersonalRecord[]>('records', []);

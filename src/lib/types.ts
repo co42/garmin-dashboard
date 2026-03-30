@@ -8,8 +8,7 @@ export interface DailyTrainingStatus {
 	acute_load: number;
 	chronic_load: number;
 	status: string; // "PRODUCTIVE_2", "DETRAINING", "MAINTAINING", etc.
-	status_code: number;
-	fitness_trend: number;
+	fitness_trend: string;
 	fitness_trend_sport: string;
 	load_balance_feedback: string;
 	monthly_load_aerobic_high: number;
@@ -32,7 +31,7 @@ export interface DailyTrainingStatus {
 export interface HrZone {
 	zone: number;
 	min_bpm: number;
-	max_bpm: number;
+	max_bpm: number | null;
 }
 
 // --- Readiness ---
@@ -62,6 +61,7 @@ export interface Readiness {
 	date: string;
 	morning: ReadinessEntry | null;
 	post_activity: ReadinessEntry | null;
+	latest: ReadinessEntry | null;
 }
 
 // --- Race Predictions ---
@@ -72,6 +72,10 @@ export interface RacePredictions {
 	time_10k_seconds: number;
 	time_half_marathon_seconds: number;
 	time_marathon_seconds: number;
+	time_5k: string;
+	time_10k: string;
+	time_half_marathon: string;
+	time_marathon: string;
 	pace_5k: string;
 	pace_10k: string;
 	pace_half_marathon: string;
@@ -134,6 +138,10 @@ export interface HrvDay {
 	date: string;
 	status: string;
 	weekly_average: number;
+	last_night_avg: number | null;
+	last_night_5min_high: number | null;
+	baseline_balanced_low: number | null;
+	baseline_balanced_upper: number | null;
 }
 
 // --- Health ---
@@ -149,22 +157,20 @@ export interface HeartRateDay {
 export interface SleepScoreDay {
 	date: string;
 	score: number;
+	sleep_score_qualifier: string | null;
 }
 
 export interface StressDay {
 	date: string;
 	avg_stress: number;
 	max_stress: number;
-	body_battery_high: number;
-	body_battery_low: number;
-	body_battery_latest: number;
 }
 
 export interface BodyBattery {
 	date: string;
-	high: number;
-	low: number;
-	latest: number;
+	body_battery_high: number;
+	body_battery_low: number;
+	body_battery_latest: number;
 }
 
 // --- Activity Weather ---
@@ -187,12 +193,11 @@ export interface Activity {
 	start_time: string;
 	distance_meters: number;
 	duration_seconds: number;
-	moving_duration: number | null;
+	moving_duration_seconds: number | null;
 	avg_hr: number | null;
 	max_hr: number | null;
 	calories: number | null;
 	pace_min_km: string | null;
-	avg_pace: string | null;
 	training_effect_label: string | null;
 	activity_training_load: number | null;
 	aerobic_training_effect: number | null;
@@ -228,8 +233,9 @@ export interface Activity {
 	start_latitude: number | null;
 	start_longitude: number | null;
 	steps: number | null;
-	moderate_intensity_minutes: number | null;
-	vigorous_intensity_minutes: number | null;
+	moderate_intensity_minutes: number;
+	vigorous_intensity_minutes: number;
+	total_intensity_minutes: number;
 	workout_id: number | null;
 }
 
@@ -276,12 +282,15 @@ export interface ActivityDetails {
 // --- Records ---
 
 export interface PersonalRecord {
-	type_id: number;
+	record_type: string;
+	sport: string;
 	value: number;
-	date: string;
-	activity_id: number;
-	activity_name: string;
-	activity_type: string;
+	formatted_value: string;
+	pace_min_km?: string;
+	activity_id?: number;
+	activity_name?: string;
+	activity_type?: string;
+	date?: string;
 }
 
 // --- Gear ---

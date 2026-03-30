@@ -15,7 +15,7 @@
 	const color = $derived(statusColor(status.status));
 	const acwrC = $derived(acwrColor(status.acwr_status));
 	const trend = $derived(fitnessTrend(status.fitness_trend));
-	const latest = $derived(readiness.post_activity ?? readiness.morning);
+	const latest = $derived(readiness.latest ?? readiness.post_activity ?? readiness.morning);
 	const latestColor = $derived(latest ? readinessColor(latest.score) : C.textDim);
 
 	function fmt(s: string): string {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PersonalRecord } from '$lib/types.js';
-	import { formatTime, formatDate, formatDistance } from '$lib/format.js';
+	import { formatDate } from '$lib/format.js';
 	import { C } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import Trophy from 'phosphor-svelte/lib/Trophy';
@@ -11,27 +11,12 @@
 
 	let { records }: Props = $props();
 
-	const RECORD_TYPES: Record<number, { label: string; unit: 'time' | 'distance' }> = {
-		1: { label: '1K', unit: 'time' },
-		2: { label: '1 Mile', unit: 'time' },
-		3: { label: '5K', unit: 'time' },
-		4: { label: '10K', unit: 'time' },
-		5: { label: 'Half Marathon', unit: 'time' },
-		6: { label: 'Marathon', unit: 'time' },
-		7: { label: 'Longest Run', unit: 'distance' },
-	};
-
 	const displayRecords = $derived(
-		records.filter(r => RECORD_TYPES[r.type_id]).sort((a, b) => a.type_id - b.type_id)
+		records.filter(r => r.sport === 'running')
 	);
 
-	function formatValue(record: PersonalRecord): string {
-		const type = RECORD_TYPES[record.type_id];
-		if (type.unit === 'time') return formatTime(record.value);
-		return `${formatDistance(record.value)} km`;
-	}
-
-	function isRecent(date: string): boolean {
+	function isRecent(date?: string): boolean {
+		if (!date) return false;
 		return Date.now() - new Date(date).getTime() < 30 * 86400000;
 	}
 </script>
@@ -48,10 +33,13 @@
 			{#each displayRecords as record}
 				{@const recent = isRecent(record.date)}
 				<div class="rounded bg-card-border/50 px-3 py-2" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
-					<span class="text-[10px] font-semibold uppercase text-text-dim">{RECORD_TYPES[record.type_id].label}</span>
-					<p class="num text-sm font-bold text-text">{formatValue(record)}</p>
+					<span class="text-[10px] font-semibold uppercase text-text-dim">{record.record_type}</span>
+					<p class="num text-sm font-bold text-text">{record.formatted_value}</p>
+					{#if record.pace_min_km}
+						<p class="num text-[10px] text-text-dim">{record.pace_min_km}</p>
+					{/if}
 					<p class="text-[10px] text-text-secondary">
-						{formatDate(record.date)}
+						{record.date ? formatDate(record.date) : ''}
 						{#if recent}<span style="color: {C.green}"> NEW</span>{/if}
 					</p>
 				</div>

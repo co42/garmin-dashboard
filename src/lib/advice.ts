@@ -27,7 +27,7 @@ export function generateAdvice(data: DashboardData): Advice {
 	const acwr = s.acwr;
 	const resolved = resolveReadiness(readiness);
 	const score = resolved.score;
-	const bb = bodyBattery.latest;
+	const bb = bodyBattery.body_battery_latest;
 
 	// Aggregate HR zone time from last 10 activities
 	const recentActivities = data.activities.slice(0, 10);

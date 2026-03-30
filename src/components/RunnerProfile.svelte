@@ -185,7 +185,7 @@
 						<div class="w-1.5 h-5 rounded-full" style="background: {ZONE_COLORS[z - 1]};"></div>
 						<div class="leading-none">
 							<span class="num text-[10px] font-semibold" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
-							<span class="num text-[10px] text-text-secondary ml-0.5">{hz.min_bpm}–{#if hz.max_bpm === 999}<b class="text-text">{maxHr ?? '?'}</b>{:else}{hz.max_bpm}{/if}</span>
+							<span class="num text-[10px] text-text-secondary ml-0.5">{hz.min_bpm}–{#if hz.max_bpm == null}<b class="text-text">{maxHr ?? '?'}</b>{:else}{hz.max_bpm}{/if}</span>
 						</div>
 					</div>
 				{/if}

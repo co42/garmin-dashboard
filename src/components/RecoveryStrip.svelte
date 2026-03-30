@@ -51,8 +51,8 @@
 		<Tip text={"Garmin's energy reserve (0–100).\nDrains with activity and stress.\nRecharges with rest and sleep.\n\n< 25 = skip training\n> 60 = green light for hard efforts"}>
 			<span class="text-[10px] font-medium uppercase text-text-dim">Body Battery</span>
 		</Tip>
-		<p class="num text-xl font-bold" style="color: {bbColor(bodyBattery.latest)}">{bodyBattery.latest}%</p>
-		<p class="num text-[10px] text-text-dim">{bodyBattery.low}–{bodyBattery.high}% today</p>
+		<p class="num text-xl font-bold" style="color: {bbColor(bodyBattery.body_battery_latest)}">{bodyBattery.body_battery_latest}%</p>
+		<p class="num text-[10px] text-text-dim">{bodyBattery.body_battery_low}–{bodyBattery.body_battery_high}% today</p>
 	</div>
 
 	{#if latestSleep}
@@ -61,7 +61,7 @@
 				<span class="text-[10px] font-medium uppercase text-text-dim">Sleep Score</span>
 			</Tip>
 				<p class="num text-xl font-bold" style="color: {sleepColor(latestSleep.score)}">{latestSleep.score}%</p>
-			<p class="num text-[10px] text-text-dim">{new Date(latestSleep.date).toLocaleDateString('en-GB')}</p>
+			<p class="num text-[10px] text-text-dim">{latestSleep.sleep_score_qualifier ? latestSleep.sleep_score_qualifier.toLowerCase() + ' · ' : ''}{new Date(latestSleep.date).toLocaleDateString('en-GB')}</p>
 		</div>
 	{/if}
 

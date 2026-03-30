@@ -20,16 +20,20 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 
 		const dates = hrv.map(d => d.date.slice(5, 10));
-		const values = hrv.map(d => d.weekly_average);
+		const values = hrv.map(d => d.last_night_avg ?? d.weekly_average);
 		const statuses = hrv.map(d => d.status);
 
-		// Compute rolling baseline corridor
-		const baseline = values.map((_, i) => {
+		// Use API baseline range when available, otherwise compute rolling corridor
+		const corridorLow = hrv.map((d, i) => {
+			if (d.baseline_balanced_low != null) return d.baseline_balanced_low;
 			const window = values.slice(Math.max(0, i - 6), i + 1);
-			return window.reduce((s, v) => s + v, 0) / window.length;
+			return Math.round(window.reduce((s, v) => s + v, 0) / window.length - 5);
 		});
-		const corridorLow = baseline.map(v => Math.round(v - 5));
-		const corridorHigh = baseline.map(v => Math.round(v + 5));
+		const corridorHigh = hrv.map((d, i) => {
+			if (d.baseline_balanced_upper != null) return d.baseline_balanced_upper;
+			const window = values.slice(Math.max(0, i - 6), i + 1);
+			return Math.round(window.reduce((s, v) => s + v, 0) / window.length + 5);
+		});
 
 		const scatterData = hrv.map((d, i) => ({
 			value: [i, d.weekly_average],
@@ -40,7 +44,7 @@
 			grid: { top: 35, right: 16, bottom: 30, left: 40 },
 			legend: {
 				data: [
-					{ name: 'Weekly avg', itemStyle: { color: C.blue } },
+					{ name: 'Last night', itemStyle: { color: C.blue } },
 					{ name: 'Baseline', itemStyle: { color: C.green }, lineStyle: { type: 'dashed' } },
 				],
 				top: 4,
@@ -51,7 +55,13 @@
 				trigger: 'axis',
 				formatter(params: any) {
 					const idx = params[0]?.dataIndex ?? 0;
-					return `${dates[idx]}<br/>Weekly avg: <b>${values[idx]}</b> ms<br/>Baseline: ${corridorLow[idx]}–${corridorHigh[idx]}<br/>Status: ${statuses[idx]}`;
+					const d = hrv[idx];
+					let html = `${dates[idx]}<br/>Last night: <b>${values[idx]}</b> ms`;
+					if (d?.last_night_5min_high != null) html += `<br/>5-min high: ${d.last_night_5min_high} ms`;
+					html += `<br/>Baseline: ${corridorLow[idx]}–${corridorHigh[idx]}`;
+					html += `<br/>Weekly avg: ${d?.weekly_average ?? '-'} ms`;
+					html += `<br/>Status: ${statuses[idx]}`;
+					return html;
 				},
 			},
 			xAxis: {
@@ -79,9 +89,9 @@
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					z: 1,
 				},
-				// Weekly avg line
+				// Last night avg line
 				{
-					type: 'line', name: 'Weekly avg', data: values, smooth: true, symbol: 'none',
+					type: 'line', name: 'Last night', data: values, smooth: true, symbol: 'none',
 					lineStyle: { width: 2.5, color: C.blue },
 					itemStyle: { color: C.blue },
 					z: 3,

@@ -164,7 +164,7 @@ export async function runSync(): Promise<SyncResult> {
 			garminSafe(['health', 'body-battery'], null),
 			garminSafe(['records'], []),
 			garminSafe(['gear', 'list'], []),
-			garminSafe<HrZone[]>(['training', 'zones'], []),
+			garminSafe<HrZone[]>(['training', 'hr-zones'], []),
 			garminSafe<UserSettings | null>(['profile', 'settings'], null),
 			// Time-series
 			fetchDateRange<DailyTrainingStatus>(['training', 'status'], fromDate, today),

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { RacePredictions as RPType } from '$lib/types.js';
-	import { formatRaceTime } from '$lib/format.js';
 	import Tip from './Tip.svelte';
 	import Target from 'phosphor-svelte/lib/Target';
 
@@ -11,10 +10,10 @@
 	let { predictions }: Props = $props();
 
 	const races = $derived([
-		{ label: '5K', time: predictions.time_5k_seconds, pace: predictions.pace_5k },
-		{ label: '10K', time: predictions.time_10k_seconds, pace: predictions.pace_10k },
-		{ label: 'Half', time: predictions.time_half_marathon_seconds, pace: predictions.pace_half_marathon },
-		{ label: 'Full', time: predictions.time_marathon_seconds, pace: predictions.pace_marathon },
+		{ label: '5K', time: predictions.time_5k, pace: predictions.pace_5k },
+		{ label: '10K', time: predictions.time_10k, pace: predictions.pace_10k },
+		{ label: 'Half', time: predictions.time_half_marathon, pace: predictions.pace_half_marathon },
+		{ label: 'Full', time: predictions.time_marathon, pace: predictions.pace_marathon },
 	]);
 </script>
 
@@ -26,7 +25,7 @@
 		{#each races as race}
 			<div class="rounded bg-card-border/50 px-2.5 py-1.5">
 				<span class="text-[10px] font-semibold uppercase text-text-dim">{race.label}</span>
-				<p class="num text-sm font-bold text-text">{formatRaceTime(race.time)}</p>
+				<p class="num text-sm font-bold text-text">{race.time}</p>
 				<p class="num text-[10px] text-text-secondary">{race.pace} /km</p>
 			</div>
 		{/each}

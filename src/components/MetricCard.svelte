@@ -8,7 +8,7 @@
 		value: string;
 		subtitle: string;
 		tip?: string;
-		trend?: number;
+		trend?: string;
 		delta?: number;
 		sparkline?: number[];
 		sparklineColor?: string;
