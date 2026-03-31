@@ -22,6 +22,14 @@
 		return s.replace(/_\d+$/, '').split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 	}
 
+	/** Compute remaining recovery from the snapshot value + its timestamp */
+	function remainingRecovery(entry: { recovery_time_minutes: number; timestamp_local?: string } | null): number {
+		if (!entry || entry.recovery_time_minutes <= 0) return 0;
+		if (!entry.timestamp_local) return entry.recovery_time_minutes;
+		const elapsed = (Date.now() - new Date(entry.timestamp_local).getTime()) / 60000;
+		return Math.max(0, Math.round(entry.recovery_time_minutes - elapsed));
+	}
+
 	function recoveryTime(minutes: number): string {
 		if (minutes <= 0) return 'ready';
 		const h = Math.floor(minutes / 60);
@@ -81,15 +89,16 @@
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</span>
 					<p class="num text-xl font-bold">
 						<span style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</span>
+						{#if latest}<span class="text-xs font-normal text-text-secondary" style="color: {latestColor}">{readinessLabel(latest.score).toLowerCase()}</span>{/if}
 					</p>
 				</div>
 			</Tip>
 			<div class="h-8 w-px bg-card-border"></div>
-			<Tip text={"Time until Garmin estimates full recovery from recent training." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time_minutes) : "")}>
+			<Tip text={"Time until Garmin estimates full recovery from recent training.\nCounts down from the last readiness snapshot." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time_minutes) : "")}>
 				<div class="text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Recovery</span>
 					<p class="num text-xl font-bold text-text">
-						{recoveryTime(latest?.recovery_time_minutes ?? 0)}
+						{recoveryTime(remainingRecovery(latest))}
 					</p>
 				</div>
 			</Tip>

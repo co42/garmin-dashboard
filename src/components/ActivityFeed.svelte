@@ -95,11 +95,13 @@
 	<!-- Year tabs -->
 	<div class="flex items-center gap-1 flex-wrap">
 		{#each years() as year}
+			{@const yCount = activities.filter(a => new Date(a.start_time).getFullYear() === year).length}
 			<button
 				class="cursor-pointer px-3 py-1 rounded-md text-xs font-mono font-medium transition-colors {year === selectedYear ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
 				onclick={() => { selectedYear = year; if (monthCounts()[selectedMonth] === 0) { const lastMonth = monthCounts().findLastIndex((c: number) => c > 0); if (lastMonth >= 0) selectedMonth = lastMonth; } }}
 			>
 				{year}
+				<span class="text-[9px] text-text-dim ml-0.5">{yCount}</span>
 			</button>
 		{/each}
 		<span class="ml-2 num text-[10px] text-text-dim">{formatDistance(yearStats().km * 1000)} km</span>
