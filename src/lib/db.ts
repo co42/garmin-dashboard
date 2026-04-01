@@ -85,6 +85,14 @@ CREATE TABLE IF NOT EXISTS activity_weather (
 	data TEXT NOT NULL
 );
 
+-- Courses
+CREATE TABLE IF NOT EXISTS courses (
+	id INTEGER PRIMARY KEY,
+	data TEXT NOT NULL,
+	geo_points TEXT,
+	synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	started_at TEXT NOT NULL DEFAULT (datetime('now')),

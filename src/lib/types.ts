@@ -306,6 +306,27 @@ export interface GearItem {
 	active: boolean;
 }
 
+// --- Courses ---
+
+export interface CourseGeoPoint {
+	latitude: number;
+	longitude: number;
+	elevation: number;
+	distance: number;
+}
+
+export interface Course {
+	id: number;
+	name: string;
+	activity_type: string;
+	distance_meters: number;
+	elevation_gain_meters: number;
+	elevation_loss_meters: number;
+	has_pace_band: boolean;
+	created_date: string;
+	geo_points: CourseGeoPoint[];
+}
+
 // --- Calendar / Upcoming ---
 
 export interface CalendarItem {
@@ -338,6 +359,9 @@ export interface CalendarEntry {
 	title: string;
 	date: string;
 	workout_id: number | null;
+	course_id: number | null;
+	is_race: boolean;
+	url: string | null;
 	steps: WorkoutStep[];
 }
 
@@ -377,6 +401,9 @@ export interface DashboardData {
 
 	// Calendar
 	calendar: CalendarEntry[];
+
+	// Courses
+	courses: Course[];
 
 	// HR Zones
 	hrZones: HrZone[];

@@ -2,8 +2,7 @@
 	import type { Activity, ActivitySplit, ActivityDetails as ActivityDetailsType, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatTime } from '$lib/format.js';
 	import { C } from '$lib/colors.js';
-	import SplitsChart from './SplitsChart.svelte';
-	import ElevationChart from './ElevationChart.svelte';
+	import ActivityCharts from './ActivityCharts.svelte';
 	import ActivityMap from './ActivityMap.svelte';
 	import Tip from './Tip.svelte';
 	import Thermometer from 'phosphor-svelte/lib/Thermometer';
@@ -173,7 +172,8 @@
 									{/if}
 									<th class="pb-1 pr-2 text-right font-medium">HR</th>
 									{#if hasElev}
-										<th class="pb-1 pr-2 text-right font-medium">D</th>
+										<th class="pb-1 pr-2 text-right font-medium">D+</th>
+										<th class="pb-1 pr-2 text-right font-medium">D-</th>
 									{/if}
 									{#if hasPower}
 										<th class="pb-1 pr-2 text-right font-medium">Pwr</th>
@@ -193,7 +193,8 @@
 										{/if}
 										<td class="py-0.5 pr-2 num text-right text-text-secondary">{split.avg_hr || '-'}</td>
 										{#if hasElev}
-											<td class="py-0.5 pr-2 num text-right text-text-secondary"><span class="text-text-dim">+</span>{Math.round(split.elevation_gain)} <span class="text-text-dim">-</span>{Math.round(split.elevation_loss)}</td>
+											<td class="py-0.5 pr-2 num text-right text-text-secondary">+{Math.round(split.elevation_gain)}</td>
+											<td class="py-0.5 pr-2 num text-right text-text-secondary">-{Math.round(split.elevation_loss)}</td>
 										{/if}
 										{#if hasPower}
 											<td class="py-0.5 pr-2 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
@@ -211,19 +212,11 @@
 		</div>
 	{/if}
 
-	<!-- ═══ ELEVATION ═══ (only for trail runs) -->
-	{#if trail && hasElevTimeseries && details}
-		<div>
-			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><Mountains size={12} weight="bold" /> Elevation</h3>
-			<ElevationChart timeseries={details.timeseries} />
-		</div>
-	{/if}
-
-	<!-- ═══ PERFORMANCE ═══ -->
+	<!-- ═══ CHARTS (Elevation + Performance) ═══ -->
 	{#if hasTimeseries && details}
 		<div>
-			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><ChartLine size={12} weight="bold" /> Performance</h3>
-			<SplitsChart timeseries={details.timeseries} showGap={trail} />
+			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><ChartLine size={12} weight="bold" /> {trail && hasElevTimeseries ? 'Elevation & Performance' : 'Performance'}</h3>
+			<ActivityCharts timeseries={details.timeseries} showGap={trail} showElevation={trail && hasElevTimeseries} />
 		</div>
 	{/if}
 

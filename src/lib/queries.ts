@@ -22,6 +22,8 @@ import type {
 	CalendarEntry,
 	HrZone,
 	UserSettings,
+	Course,
+	CourseGeoPoint,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -159,6 +161,18 @@ export function loadDashboard(): DashboardData | null {
 		activityWeather[r.activity_id] = JSON.parse(r.data) as ActivityWeather;
 	}
 
+	// Courses
+	const courseRows = db.prepare(
+		'SELECT data, geo_points FROM courses ORDER BY json_extract(data, \'$.created_date\') DESC'
+	).all() as { data: string; geo_points: string | null }[];
+	const courses: Course[] = courseRows.map(r => {
+		const data = JSON.parse(r.data);
+		return {
+			...data,
+			geo_points: r.geo_points ? JSON.parse(r.geo_points) as CourseGeoPoint[] : [],
+		};
+	});
+
 	// Computed
 	const lastRunDate = activities.length > 0 ? activities[0].start_time.slice(0, 10) : null;
 	const now = new Date();
@@ -195,6 +209,7 @@ export function loadDashboard(): DashboardData | null {
 		activityWeather,
 		records,
 		gear,
+		courses,
 		calendar,
 		hrZones,
 		userSettings,

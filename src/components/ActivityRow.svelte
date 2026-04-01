@@ -4,10 +4,16 @@
 	import { C, ZONE_COLORS } from '$lib/colors.js';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
-	import PersonSimpleBike from 'phosphor-svelte/lib/PersonSimpleBike';
+	import SneakerMove from 'phosphor-svelte/lib/SneakerMove';
+	import Bicycle from 'phosphor-svelte/lib/Bicycle';
 	import PersonSimpleSwim from 'phosphor-svelte/lib/PersonSimpleSwim';
+	import SwimmingPool from 'phosphor-svelte/lib/SwimmingPool';
 	import PersonSimpleHike from 'phosphor-svelte/lib/PersonSimpleHike';
+	import PersonSimpleWalk from 'phosphor-svelte/lib/PersonSimpleWalk';
+	import PersonSimpleSki from 'phosphor-svelte/lib/PersonSimpleSki';
+	import PersonSimpleTaiChi from 'phosphor-svelte/lib/PersonSimpleTaiChi';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
+	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CaretUp from 'phosphor-svelte/lib/CaretUp';
 	import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
@@ -115,7 +121,8 @@
 		return { pcts: times.map(z => total > 0 ? z / total * 100 : 0), total };
 	}
 
-	function weatherType(desc: string): 'sun' | 'cloud-sun' | 'cloud' | 'rain' | 'snow' | 'fog' | 'storm' | 'moon' {
+	function weatherType(desc: string | undefined): 'sun' | 'cloud-sun' | 'cloud' | 'rain' | 'snow' | 'fog' | 'storm' | 'moon' {
+		if (!desc) return 'cloud';
 		const d = desc.toLowerCase();
 		if (d.includes('thunder') || d.includes('storm')) return 'storm';
 		if (d.includes('rain') || d.includes('shower') || d.includes('drizzle')) return 'rain';
@@ -159,14 +166,26 @@
 		<span style="color: {teColor};">
 			{#if activity.activity_type === 'trail_running'}
 				<Mountains size={16} weight="bold" />
+			{:else if activity.activity_type === 'treadmill_running'}
+				<SneakerMove size={16} weight="bold" />
 			{:else if activity.activity_type === 'cycling' || activity.activity_type === 'indoor_cycling'}
-				<PersonSimpleBike size={16} weight="bold" />
-			{:else if activity.activity_type === 'swimming' || activity.activity_type === 'open_water_swimming'}
+				<Bicycle size={16} weight="bold" />
+			{:else if activity.activity_type === 'swimming'}
+				<SwimmingPool size={16} weight="bold" />
+			{:else if activity.activity_type === 'open_water_swimming'}
 				<PersonSimpleSwim size={16} weight="bold" />
 			{:else if activity.activity_type === 'hiking'}
 				<PersonSimpleHike size={16} weight="bold" />
-			{:else if activity.activity_type === 'strength_training' || activity.activity_type === 'cardio_training'}
+			{:else if activity.activity_type === 'walking'}
+				<PersonSimpleWalk size={16} weight="bold" />
+			{:else if activity.activity_type === 'strength_training'}
 				<Barbell size={16} weight="bold" />
+			{:else if activity.activity_type === 'cardio_training'}
+				<Heartbeat size={16} weight="bold" />
+			{:else if activity.activity_type === 'yoga'}
+				<PersonSimpleTaiChi size={16} weight="bold" />
+			{:else if activity.activity_type === 'resort_skiing' || activity.activity_type === 'backcountry_skiing'}
+				<PersonSimpleSki size={16} weight="bold" />
 			{:else}
 				<PersonSimpleRun size={16} weight="bold" />
 			{/if}
@@ -198,10 +217,10 @@
 			{#if activity.location_name}
 				<span class="text-text-dim">· {activity.location_name}</span>
 			{/if}
-			{#if weather}
+			{#if weather?.weather_description}
 				{@const wt = weatherType(weather.weather_description)}
 				<span class="text-text-dim">·</span>
-				<Tip text={`${weather.weather_description}\n${Math.round(weather.temperature_celsius)}°C (feels ${Math.round(weather.feels_like_celsius)}°C)\nWind ${Math.round(weather.wind_speed_kmh)} km/h ${weather.wind_direction_compass}\nHumidity ${Math.round(weather.humidity_percent)}%`}>
+				<Tip text={`${weather.weather_description}\n${Math.round(weather.temperature_celsius ?? 0)}°C (feels ${Math.round(weather.feels_like_celsius ?? 0)}°C)\nWind ${Math.round(weather.wind_speed_kmh ?? 0)} km/h ${weather.wind_direction_compass ?? ''}\nHumidity ${Math.round(weather.humidity_percent ?? 0)}%`}>
 					<span class="flex items-center gap-1 text-text-dim">
 						{#if wt === 'sun'}<Sun size={14} weight="bold" />
 						{:else if wt === 'cloud-sun'}<CloudSun size={14} weight="bold" />

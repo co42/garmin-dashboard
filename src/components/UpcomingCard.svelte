@@ -1,12 +1,14 @@
 <script lang="ts">
-	import type { CalendarEntry, WorkoutStep, Activity, ActivityWeather, HrZone } from '$lib/types.js';
+	import type { CalendarEntry, WorkoutStep, Activity, ActivityWeather, HrZone, Course } from '$lib/types.js';
 	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
 	import { computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
+	import { formatDistance } from '$lib/format.js';
 	import ActivityRow from './ActivityRow.svelte';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
 	import FlagCheckered from 'phosphor-svelte/lib/FlagCheckered';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
+	import Path from 'phosphor-svelte/lib/Path';
 	import CaretRight from 'phosphor-svelte/lib/CaretRight';
 	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
@@ -15,12 +17,17 @@
 	interface Props {
 		calendar: CalendarEntry[];
 		activities: Activity[];
+		courses: Course[];
 		hrZones: HrZone[];
 		activityWeather: Record<number, ActivityWeather>;
 		onNavigate?: (activityId: number) => void;
+		onNavigateCourse?: (courseId: number) => void;
 	}
 
-	let { calendar, activities, hrZones, activityWeather, onNavigate }: Props = $props();
+	let { calendar, activities, courses, hrZones, activityWeather, onNavigate, onNavigateCourse }: Props = $props();
+
+	// Course lookup by ID
+	const courseMap = $derived(new Map(courses.map(c => [c.id, c])));
 	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
 	// ── Week boundaries (Monday-based) ──────────────────────────────────────
@@ -270,11 +277,22 @@
 		</div>
 	{:else if row.kind === 'event'}
 		{@const days = daysUntilDate(row.date)}
+		{@const linkedCourse = row.entry.course_id ? courseMap.get(row.entry.course_id) ?? null : null}
 		<div class="rounded-lg bg-card px-4 py-3">
 			<div class="flex items-center gap-2.5">
-				<span class="shrink-0 text-text-dim"><FlagCheckered size={16} weight="fill" /></span>
+				<span class="shrink-0 text-red-400"><FlagCheckered size={16} weight="fill" /></span>
 				<div class="min-w-0 flex-1">
 					<div class="text-sm font-semibold text-text">{row.entry.title}</div>
+					{#if linkedCourse}
+						<button
+							class="flex items-center gap-2 mt-0.5 text-xs text-text-dim hover:text-text-secondary transition-colors cursor-pointer"
+							onclick={() => onNavigateCourse?.(linkedCourse.id)}
+						>
+							<span class="flex items-center gap-1"><Path size={11} weight="bold" /> {linkedCourse.name}</span>
+							<span class="num">{formatDistance(linkedCourse.distance_meters)} km</span>
+							<span class="num">D+ {Math.round(linkedCourse.elevation_gain_meters)}m</span>
+						</button>
+					{/if}
 				</div>
 				<span class="num rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-400">
 					in {days} days

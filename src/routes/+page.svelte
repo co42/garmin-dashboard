@@ -15,6 +15,7 @@
 	import TrainingPolarization from '../components/TrainingPolarization.svelte';
 	import WeeklyVolume from '../components/WeeklyVolume.svelte';
 	import ActivityFeed from '../components/ActivityFeed.svelte';
+	import CourseFeed from '../components/CourseFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
 	import UpcomingCard from '../components/UpcomingCard.svelte';
 	import favicon from '$lib/assets/favicon.svg';
@@ -22,10 +23,12 @@
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import Lightning from 'phosphor-svelte/lib/Lightning';
 	import ListBullets from 'phosphor-svelte/lib/ListBullets';
+	import Path from 'phosphor-svelte/lib/Path';
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
 	let feedRef: ActivityFeed | undefined = $state();
+	let courseFeedRef: CourseFeed | undefined = $state();
 
 	// Global time window: 4 weeks (1M) or 13 weeks (3M), always starts on a Monday
 	let windowWeeks = $state(4);
@@ -94,7 +97,7 @@
 
 		<!-- ═══ UPCOMING ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
-			<UpcomingCard calendar={d.calendar} activities={d.activities} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} />
+			<UpcomingCard calendar={d.calendar} activities={d.activities} courses={d.courses} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
 		{/if}
 
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
@@ -165,6 +168,12 @@
 		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>
 
 		<ActivityFeed bind:this={feedRef} activities={d.activities} splits={d.recentSplits} details={d.activityDetails} weather={d.activityWeather} hrZones={d.hrZones} />
+
+		<!-- ═══ COURSES ═══ -->
+		{#if d.courses.length > 0}
+			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Path size={14} weight="bold" /> Courses</h2>
+			<CourseFeed bind:this={courseFeedRef} courses={d.courses} />
+		{/if}
 
 		<ShoeTracker gear={d.gear} />
 	</div>

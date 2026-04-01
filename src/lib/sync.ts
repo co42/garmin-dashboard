@@ -16,6 +16,8 @@ import type {
 	WorkoutStep,
 	HrZone,
 	UserSettings,
+	Course,
+	CourseGeoPoint,
 } from './types.js';
 
 export interface SyncResult {
@@ -33,6 +35,7 @@ export interface SyncResult {
 		activities: number;
 		splits: number;
 		weather: number;
+		courses: number;
 	};
 }
 
@@ -363,7 +366,46 @@ export async function runSync(): Promise<SyncResult> {
 			weatherBatch();
 		}
 
-		// Phase 6: Calendar + workout steps
+		// Phase 6: Courses
+		const courseList = await garminSafe<any[]>(['courses', 'list'], []);
+		const upsertCourse = db.prepare(
+			`INSERT INTO courses (id, data, geo_points, synced_at) VALUES (?, ?, ?, datetime('now'))
+			 ON CONFLICT(id) DO UPDATE SET data = excluded.data, geo_points = COALESCE(excluded.geo_points, courses.geo_points), synced_at = excluded.synced_at`
+		);
+		const existingCourseGeoIds = new Set(
+			db.prepare("SELECT id FROM courses WHERE geo_points IS NOT NULL AND json_array_length(geo_points) > 0")
+				.all().map((r: any) => r.id)
+		);
+
+		// Fetch geo_points for courses that don't have them yet
+		const coursesNeedingGeo = courseList.filter(c => !existingCourseGeoIds.has(c.id));
+		for (let i = 0; i < coursesNeedingGeo.length; i += 5) {
+			const batch = coursesNeedingGeo.slice(i, i + 5);
+			const details = await Promise.all(
+				batch.map(c => garminSafe<any>(['courses', 'get', String(c.id)], null))
+			);
+			const tx = db.transaction(() => {
+				for (let j = 0; j < batch.length; j++) {
+					const geoPoints = details[j]?.geo_points ?? [];
+					upsertCourse.run(batch[j].id, JSON.stringify(batch[j]), JSON.stringify(geoPoints));
+				}
+			});
+			tx();
+		}
+
+		// Update metadata for courses that already have geo_points
+		const coursesWithGeo = courseList.filter(c => existingCourseGeoIds.has(c.id));
+		if (coursesWithGeo.length > 0) {
+			const updateMeta = db.prepare('UPDATE courses SET data = ?, synced_at = datetime(\'now\') WHERE id = ?');
+			const metaTx = db.transaction(() => {
+				for (const c of coursesWithGeo) {
+					updateMeta.run(JSON.stringify(c), c.id);
+				}
+			});
+			metaTx();
+		}
+
+		// Phase 7: Calendar + workout steps
 		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', '--weeks', '4'], []);
 		const calendarEntries: CalendarEntry[] = [];
 
@@ -392,9 +434,34 @@ export async function runSync(): Promise<SyncResult> {
 			}
 		}
 
+		// Enrich events with courseId/isRace/url from raw calendar API
+		const eventItems = calendarItems.filter(ci => ci.item_type === 'event' && ci.date);
+		const eventMonths = new Set<string>();
+		for (const ci of eventItems) {
+			const [y, m] = ci.date!.split('-');
+			eventMonths.add(`${y}/${parseInt(m) - 1}`);
+		}
+		const rawEventMap = new Map<number, { courseId: number | null; isRace: boolean; url: string | null }>();
+		for (const ym of eventMonths) {
+			const [y, m] = ym.split('/');
+			const raw = await garminSafe<any>(['api', `/calendar-service/year/${y}/month/${m}`], null);
+			if (raw?.calendarItems) {
+				for (const item of raw.calendarItems) {
+					if (item.itemType === 'event') {
+						rawEventMap.set(item.id, {
+							courseId: item.courseId ?? null,
+							isRace: item.isRace ?? false,
+							url: item.url ?? null,
+						});
+					}
+				}
+			}
+		}
+
 		for (const ci of calendarItems) {
 			if (!ci.title || !ci.date) continue;
 			const raw = ci.workout_id != null ? workoutRawMap.get(ci.workout_id) : null;
+			const eventData = rawEventMap.get(ci.id);
 			calendarEntries.push({
 				id: ci.id,
 				item_type: ci.item_type,
@@ -402,6 +469,9 @@ export async function runSync(): Promise<SyncResult> {
 				title: ci.title,
 				date: ci.date,
 				workout_id: ci.workout_id,
+				course_id: eventData?.courseId ?? null,
+				is_race: eventData?.isRace ?? false,
+				url: eventData?.url ?? null,
 				steps: ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [],
 			});
 		}
@@ -426,6 +496,7 @@ export async function runSync(): Promise<SyncResult> {
 				activities: activities.length,
 				splits: totalSplits,
 				weather: totalWeather,
+				courses: courseList.length,
 			},
 		};
 	} catch (err: any) {
@@ -436,7 +507,7 @@ export async function runSync(): Promise<SyncResult> {
 			status: 'error',
 			duration_ms: Date.now() - start,
 			error: err.message,
-			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0 },
+			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0, courses: 0 },
 		};
 	}
 }
