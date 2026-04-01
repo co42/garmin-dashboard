@@ -149,8 +149,9 @@
 		return `${m}:${sec.toString().padStart(2, '0')}`;
 	}
 
-	function fmtPace(s: number): string {
-		const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+	function fmtPace(speedMs: number): string {
+		const secs = 1000 / speedMs;
+		const m = Math.floor(secs / 60), sec = Math.floor(secs % 60);
 		return `${m}:${sec.toString().padStart(2, '0')}/km`;
 	}
 
