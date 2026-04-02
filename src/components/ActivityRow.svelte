@@ -13,6 +13,7 @@
 	import PersonSimpleSki from 'phosphor-svelte/lib/PersonSimpleSki';
 	import PersonSimpleTaiChi from 'phosphor-svelte/lib/PersonSimpleTaiChi';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
+	import Timer from 'phosphor-svelte/lib/Timer';
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CaretUp from 'phosphor-svelte/lib/CaretUp';
@@ -262,22 +263,19 @@
 	</div>
 
 	<!-- Row 2: Metrics -->
-	<div class="flex items-center gap-3 text-xs">
-		<span class="num text-text font-semibold">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
-		<span class="num text-text-secondary">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
-		{#if activity.pace_min_km}
-			<span class="num text-text-secondary">{activity.pace_min_km.replace(' /km', '')}<span class="text-text-dim">/km</span></span>
-		{/if}
+	<div class="flex flex-nowrap items-end gap-3 text-xs leading-none overflow-hidden">
+		<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
+		<span class="num text-text-secondary shrink-0">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
 		{#if trail && activity.avg_grade_adjusted_speed}
-			<Tip text="Grade Adjusted Pace\nPace normalized for elevation — what your effort would equal on flat ground.">
-				<span class="num text-text-secondary">GAP {speedToPace(activity.avg_grade_adjusted_speed)}<span class="text-text-dim">/km</span></span>
-			</Tip>
+			<span class="num shrink-0 inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground"><Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed)}</span>
+		{:else if activity.pace_min_km}
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{activity.pace_min_km.replace(' /km', '')}</span>
 		{/if}
 		{#if trail}
-			<span class="num text-text-secondary">D+ {activity.elevation_gain}m</span>
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><Mountains size={11} weight="bold" />{activity.elevation_gain}m</span>
 		{/if}
 		{#if activity.avg_hr}
-			<span class="num text-text-secondary inline-flex items-center gap-0.5">&#9829; {activity.avg_hr}{#if activity.max_hr}<span class="inline-flex items-center text-text-dim"><CaretUp size={10} weight="fill" />{activity.max_hr}</span>{/if}</span>
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-px"><Heartbeat size={12} weight="bold" />{activity.avg_hr}{#if activity.max_hr}<span class="text-text-dim">/{activity.max_hr}</span>{/if}</span>
 		{/if}
 
 		<!-- Right group: sparkline + load + zones -->
@@ -294,7 +292,7 @@
 
 			{#if activity.activity_training_load != null}
 				<Tip text={'Training Load\n4-week cumulative training stress from this session.\nHigher = more demanding.'}>
-					<span class="flex items-center gap-0.5 num font-bold text-text-secondary leading-none">
+					<span class="flex items-end gap-0.5 num font-bold text-text-secondary leading-none">
 						<Flame size={12} weight="fill" />
 						{Math.round(activity.activity_training_load)}
 					</span>

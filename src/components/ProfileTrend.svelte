@@ -161,13 +161,7 @@
 					return html;
 				},
 			},
-			legend: {
-				data: AXIS_ORDER.map(key => ({ name: AXES[key].name, itemStyle: { color: AXIS_COLORS[key] } })),
-				top: 4,
-				textStyle: { color: C.textSecondary, fontSize: 10 },
-				itemWidth: 12,
-				itemHeight: 8,
-			},
+			legend: { show: false },
 			xAxis: {
 				type: 'category', data: labels,
 				...CHART_AXIS,
@@ -187,8 +181,20 @@
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
-	<Tip text={`5 dimensions plotted weekly.\nY-axis: normalized 0–100% (${PROFILE_LABEL}).\nTooltips show raw values.`}>
-		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
-	</Tip>
+	<div class="flex items-center justify-between mb-2">
+		<Tip text={`5 dimensions plotted weekly.\nY-axis: normalized 0–100% (${PROFILE_LABEL}).\nTooltips show raw values.`}>
+			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
+		</Tip>
+		<div class="flex items-center gap-3 text-[10px]">
+			{#each AXIS_ORDER as key}
+				<Tip text={AXES[key].tip}>
+					<span class="flex items-center gap-1 text-text-secondary">
+						<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{AXIS_COLORS[key]}"></span>
+						{AXES[key].name}
+					</span>
+				</Tip>
+			{/each}
+		</div>
+	</div>
 	<div bind:this={chartEl} class="flex-1 min-h-[200px] w-full"></div>
 </div>

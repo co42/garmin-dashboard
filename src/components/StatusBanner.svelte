@@ -6,11 +6,15 @@
 
 	interface Props {
 		status: DailyTrainingStatus;
+		statusHistory: DailyTrainingStatus[];
 		readiness: Readiness;
 		daysSinceLastRun: number | null;
 	}
 
-	let { status, readiness, daysSinceLastRun }: Props = $props();
+	let { status, statusHistory, readiness, daysSinceLastRun }: Props = $props();
+
+	const sortedHistory = $derived([...statusHistory].sort((a, b) => a.date.localeCompare(b.date)));
+	let timelineTip = $state<{ text: string; x: number } | null>(null);
 
 	const color = $derived(statusColor(status.status));
 	const acwrC = $derived(acwrColor(status.acwr_status));
@@ -53,31 +57,24 @@
 	<div class="flex flex-wrap items-center gap-x-6 gap-y-3">
 		<!-- Left: Training status -->
 		<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-			<div>
-				<Tip text={"Decided by two axes:\n• VO2max trend — are you getting fitter?\n• ACWR — are you training enough?\n\nProductive = VO2max improving + ACWR 0.8–1.3."}>
-					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Status</span>
-				</Tip>
-				<p class="text-xl font-bold" style="color: {color}">{fmt(status.status)}</p>
-				<span class="text-xs text-text-secondary">{fmt(status.load_balance_feedback)}</span>
-			</div>
+			<Tip text={"Decided by two axes:\n• VO2max trend — are you getting fitter?\n• ACWR — are you training enough?\n\nProductive = VO2max improving + ACWR 0.8–1.3."}>
+				<div class="text-center">
+					<p class="text-xl font-bold" style="color: {color}">{fmt(status.status)}</p>
+					<span class="text-xs" style="color: {color}">{fmt(status.load_balance_feedback)}</span>
+				</div>
+			</Tip>
 
 			<Tip text={"Acute:Chronic Workload Ratio\n7-day load ÷ 28-day average.\n\n< 0.8 = undertraining\n0.8–1.3 = optimal\n> 1.3 = overreaching risk\n\nCurrently " + status.acute_load + " acute / " + status.chronic_load + " chronic."}>
-				<div class="flex items-center gap-1.5">
-					<span class="text-lg" style="color: {acwrC}">●</span>
-					<div>
-						<span class="text-xs text-text-secondary">ACWR</span>
-						<p class="num text-sm font-medium text-text">{status.acwr.toFixed(1)} <span class="text-xs font-normal text-text-secondary">{status.acwr_status.toLowerCase()}</span></p>
-					</div>
+				<div class="text-center">
+					<span class="text-xs text-text-secondary">ACWR</span>
+					<p class="num text-sm font-medium text-text">{status.acwr.toFixed(1)} <span class="text-xs font-normal" style="color: {acwrC}">{status.acwr_status.toLowerCase()}</span></p>
 				</div>
 			</Tip>
 
 			<Tip text={"Computed from VO2max history over ~4 weeks.\nImproving = getting fitter\nSteady = plateauing\nDeclining = losing fitness"}>
-				<div class="flex items-center gap-1.5">
-					<span class="text-lg" style="color: {trend.color}">{trend.arrow}</span>
-					<div>
-						<span class="text-xs text-text-secondary">VO2max</span>
-						<p class="num text-sm font-medium text-text">{status.vo2max_precise.toFixed(1)}</p>
-					</div>
+				<div class="text-center">
+					<span class="text-xs text-text-secondary">VO2max</span>
+					<p class="num text-sm font-medium text-text">{status.vo2max_precise.toFixed(1)} <span class="text-xs font-normal" style="color: {trend.color}">{trend.arrow}</span></p>
 				</div>
 			</Tip>
 		</div>
@@ -87,10 +84,7 @@
 			<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor" + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + readiness.morning.score + "%" : "")}>
 				<div class="text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</span>
-					<p class="num text-xl font-bold">
-						<span style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</span>
-						{#if latest}<span class="text-xs font-normal text-text-secondary" style="color: {latestColor}">{readinessLabel(latest.score).toLowerCase()}</span>{/if}
-					</p>
+					<p class="num text-xl font-bold" style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</p>
 				</div>
 			</Tip>
 			<div class="h-8 w-px bg-card-border"></div>
@@ -113,5 +107,34 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Training status timeline -->
+	{#if sortedHistory.length > 1}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="relative flex mt-4 h-2 rounded-full overflow-hidden gap-px"
+			onmouseleave={() => { timelineTip = null; }}
+		>
+			{#each sortedHistory as day, i}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="flex-1"
+					style="background: {statusColor(day.status)}"
+					onmouseenter={(e) => { timelineTip = { text: day.date.slice(5) + ' · ' + fmt(day.status), x: (e.currentTarget as HTMLElement).offsetLeft + (e.currentTarget as HTMLElement).offsetWidth / 2 }; }}
+				></div>
+			{/each}
+		</div>
+		{#if timelineTip}
+			<div
+				class="relative pointer-events-none"
+				style="height: 0;"
+			>
+				<span
+					class="absolute -top-1 text-[11px] text-text-secondary bg-card-border/90 px-2 py-0.5 rounded whitespace-nowrap -translate-x-1/2"
+					style="left: {timelineTip.x}px;"
+				>{timelineTip.text}</span>
+			</div>
+		{/if}
+	{/if}
 
 </div>

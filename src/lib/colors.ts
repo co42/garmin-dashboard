@@ -61,7 +61,7 @@ export function statusColor(status: string): string {
 	if (s === 'BASE') return C.blue;
 	if (s === 'RECOVERY') return C.amber;
 	if (s === 'DETRAINING') return C.red;
-	if (s === 'UNPRODUCTIVE') return C.red;
+	if (s === 'UNPRODUCTIVE') return C.orange;
 	if (s === 'OVERREACHING') return C.red;
 	if (s === 'STRAINED') return C.red;
 	return C.textSecondary;
@@ -84,7 +84,7 @@ export function readinessLabel(score: number): string {
 }
 
 export function acwrColor(status: string): string {
-	if (status === 'LOW') return C.orange;
+	if (status === 'LOW') return C.blue;
 	if (status === 'OPTIMAL') return C.green;
 	if (status === 'HIGH') return C.amber;
 	return C.red;

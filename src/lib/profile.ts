@@ -38,12 +38,12 @@ export interface AxisDef {
 	hundredLabel: string;
 	/** One-line scale description for trend chart tooltip */
 	scaleTip: string;
+	/** Tooltip description for legend hover */
+	tip: string;
 }
 
 export const AXES: Record<string, AxisDef> = {
 	vo2max: {
-		// Percentile among male runners ~35yo (Running Level + VDOT equivalence):
-		// ~5th pct runner ≈ 30, ~20th pct ≈ 35, ~50th pct ≈ 42, ~95th pct ≈ 57, ~99.9th pct ≈ 70
 		name: 'VO2max',
 		unit: '',
 		floor: 30,
@@ -51,10 +51,9 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: '30 mL/kg/min (beginner)',
 		hundredLabel: '70 (national competitive)',
 		scaleTip: '0% = 30 mL/kg/min · 100% = 70',
+		tip: 'Maximum oxygen uptake — the gold standard of aerobic fitness.\nGarmin estimates it from pace and heart rate.\nScale: 30 (beginner) → 70 (national competitive).',
 	},
 	endurance: {
-		// Garmin endurance score 0–10,000:
-		// ~5th pct ≈ 1,500 (new/casual), ~50th ≈ 5,500, ~99.5th ≈ 9,500
 		name: 'Endurance',
 		unit: '',
 		floor: 1500,
@@ -62,10 +61,9 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: '1,500 (casual)',
 		hundredLabel: '9,500 (elite)',
 		scaleTip: '0% = 1,500 · 100% = 9,500',
+		tip: 'Garmin endurance score from training history.\nReflects sustained effort capacity over long durations.\nScale: 1,500 (casual) → 9,500 (elite).',
 	},
 	balance: {
-		// Training load balance — how well your mix matches target ranges.
-		// 0 = all three types out of range, 100 = all in range.
 		name: 'Balance',
 		unit: '%',
 		floor: 0,
@@ -73,10 +71,9 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: 'all load types out of range',
 		hundredLabel: 'all load types in target range',
 		scaleTip: '0% = all out of range · 100% = all in target',
+		tip: 'Training load balance across 3 types (aerobic high, aerobic low, anaerobic).\nEach type scores 33% when within Garmin target range, tapers outside.\n100% = all types in range.',
 	},
 	hillStr: {
-		// Garmin hill score — strength component (0–100):
-		// ~5th pct ≈ 5 (flat-only), ~50th ≈ 35, ~99.5th ≈ 90
 		name: 'Hill Str',
 		unit: '',
 		floor: 5,
@@ -84,10 +81,9 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: '5 (flat-only)',
 		hundredLabel: '90 (elite mountain)',
 		scaleTip: '0% = 5 · 100% = 90',
+		tip: 'Hill strength — power on steep climbs.\nFrom Garmin hill score analysis.\nScale: 5 (flat-only) → 90 (elite mountain).',
 	},
 	hillEnd: {
-		// Garmin hill score — endurance component (0–100):
-		// Same scale as strength
 		name: 'Hill End',
 		unit: '',
 		floor: 5,
@@ -95,9 +91,9 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: '5 (no climbing)',
 		hundredLabel: '90 (elite climber)',
 		scaleTip: '0% = 5 · 100% = 90',
+		tip: 'Hill endurance — sustained climbing ability.\nFrom Garmin hill score analysis.\nScale: 5 (no climbing) → 90 (elite climber).',
 	},
 	hill: {
-		// Garmin hill score — overall composite (0–100):
 		name: 'Hill',
 		unit: '',
 		floor: 5,
@@ -105,9 +101,9 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: '5 (flat-only)',
 		hundredLabel: '90 (elite mountain)',
 		scaleTip: '0% = 5 · 100% = 90',
+		tip: 'Garmin hill score — overall climbing ability.\nCombines strength and endurance on hills.\nScale: 5 (flat-only) → 90 (elite mountain).',
 	},
 	productivity: {
-		// % of productive days in rolling 30-day window
 		name: 'Productivity',
 		unit: '%',
 		floor: 0,
@@ -115,6 +111,7 @@ export const AXES: Record<string, AxisDef> = {
 		zeroLabel: 'no productive days',
 		hundredLabel: 'all days productive',
 		scaleTip: '0% = no productive days · 100% = all productive',
+		tip: 'Weighted training quality over 30 days.\nProductive/Peaking=100%, Maintaining=70%, Base/Recovery=50%,\nOverreaching=40%, Unproductive=20%, Strained=10%, Detraining=0%.',
 	},
 };
 
@@ -160,21 +157,34 @@ export function formatRaw(axisKey: string, rawValue: number): string {
 	}
 }
 
+/** Weight each training status for productivity scoring */
+const STATUS_WEIGHT: Record<string, number> = {
+	PRODUCTIVE: 1.0,
+	PEAKING: 1.0,
+	MAINTAINING: 0.7,
+	BASE: 0.5,
+	RECOVERY: 0.5,
+	UNPRODUCTIVE: 0.2,
+	OVERREACHING: 0.4,
+	STRAINED: 0.1,
+	DETRAINING: 0,
+};
+
 /**
- * Compute % of productive days in a 30-day window ending at `atDate`.
- * "Productive" = status starts with PRODUCTIVE or PEAKING.
+ * Weighted productivity score over a 30-day window ending at `atDate`.
+ * Each day contributes its status weight (1.0 for Productive, 0.7 for Maintaining, etc.)
  * Returns 0–100. Returns -1 if no data in the window.
  */
 export function computeProductivity(history: DailyTrainingStatus[], atDate?: string): number {
 	const endDate = atDate ?? new Date().toISOString().slice(0, 10);
 	const cutoff = new Date(new Date(endDate + 'T00:00:00Z').getTime() - 30 * 86400000).toISOString().slice(0, 10);
-	const window = history.filter(s => s.date >= cutoff && s.date <= endDate);
-	if (window.length === 0) return -1;
-	const productive = window.filter(s => {
+	const w = history.filter(s => s.date >= cutoff && s.date <= endDate);
+	if (w.length === 0) return -1;
+	const total = w.reduce((sum, s) => {
 		const base = s.status.replace(/_\d+$/, '');
-		return base === 'PRODUCTIVE' || base === 'PEAKING';
-	}).length;
-	return Math.round((productive / window.length) * 100);
+		return sum + (STATUS_WEIGHT[base] ?? 0);
+	}, 0);
+	return Math.round((total / w.length) * 100);
 }
 
 /**

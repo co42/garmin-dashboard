@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { HillScore, DailyTrainingStatus, EnduranceScore, HrZone } from '$lib/types.js';
-	import { AXES, RADAR_AXIS_ORDER, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
+	import { AXES, RADAR_AXIS_ORDER, AXIS_COLORS, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
 	import { C, CHART_TOOLTIP, ZONE_COLORS } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
@@ -174,7 +174,18 @@
 	});
 </script>
 
-<div class="rounded-lg bg-card p-2 h-full flex">
+<div class="rounded-lg bg-card p-2 h-full flex flex-col">
+	<div class="flex items-center justify-center gap-3 text-[10px] px-2 pt-1">
+		{#each RADAR_AXIS_ORDER as key}
+			<Tip text={AXES[key].tip}>
+				<span class="flex items-center gap-1 text-text-secondary">
+					<span class="inline-block w-1.5 h-1.5 rounded-full" style="background:{AXIS_COLORS[key]}"></span>
+					{AXES[key].name}
+				</span>
+			</Tip>
+		{/each}
+	</div>
+	<div class="flex flex-1 min-h-0">
 	<div bind:this={radarEl} class="flex-1 min-h-[200px] w-full"></div>
 	{#if hrZones.length > 0}
 		<div class="flex flex-col justify-center gap-1 pr-2 pl-0 shrink-0">
@@ -200,4 +211,5 @@
 			{/if}
 		</div>
 	{/if}
+	</div>
 </div>

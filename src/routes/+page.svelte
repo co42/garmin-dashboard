@@ -93,11 +93,11 @@
 	<div class="grid gap-4">
 
 		<!-- ═══ BANNER ═══ -->
-		<StatusBanner status={d.currentStatus} readiness={d.readiness} daysSinceLastRun={d.daysSinceLastRun} />
+		<StatusBanner status={d.currentStatus} statusHistory={w.status} readiness={d.readiness} daysSinceLastRun={d.daysSinceLastRun} />
 
 		<!-- ═══ UPCOMING ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
-			<UpcomingCard calendar={d.calendar} activities={d.activities} courses={d.courses} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
+			<UpcomingCard calendar={d.calendar} activities={d.activities} splits={d.recentSplits} courses={d.courses} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
 		{/if}
 
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->

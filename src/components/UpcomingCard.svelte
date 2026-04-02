@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CalendarEntry, WorkoutStep, Activity, ActivityWeather, HrZone, Course } from '$lib/types.js';
+	import type { CalendarEntry, WorkoutStep, Activity, ActivitySplit, ActivityWeather, HrZone, Course } from '$lib/types.js';
 	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
 	import { computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
 	import { formatDistance } from '$lib/format.js';
@@ -17,6 +17,7 @@
 	interface Props {
 		calendar: CalendarEntry[];
 		activities: Activity[];
+		splits: Record<number, ActivitySplit[]>;
 		courses: Course[];
 		hrZones: HrZone[];
 		activityWeather: Record<number, ActivityWeather>;
@@ -24,7 +25,7 @@
 		onNavigateCourse?: (courseId: number) => void;
 	}
 
-	let { calendar, activities, courses, hrZones, activityWeather, onNavigate, onNavigateCourse }: Props = $props();
+	let { calendar, activities, splits, courses, hrZones, activityWeather, onNavigate, onNavigateCourse }: Props = $props();
 
 	// Course lookup by ID
 	const courseMap = $derived(new Map(courses.map(c => [c.id, c])));
@@ -269,6 +270,7 @@
 		<div class="rounded-lg bg-card">
 			<ActivityRow
 				activity={row.activity}
+				splits={splits[row.activity.id]}
 				weather={activityWeather[row.activity.id] ?? null}
 				{hrZones}
 				loadColor={computeLoadColor(row.activity.activity_training_load, medianLoad)}
