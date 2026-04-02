@@ -123,7 +123,6 @@
 				statusHistory={w.status}
 				hillScoreHistory={w.hillScore}
 				enduranceScoreHistory={w.endurance}
-				daily={true}
 			/>
 		</div>
 		{/key}

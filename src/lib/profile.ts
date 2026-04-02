@@ -157,6 +157,21 @@ export function formatRaw(axisKey: string, rawValue: number): string {
 	}
 }
 
+/** Format a raw delta value for display (with sign) */
+export function formatRawDelta(axisKey: string, delta: number): string {
+	const sign = delta > 0 ? '+' : '';
+	switch (axisKey) {
+		case 'vo2max': return sign + delta.toFixed(1);
+		case 'endurance': return sign + Math.round(delta).toLocaleString();
+		case 'balance':
+		case 'productivity': return sign + Math.round(delta) + '%';
+		case 'hillStr':
+		case 'hillEnd':
+		case 'hill': return sign + Math.round(delta);
+		default: return sign + String(delta);
+	}
+}
+
 /** Weight each training status for productivity scoring */
 const STATUS_WEIGHT: Record<string, number> = {
 	PRODUCTIVE: 1.0,
