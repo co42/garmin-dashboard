@@ -4,11 +4,12 @@
 
 	interface Props {
 		text: string;
+		html?: string;
 		mono?: boolean;
 		children: Snippet;
 	}
 
-	let { text, mono = false, children }: Props = $props();
+	let { text, html, mono = false, children }: Props = $props();
 	let show = $state(false);
 	let tipEl = $state<HTMLSpanElement>();
 	let triggerEl = $state<HTMLSpanElement>();
@@ -51,9 +52,13 @@
 </span>
 {#if show}
 	<span class="tip-content" class:mono bind:this={tipEl} style="left:{pos.left};top:{pos.top}">
-		{#each text.split('\n') as line, i}
-			{#if i > 0}<br/>{/if}{line}
-		{/each}
+		{#if html}
+			{@html html}
+		{:else}
+			{#each text.split('\n') as line, i}
+				{#if i > 0}<br/>{/if}{line}
+			{/each}
+		{/if}
 	</span>
 {/if}
 

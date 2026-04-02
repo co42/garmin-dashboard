@@ -180,8 +180,8 @@
 	onclick={() => { if (context === 'feed') ontoggle?.(); else if (onNavigate) onNavigate(activity.id); else scrollToActivity(); }}
 >
 	<!-- Row 1: Name + badge + weather + date -->
-	<div class="flex items-center gap-2 mb-1.5">
-		<span style="color: {teColor};">
+	<div class="flex items-center gap-2.5 mb-1.5 leading-5">
+		<span class="shrink-0 leading-[0]" style="color: {teColor};">
 			{#if activity.activity_type === 'trail_running'}
 				<Mountains size={16} weight="bold" />
 			{:else if activity.activity_type === 'treadmill_running'}
@@ -208,32 +208,34 @@
 				<PersonSimpleRun size={16} weight="bold" />
 			{/if}
 		</span>
-		{#if te}
-			<Tip text={te.name + '\n' + te.desc}>
-				<span class="shrink-0 num text-[10px] font-bold" style="color: {teColor};">{te.code}</span>
-			</Tip>
-		{/if}
-		{#if editingTitle}
-			<!-- svelte-ignore a11y_autofocus -->
-			<input
-				class="flex-1 min-w-0 bg-transparent text-sm font-medium text-text border-b border-blue-500/50 outline-none py-0"
-				bind:value={editTitle}
-				onblur={saveTitle}
-				onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { editingTitle = false; } }}
-				onclick={(e: MouseEvent) => e.stopPropagation()}
-				autofocus
-			/>
-		{:else}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<span
-				class="font-medium text-text text-sm truncate"
-				ondblclick={startEditTitle}
-			>{displayName}</span>
-		{/if}
-		<span class="ml-auto shrink-0 flex items-center gap-2 text-xs text-text-dim num">
+		<span class="shrink-0 num text-[10px] font-bold leading-[0] -ml-1" style="color: {teColor};">
+			{#if te}
+				<Tip text={te.name + '\n' + te.desc}>{te.code}</Tip>
+			{/if}
+		</span>
+		<div class="min-w-0 flex-1">
+			{#if editingTitle}
+				<!-- svelte-ignore a11y_autofocus -->
+				<input
+					class="w-full bg-transparent text-sm font-medium text-text border-b border-blue-500/50 outline-none py-0"
+					bind:value={editTitle}
+					onblur={saveTitle}
+					onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { editingTitle = false; } }}
+					onclick={(e: MouseEvent) => e.stopPropagation()}
+					autofocus
+				/>
+			{:else}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="font-medium text-text text-sm truncate"
+					ondblclick={startEditTitle}
+				>{displayName}</div>
+			{/if}
+		</div>
+		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">
 			{fmtDate(activity.start_time)} {fmtTime(activity.start_time)}
 			{#if activity.location_name}
-				<span class="hidden md:inline text-text-dim">· {activity.location_name}</span>
+				<span class="hidden md:inline text-[10px] text-text-dim">· {activity.location_name}</span>
 			{/if}
 			{#if weather?.weather_description}
 				{@const wt = weatherType(weather.weather_description)}

@@ -39,8 +39,8 @@
 	onclick={() => ontoggle?.()}
 >
 	<!-- Row 1: Name + date -->
-	<div class="flex items-center gap-2 mb-1.5">
-		<span style="color: {iconColor};">
+	<div class="flex items-center gap-2.5 mb-1.5 leading-5">
+		<span class="shrink-0 leading-[0]" style="color: {iconColor};">
 			{#if course.activity_type === 'trail_running'}
 				<Mountains size={16} weight="bold" />
 			{:else if course.activity_type === 'cycling'}
@@ -51,8 +51,10 @@
 				<PersonSimpleRun size={16} weight="bold" />
 			{/if}
 		</span>
-		<span class="font-medium text-text text-sm truncate">{course.name}</span>
-		<span class="ml-auto shrink-0 flex items-center gap-2 text-xs text-text-dim num">
+		<div class="min-w-0 flex-1">
+			<div class="font-medium text-text text-sm truncate">{course.name}</div>
+		</div>
+		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">
 			{fmtDate(course.created_date)}
 			<span class="text-text-dim">
 				<CaretDown size={12} weight="bold" class="transition-transform {expanded ? 'rotate-180' : ''}" />

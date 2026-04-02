@@ -180,18 +180,26 @@
 		return h > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${m}min`;
 	}
 
-	function stepValues(s: WorkoutStep): string {
-		const parts: string[] = [];
-		if (s.end_condition === 'distance' && s.end_condition_value) parts.push(fmtDist(s.end_condition_value));
-		else if (s.end_condition === 'time' && s.end_condition_value) parts.push(fmtTime(s.end_condition_value));
-		else if (s.end_condition === 'iterations' && s.end_condition_value) parts.push(`${s.end_condition_value} reps`);
-		else if (s.end_condition === 'lap.button') parts.push('lap');
+	function stepDuration(s: WorkoutStep): string {
+		if (s.end_condition === 'distance' && s.end_condition_value) return fmtDist(s.end_condition_value);
+		if (s.end_condition === 'time' && s.end_condition_value) return fmtTime(s.end_condition_value);
+		if (s.end_condition === 'iterations' && s.end_condition_value) return `${s.end_condition_value} reps`;
+		if (s.end_condition === 'lap.button') return 'lap';
+		return '';
+	}
+
+	function stepTarget(s: WorkoutStep): string {
 		if (s.target_type === 'pace.zone' && s.target_value_one != null && s.target_value_two != null) {
-			parts.push(`${fmtPace(s.target_value_one)}–${fmtPace(s.target_value_two)}`);
-		} else if (s.target_type === 'heart.rate.zone' && s.target_value_one != null && s.target_value_two != null) {
-			parts.push(s.target_value_one === s.target_value_two ? `${s.target_value_one} bpm` : `${s.target_value_one}–${s.target_value_two} bpm`);
+			return `${fmtPace(s.target_value_one)}–${fmtPace(s.target_value_two)}`;
 		}
-		return parts.join(' · ');
+		if (s.target_type === 'heart.rate.zone' && s.target_value_one != null && s.target_value_two != null) {
+			return s.target_value_one === s.target_value_two ? `${s.target_value_one} bpm` : `${s.target_value_one}–${s.target_value_two} bpm`;
+		}
+		return '';
+	}
+
+	function stepValues(s: WorkoutStep): string {
+		return [stepDuration(s), stepTarget(s)].filter(Boolean).join(' · ');
 	}
 
 	function stepExerciseName(s: WorkoutStep): string | null {
@@ -203,6 +211,29 @@
 		recovery: 'Recovery', rest: 'Rest',
 	};
 	function stepLabel(key: string): string { return STEP_LABELS[key] ?? key; }
+
+	function workoutSummary(steps: WorkoutStep[]): string {
+		let totalDist = 0;
+		let totalTime = 0;
+		let stepCount = 0;
+		function walk(list: WorkoutStep[], reps: number) {
+			for (const s of list) {
+				if (s.type === 'RepeatGroupDTO' && s.number_of_iterations && s.steps) {
+					walk(s.steps, s.number_of_iterations);
+				} else {
+					stepCount++;
+					if (s.end_condition === 'distance' && s.end_condition_value) totalDist += s.end_condition_value * reps;
+					if (s.end_condition === 'time' && s.end_condition_value) totalTime += s.end_condition_value * reps;
+				}
+			}
+		}
+		walk(steps, 1);
+		const parts: string[] = [];
+		if (totalDist > 0) parts.push(fmtDist(totalDist));
+		if (totalTime > 0) parts.push(fmtTime(totalTime));
+		parts.push(`${stepCount} steps`);
+		return parts.join(' · ');
+	}
 
 	function activitySummary(a: Activity): string {
 		const parts: string[] = [];
@@ -217,66 +248,68 @@
 
 <!-- ── Snippets ─────────────────────────────────────────────────────────── -->
 
+{#snippet runStep(step: WorkoutStep, indent: boolean)}
+	<tr class="border-b border-card-border/20 hover:bg-card-border/10">
+		<td class="py-1 pr-4 font-medium text-text-secondary whitespace-nowrap {indent ? 'pl-4' : ''}">{stepLabel(step.step_type)}</td>
+		<td class="py-1 pr-4 num text-text whitespace-nowrap">{stepDuration(step)}</td>
+		<td class="py-1 pr-4 num text-text-secondary whitespace-nowrap">{stepTarget(step)}</td>
+		<td class="py-1 text-text-dim text-[11px]">{step.description ?? ''}</td>
+	</tr>
+{/snippet}
+
 {#snippet runningSteps(steps: WorkoutStep[])}
-	<div class="mt-1.5 ml-[26px] space-y-0.5">
+	<table class="mt-2 ml-[26px] text-xs">
+	<thead><tr class="text-text-dim border-b border-card-border">
+		<th class="pb-1 pr-4 text-left font-medium">Step</th>
+		<th class="pb-1 pr-4 text-left font-medium">Dist/Time</th>
+		<th class="pb-1 pr-4 text-left font-medium">Target</th>
+		<th class="pb-1 text-left font-medium">Note</th>
+	</tr></thead>
+	<tbody>
 		{#each steps as step}
 			{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
-				<div class="flex items-start gap-1.5 text-xs">
-					<span class="num font-semibold text-text-dim">{step.number_of_iterations}×</span>
-					<div class="space-y-0.5 flex-1">
-						{#each step.steps ?? [] as sub}
-							{@const subLine = stepValues(sub)}
-							<div class="flex items-baseline gap-3">
-								<span>
-									<span class="font-medium text-text-secondary">{stepLabel(sub.step_type)}</span>
-									{#if subLine}<span class="num text-text-dim"> · {subLine}</span>{/if}
-								</span>
-								{#if sub.description}
-									<span class="text-text-dim text-[11px]">{sub.description}</span>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				</div>
+				<tr class="border-b border-card-border/20 bg-card-border/5">
+					<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="4">{step.number_of_iterations}×</td>
+				</tr>
+				{#each step.steps ?? [] as sub}
+					{@render runStep(sub, true)}
+				{/each}
 			{:else}
-				{@const line = stepValues(step)}
-				<div class="flex items-baseline gap-3 text-xs">
-					<span>
-						<span class="font-medium text-text-secondary">{stepLabel(step.step_type)}</span>
-						{#if line}<span class="num text-text-dim"> · {line}</span>{/if}
-					</span>
-					{#if step.description}
-						<span class="text-text-dim text-[11px]">{step.description}</span>
-					{/if}
-				</div>
+				{@render runStep(step, false)}
 			{/if}
 		{/each}
-	</div>
+	</tbody></table>
+{/snippet}
+
+{#snippet nonRunStep(step: WorkoutStep, indent: boolean)}
+	{@const name = stepExerciseName(step)}
+	{@const vals = stepValues(step)}
+	<tr class="border-b border-card-border/20 hover:bg-card-border/10">
+		<td class="py-1 pr-4 text-text-secondary whitespace-nowrap {indent ? 'pl-4' : ''}">{name ?? stepLabel(step.step_type)}</td>
+		<td class="py-1 num text-text whitespace-nowrap">{vals}</td>
+	</tr>
 {/snippet}
 
 {#snippet nonRunningSteps(steps: WorkoutStep[])}
-	<div class="mt-1.5 ml-[26px] space-y-0.5">
+	<table class="mt-2 ml-[26px] text-xs">
+	<thead><tr class="text-text-dim border-b border-card-border">
+		<th class="pb-1 pr-4 text-left font-medium">Exercise</th>
+		<th class="pb-1 text-left font-medium">Reps/Time</th>
+	</tr></thead>
+	<tbody>
 		{#each steps as step}
 			{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
-				<div class="flex items-start gap-1.5 text-xs">
-					<span class="num font-semibold text-text-dim">{step.number_of_iterations}×</span>
-					<div class="space-y-0.5 flex-1">
-						{#each step.steps ?? [] as sub}
-							<div class="text-text-secondary">
-													{#if stepExerciseName(sub)}{stepExerciseName(sub)}{/if}
-													{#if stepValues(sub)}<span class="num"> · {stepValues(sub)}</span>{/if}
-												</div>
-						{/each}
-					</div>
-				</div>
+				<tr class="border-b border-card-border/20 bg-card-border/5">
+					<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="2">{step.number_of_iterations}×</td>
+				</tr>
+				{#each step.steps ?? [] as sub}
+					{@render nonRunStep(sub, true)}
+				{/each}
 			{:else}
-				<div class="text-xs text-text-secondary">
-								{#if stepExerciseName(step)}{stepExerciseName(step)}{/if}
-								{#if stepValues(step)}<span class="num"> · {stepValues(step)}</span>{/if}
-							</div>
+				{@render nonRunStep(step, false)}
 			{/if}
 		{/each}
-	</div>
+	</tbody></table>
 {/snippet}
 
 {#snippet rowCard(row: Row)}
@@ -298,8 +331,8 @@
 		{@const days = daysUntilDate(row.date)}
 		{@const linkedCourse = row.entry.course_id ? courseMap.get(row.entry.course_id) ?? null : null}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
-			<div class="flex items-center gap-2.5">
-				<span class="shrink-0 text-red-400"><FlagCheckered size={16} weight="bold" /></span>
+			<div class="flex items-center gap-2.5 leading-5">
+				<span class="shrink-0 leading-[0] text-red-400"><FlagCheckered size={16} weight="bold" /></span>
 				<div class="min-w-0 flex-1 overflow-hidden">
 					<div class="text-sm font-semibold text-text truncate">{row.entry.title}</div>
 					{#if linkedCourse}
@@ -323,10 +356,10 @@
 		{@const entry = row.entry}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
 			<button
-				class="flex w-full items-center gap-2.5 text-left cursor-pointer"
+				class="flex w-full items-center gap-2.5 leading-5 text-left cursor-pointer"
 				onclick={() => toggle(entry.id)}
 			>
-				<span class="shrink-0 text-text-dim">
+				<span class="shrink-0 leading-[0] text-text-dim">
 					{#if isRunning(entry)}
 						<PersonSimpleRun size={16} />
 					{:else}
@@ -336,7 +369,7 @@
 				<div class="min-w-0 flex-1">
 					<div class="text-sm font-semibold text-text truncate">{entry.title}</div>
 				</div>
-				<span class="shrink-0 text-xs text-text-dim font-mono tabular-nums">{dateLabel(entry.date)}</span>
+				<span class="shrink-0 text-[10px] text-text-dim font-mono tabular-nums">{dateLabel(entry.date)}</span>
 				{#if entry.steps.length > 0}
 					<span class="shrink-0 text-text-dim">
 						{#if expanded.has(entry.id)}
@@ -357,12 +390,12 @@
 		</div>
 	{:else if row.kind === 'rest'}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3 opacity-40 {isToday ? 'ring-1 ring-blue-400/50 !opacity-60' : ''}">
-			<div class="flex items-center gap-2.5">
-				<span class="shrink-0 text-text-secondary"><PauseCircle size={16} /></span>
+			<div class="flex items-center gap-2.5 leading-5">
+				<span class="shrink-0 leading-[0] text-text-secondary"><PauseCircle size={16} /></span>
 				<div class="min-w-0 flex-1">
 					<div class="text-sm font-semibold text-text">Rest</div>
 				</div>
-				<span class="shrink-0 text-xs text-text-dim font-mono tabular-nums">{dateLabel(row.date)}</span>
+				<span class="shrink-0 text-[10px] text-text-dim font-mono tabular-nums">{dateLabel(row.date)}</span>
 			</div>
 		</div>
 	{/if}

@@ -98,7 +98,7 @@
 		const { pcts } = zoneTotals();
 
 		_chart.setOption({
-			grid: { top: 10, right: 10, bottom: 38, left: 35 },
+			grid: { top: 20, right: 10, bottom: 38, left: 35 },
 			xAxis: {
 				type: 'category', data: zoneLabels,
 				axisLine: CHART_AXIS.axisLine,
@@ -114,17 +114,16 @@
 				type: 'bar',
 				data: pcts.map((p, i) => ({ value: p, itemStyle: { color: ZONE_COLORS[i], borderRadius: [3, 3, 0, 0] } })),
 				barWidth: '60%',
-			}],
-			tooltip: {
-				...CHART_TOOLTIP,
-				trigger: 'axis',
-				textStyle: { color: C.text, fontSize: 12, fontFamily: MONO },
-				formatter: (params: any) => {
-					const i = params[0].dataIndex;
-					const bpm = zoneBpmTip[i];
-					return `Z${i + 1}${bpm ? ' (' + bpm + ')' : ''}: ${(params[0].value * 100).toFixed(1)}%`;
+				label: {
+					show: true,
+					position: 'top',
+					formatter: (params: any) => params.value > 0 ? `${Math.round(params.value * 100)}%` : '',
+					color: C.textSecondary,
+					fontSize: 10,
+					fontFamily: MONO,
 				},
-			},
+			}],
+			tooltip: { show: false },
 		});
 
 		_ro = new ResizeObserver(() => _chart.resize());

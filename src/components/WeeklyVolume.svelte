@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { Activity } from '$lib/types.js';
 	import { weekMonday, utcDate, fmtDateISO, addDays } from '$lib/dates.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import ChartBar from 'phosphor-svelte/lib/ChartBar';
 
@@ -12,6 +12,15 @@
 
 	let { activities }: Props = $props();
 	let chartEl: HTMLDivElement;
+
+	const stats = $derived(() => {
+		const data = weeklyData();
+		const activeWeeks = data.filter(d => d.km > 0);
+		const totalKm = data.reduce((s, d) => s + d.km, 0);
+		const totalRuns = data.reduce((s, d) => s + d.runs, 0);
+		const avgKm = activeWeeks.length > 0 ? totalKm / activeWeeks.length : 0;
+		return { totalKm: Math.round(totalKm), totalRuns, avgKm: Math.round(avgKm) };
+	});
 
 	const weeklyData = $derived(() => {
 		const weeks = new Map<string, { km: number; runs: number }>();
@@ -54,20 +63,10 @@
 		const kms = data.map(d => Math.round(d.km * 10) / 10);
 		const runs = data.map(d => d.runs);
 
-		const nonZeroKms = kms.filter(k => k > 0);
-		const avgKm = nonZeroKms.length > 0 ? nonZeroKms.reduce((s, v) => s + v, 0) / nonZeroKms.length : 0;
-
 		_chart.setOption({
-			grid: { top: 35, right: 16, bottom: 30, left: 45 },
+			grid: { top: 45, right: 16, bottom: 30, left: 45 },
 			legend: { show: false },
-			tooltip: {
-				...CHART_TOOLTIP,
-				trigger: 'axis',
-				formatter: (params: any) => {
-					const p = params[0];
-					return `${p.name}<br/>Distance: <b>${p.value} km</b><br/>Runs: ${runs[p.dataIndex]}`;
-				},
-			},
+			tooltip: { show: false },
 			xAxis: {
 				type: 'category', data: weeks,
 				...CHART_AXIS,
@@ -84,21 +83,27 @@
 				{
 					type: 'bar',
 					name: 'Weekly km',
-					data: kms.map(k => ({
+					data: kms.map((k, i) => ({
 						value: k,
 						itemStyle: { color: k > 0 ? C.blue : C.hover, borderRadius: [3, 3, 0, 0] },
 					})),
 					barWidth: '65%',
+					label: {
+						show: true,
+						position: 'top',
+						formatter: (params: any) => {
+							const i = params.dataIndex;
+							const k = kms[i];
+							const r = runs[i];
+							if (k <= 0) return '';
+							return `${r} · ${Math.round(k)}km`;
+						},
+						color: C.textSecondary,
+						fontSize: 9,
+						fontFamily: MONO,
+					},
 				},
-				{
-					type: 'line',
-					name: `Avg ${Math.round(avgKm)} km`,
-					data: kms.map(() => Math.round(avgKm * 10) / 10),
-					symbol: 'none',
-					lineStyle: { width: 1, type: 'dashed', color: C.textDim },
-					tooltip: { show: false },
-				},
-			],
+				],
 		});
 
 		_ro = new ResizeObserver(() => _chart.resize());
@@ -107,8 +112,15 @@
 </script>
 
 <div class="rounded-lg bg-card p-4">
-	<Tip text={"Weekly running distance over time.\nConsistency matters more than peak weeks.\n\nDashed line = your average.\nAim for ≤ 10% increase week-over-week.\nGaps (0 km weeks) directly cause ACWR to drop."}>
-		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartBar size={14} weight="bold" /> Weekly Volume</h2>
-	</Tip>
+	<div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
+		<Tip text={"Weekly running distance over time.\nConsistency matters more than peak weeks.\n\nAim for ≤ 10% increase week-over-week.\nGaps (0 km weeks) directly cause ACWR to drop."}>
+			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartBar size={14} weight="bold" /> Weekly Volume</h2>
+		</Tip>
+		<div class="flex items-center gap-3 text-[10px] num">
+			<span class="text-text-secondary"><b class="text-text">{stats().totalRuns}</b> runs</span>
+			<span class="text-text-secondary"><b class="text-text">{stats().totalKm}</b> km</span>
+			<span class="text-text-secondary">avg <b class="text-text">{stats().avgKm}</b> km/wk</span>
+		</div>
+	</div>
 	<div bind:this={chartEl} class="h-[200px] w-full"></div>
 </div>

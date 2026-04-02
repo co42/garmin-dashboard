@@ -112,7 +112,7 @@
 						{delta(bar.value, bar.min, bar.max)}
 					</span>
 				</div>
-				<Tip text={`${Math.round(bar.value)} / target ${bar.min}–${bar.max}\nExpiring 7d: ${String(Math.round(seg.expiring)).padStart(4)}\nMiddle 14d:  ${String(Math.round(seg.middle)).padStart(4)}\nRecent 7d:   ${String(Math.round(seg.recent)).padStart(4)}`} mono>
+				<Tip text="" html={`<b>${Math.round(bar.value)}</b> <span style="color:${C.textDim}">/ target ${bar.min}–${bar.max}</span><table style="border-spacing:8px 2px;margin-top:4px"><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.25;margin-right:4px"></span>Expiring&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.expiring)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.55;margin-right:4px"></span>Middle&nbsp;</td><td style="color:${C.textDim}">14d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.middle)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.9;margin-right:4px"></span>Recent&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.recent)}</b></td></tr></table>`}>
 				<div class="relative h-5 rounded bg-card-border">
 					<!-- Expiring: oldest 7 days (faded) -->
 					{#if expiringW > 0}

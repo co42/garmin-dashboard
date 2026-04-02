@@ -16,7 +16,7 @@
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
 	const gradLegend = [
-		{ color: GRADIENT_COLORS.vSteepDown, label: '<-15%' },
+		{ color: GRADIENT_COLORS.vSteepDown, label: '<15%' },
 		{ color: GRADIENT_COLORS.steepDown, label: '-15/-8%' },
 		{ color: GRADIENT_COLORS.modDown, label: '-8/-2%' },
 		{ color: GRADIENT_COLORS.flat, label: 'flat' },
@@ -80,7 +80,7 @@
 		const elevPad = Math.max((elevMax - elevMin) * 0.1, 5);
 		const totalKm = points[points.length - 1].km;
 		const kmStep = totalKm > 50 ? 5 : totalKm > 25 ? 2 : 1;
-		const xMax = Math.ceil(totalKm / kmStep) * kmStep;
+		const xMax = Math.round(totalKm * 10) / 10;
 
 		// Split into colored segments
 		const segments: { color: string; data: [number, number][] }[] = [];

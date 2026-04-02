@@ -53,14 +53,17 @@
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
+				textStyle: { color: C.text, fontSize: 11, fontFamily: MONO },
 				formatter(params: any) {
 					const idx = params[0]?.dataIndex ?? 0;
 					const d = hrv[idx];
-					let html = `${dates[idx]}<br/>Last night: <b>${values[idx]}</b> ms`;
-					if (d?.last_night_5min_high != null) html += `<br/>5-min high: ${d.last_night_5min_high} ms`;
-					html += `<br/>Baseline: ${corridorLow[idx]}–${corridorHigh[idx]}`;
-					html += `<br/>Weekly avg: ${d?.weekly_average ?? '-'} ms`;
-					html += `<br/>Status: ${statuses[idx]}`;
+					let html = `<b>${dates[idx]}</b><table style="border-spacing:6px 1px">`;
+					html += `<tr><td>Last night</td><td style="text-align:right"><b>${values[idx]}</b></td><td style="color:${C.textDim}">ms</td></tr>`;
+					if (d?.last_night_5min_high != null) html += `<tr><td>5-min high</td><td style="text-align:right">${d.last_night_5min_high}</td><td style="color:${C.textDim}">ms</td></tr>`;
+					html += `<tr><td>Baseline</td><td style="text-align:right">${corridorLow[idx]}–${corridorHigh[idx]}</td><td style="color:${C.textDim}">ms</td></tr>`;
+					html += `<tr><td>Weekly avg</td><td style="text-align:right">${d?.weekly_average ?? '-'}</td><td style="color:${C.textDim}">ms</td></tr>`;
+					html += `<tr><td>Status</td><td style="text-align:right" colspan="2"><b>${statuses[idx]}</b></td></tr>`;
+					html += '</table>';
 					return html;
 				},
 			},

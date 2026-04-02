@@ -46,47 +46,56 @@
 		}
 	}
 
-	function peakValues(): number[] {
+	function peakValues(): { norm: number[]; raw: number[] } {
 		const peaks: Record<string, number> = {};
-		for (const key of RADAR_AXIS_ORDER) peaks[key] = 0;
+		const rawPeaks: Record<string, number> = {};
+		for (const key of RADAR_AXIS_ORDER) { peaks[key] = 0; rawPeaks[key] = -Infinity; }
 
-		// Iterate windowed dates, but compute rolling 30d from full history
 		for (const s of statusHistory) {
 			const v = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
-			peaks.vo2max = Math.max(peaks.vo2max, normalize('vo2max', v));
-			peaks.balance = Math.max(peaks.balance, rolling30dBalance(fullStatusHistory, s.date));
+			if (normalize('vo2max', v) >= peaks.vo2max) { peaks.vo2max = normalize('vo2max', v); rawPeaks.vo2max = v; }
+			const bal = rolling30dBalance(fullStatusHistory, s.date);
+			if (bal >= peaks.balance) { peaks.balance = bal; rawPeaks.balance = bal; }
 			const prod = computeProductivity(fullStatusHistory, s.date);
-			if (prod >= 0) peaks.productivity = Math.max(peaks.productivity, prod);
+			if (prod >= 0 && prod >= peaks.productivity) { peaks.productivity = prod; rawPeaks.productivity = prod; }
 		}
 		for (const h of hillScoreHistory) {
-			peaks.hill = Math.max(peaks.hill, normalize('hill', h.overall));
+			if (normalize('hill', h.overall) >= peaks.hill) { peaks.hill = normalize('hill', h.overall); rawPeaks.hill = h.overall; }
 		}
 		for (const e of enduranceScoreHistory) {
-			peaks.endurance = Math.max(peaks.endurance, normalize('endurance', e.score));
+			if (normalize('endurance', e.score) >= peaks.endurance) { peaks.endurance = normalize('endurance', e.score); rawPeaks.endurance = e.score; }
 		}
 
-		return RADAR_AXIS_ORDER.map(key => peaks[key]);
+		return {
+			norm: RADAR_AXIS_ORDER.map(key => peaks[key]),
+			raw: RADAR_AXIS_ORDER.map(key => rawPeaks[key] === -Infinity ? 0 : rawPeaks[key]),
+		};
 	}
 
-	function floorValues(): number[] {
+	function floorValues(): { norm: number[]; raw: number[] } {
 		const floors: Record<string, number> = {};
-		for (const key of RADAR_AXIS_ORDER) floors[key] = 100;
+		const rawFloors: Record<string, number> = {};
+		for (const key of RADAR_AXIS_ORDER) { floors[key] = 100; rawFloors[key] = Infinity; }
 
 		for (const s of statusHistory) {
 			const v = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
-			floors.vo2max = Math.min(floors.vo2max, normalize('vo2max', v));
-			floors.balance = Math.min(floors.balance, rolling30dBalance(fullStatusHistory, s.date));
+			if (normalize('vo2max', v) <= floors.vo2max) { floors.vo2max = normalize('vo2max', v); rawFloors.vo2max = v; }
+			const bal = rolling30dBalance(fullStatusHistory, s.date);
+			if (bal <= floors.balance) { floors.balance = bal; rawFloors.balance = bal; }
 			const prod = computeProductivity(fullStatusHistory, s.date);
-			if (prod >= 0) floors.productivity = Math.min(floors.productivity, prod);
+			if (prod >= 0 && prod <= floors.productivity) { floors.productivity = prod; rawFloors.productivity = prod; }
 		}
 		for (const h of hillScoreHistory) {
-			floors.hill = Math.min(floors.hill, normalize('hill', h.overall));
+			if (normalize('hill', h.overall) <= floors.hill) { floors.hill = normalize('hill', h.overall); rawFloors.hill = h.overall; }
 		}
 		for (const e of enduranceScoreHistory) {
-			floors.endurance = Math.min(floors.endurance, normalize('endurance', e.score));
+			if (normalize('endurance', e.score) <= floors.endurance) { floors.endurance = normalize('endurance', e.score); rawFloors.endurance = e.score; }
 		}
 
-		return RADAR_AXIS_ORDER.map(key => floors[key]);
+		return {
+			norm: RADAR_AXIS_ORDER.map(key => floors[key]),
+			raw: RADAR_AXIS_ORDER.map(key => rawFloors[key] === Infinity ? 0 : rawFloors[key]),
+		};
 	}
 
 	const radarData = $derived(() =>
@@ -111,8 +120,12 @@
 		const echarts = await import('echarts');
 		_chart = echarts.init(radarEl, undefined, { renderer: 'svg' });
 		const rd = radarData();
-		const peaks = peakValues();
-		const floors = floorValues();
+		const peakData = peakValues();
+		const floorData = floorValues();
+		const peaks = peakData.norm;
+		const floors = floorData.norm;
+		const rawPeaks = peakData.raw;
+		const rawFloors = floorData.raw;
 
 		_chart.setOption({
 			radar: {
@@ -128,10 +141,24 @@
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'item',
-				formatter: () => rd.map((d, i) => {
-					const range = floors[i] !== peaks[i] ? ` · ${floors[i]}–${peaks[i]}%` : '';
-					return `<b>${d.axis}: ${d.rawStr}</b> <span style="color:${C.textDim}">(${d.value}%)</span>${range}`;
-				}).join('<br/>'),
+				textStyle: { color: C.text, fontSize: 11, fontFamily: MONO },
+				formatter: () => {
+					const hasRange = floors.some((f, i) => f !== peaks[i]);
+					let html = `<table style="border-spacing:8px 1px">`;
+					for (let i = 0; i < rd.length; i++) {
+						const d = rd[i];
+						const key = RADAR_AXIS_ORDER[i];
+						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${AXIS_COLORS[key]};margin-right:2px"></span>`;
+						const showRange = floors[i] !== peaks[i];
+						const lo = showRange ? formatRaw(key, rawFloors[i]) : '';
+						const hi = showRange ? formatRaw(key, rawPeaks[i]) : '';
+						html += `<tr><td>${dot}${d.axis}&nbsp;</td><td style="text-align:right"><b>${d.rawStr}</b>&nbsp;</td><td style="text-align:right;color:${C.textDim}">${d.value}%&nbsp;</td>`;
+						if (hasRange) html += `<td style="text-align:right;color:${C.textDim}">${lo}&nbsp;</td><td style="text-align:right;color:${C.textDim}">${hi}</td>`;
+						html += `</tr>`;
+					}
+					html += '</table>';
+					return html;
+				},
 			},
 			series: [{
 				type: 'radar',

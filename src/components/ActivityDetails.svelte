@@ -162,8 +162,8 @@
 				{/if}
 
 				{#if splits.length > 0}
-					<div class="overflow-x-auto overflow-y-auto max-h-[240px] md:shrink-0">
-						<table class="text-xs">
+					<div class="overflow-x-auto overflow-y-auto max-h-[240px] w-full md:w-auto md:shrink-0">
+						<table class="text-xs w-full md:w-auto">
 							<thead class="sticky top-0 bg-card">
 								<tr class="text-text-dim border-b border-card-border">
 									<th class="pb-1 pr-3 md:pr-8 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>

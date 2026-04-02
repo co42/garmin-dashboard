@@ -29,24 +29,26 @@
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
+				textStyle: { color: C.text, fontSize: 11, fontFamily: MONO },
 				formatter: (params: any) => {
 					if (!Array.isArray(params) || params.length === 0) return '';
-					let html = `<b>${params[0].axisValueLabel}</b><br/>`;
+					let html = `<b>${params[0].axisValueLabel}</b><table style="border-spacing:6px 1px">`;
 					for (const p of params) {
 						if (p.value == null) continue;
-						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>`;
+						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:2px"></span>`;
 						let desc = '';
 						if (p.seriesName === 'ACWR') {
 							const v = p.value as number;
 							const zone = v < 0.8 ? 'low' : v <= 1.3 ? 'optimal' : v <= 1.5 ? 'high' : 'very high';
-							desc = ` <span style="color:${C.textDim};font-size:10px">${zone}</span>`;
+							desc = `<span style="color:${C.textDim}">${zone}</span>`;
 						} else if (p.seriesName === 'Acute') {
-							desc = ` <span style="color:${C.textDim};font-size:10px">7-day load</span>`;
+							desc = `<span style="color:${C.textDim}">7d</span>`;
 						} else if (p.seriesName === 'Chronic') {
-							desc = ` <span style="color:${C.textDim};font-size:10px">28-day load</span>`;
+							desc = `<span style="color:${C.textDim}">28d</span>`;
 						}
-						html += `${dot}${p.seriesName}: <b>${p.value}</b>${desc}<br/>`;
+						html += `<tr><td>${dot}${p.seriesName}&nbsp;</td><td style="text-align:right"><b>${p.value}</b>&nbsp;</td><td>${desc}</td></tr>`;
 					}
+					html += '</table>';
 					return html;
 				},
 			},

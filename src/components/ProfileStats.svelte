@@ -51,7 +51,7 @@
 		{/if}
 	</div>
 
-	<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+	<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
 		{#each DISTANCES as dist}
 			{@const pr = recordMap.get(dist.recordType)}
 			{@const recent = pr?.date ? isRecent(pr.date) : false}
@@ -62,9 +62,9 @@
 					<span class="text-xs font-semibold uppercase tracking-wider text-text-secondary shrink-0">{dist.label}</span>
 					{#if pr?.date}
 						{#if pr.activity_id && onNavigate}
-							<button type="button" class="num text-[10px] text-text-dim cursor-pointer hover:text-text-secondary transition-colors truncate min-w-0" onclick={() => onNavigate(pr.activity_id!)}>{#if location}<span class="text-text-secondary">{location}</span> · {/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</button>
+							<button type="button" class="num text-[10px] text-text-dim cursor-pointer hover:text-text-secondary transition-colors truncate min-w-0" onclick={() => onNavigate(pr.activity_id!)}>{#if location}<span class="text-text-secondary">{location}</span>&nbsp;·&nbsp;{/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</button>
 						{:else}
-							<span class="num text-[10px] text-text-dim truncate min-w-0">{#if location}<span class="text-text-secondary">{location}</span> · {/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</span>
+							<span class="num text-[10px] text-text-dim truncate min-w-0">{#if location}<span class="text-text-secondary">{location}</span>&nbsp;·&nbsp;{/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</span>
 						{/if}
 					{/if}
 				</div>
