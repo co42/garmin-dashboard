@@ -71,7 +71,7 @@
 		transform: translateX(-50%);
 		z-index: 50;
 		width: max-content;
-		max-width: 340px;
+		max-width: min(340px, calc(100vw - 24px));
 		padding: 8px 12px;
 		border-radius: 6px;
 		background: #1e1e2a;

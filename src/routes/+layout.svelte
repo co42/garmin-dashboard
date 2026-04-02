@@ -7,12 +7,9 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<link rel="preconnect" href="https://fonts.googleapis.com" />
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 	<title>Training Dashboard</title>
 </svelte:head>
 
-<div class="min-h-dvh bg-bg">
+<div class="min-h-dvh bg-bg overflow-x-hidden">
 	{@render children()}
 </div>

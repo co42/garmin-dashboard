@@ -112,7 +112,7 @@
 	]).filter(Boolean) as { label: string; value: string; tip: string }[]);
 </script>
 
-<div class="border-t border-card-border/50 px-4 py-4 space-y-5">
+<div class="border-t border-card-border/50 px-3 md:px-4 py-4 space-y-5">
 
 	<!-- ═══ NOTE ═══ -->
 	<div>
@@ -141,7 +141,7 @@
 	{#if weather}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><CloudSun size={12} weight="bold" /> Weather</h3>
-			<div class="flex items-center gap-4 text-xs text-text-dim">
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-dim">
 				<span class="flex items-center gap-1"><Thermometer size={12} weight="bold" /> <span class="num">{Math.round(weather.temperature_celsius)}°C</span> <span class="text-text-dim">feels {Math.round(weather.feels_like_celsius)}°</span></span>
 				<span class="flex items-center gap-1"><Wind size={12} weight="bold" /> <span class="num">{Math.round(weather.wind_speed_kmh)} km/h {weather.wind_direction_compass}</span></span>
 				<span class="flex items-center gap-1"><Drop size={12} weight="bold" /> <span class="num">{Math.round(weather.humidity_percent)}%</span></span>
@@ -154,30 +154,30 @@
 	{#if hasMap || splits.length > 0}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><MapPin size={12} weight="bold" /> Map & Splits</h3>
-			<div class="flex gap-4">
+			<div class="flex flex-col md:flex-row gap-4">
 				{#if hasMap && details}
-					<div class="h-[240px] flex-1 min-w-0 rounded overflow-hidden border border-card-border/50">
+					<div class="h-[200px] md:h-[240px] md:flex-1 md:min-w-0 rounded overflow-hidden border border-card-border/50">
 						<ActivityMap polyline={details.polyline} />
 					</div>
 				{/if}
 
 				{#if splits.length > 0}
-					<div class="overflow-y-auto max-h-[240px] shrink-0">
+					<div class="overflow-x-auto overflow-y-auto max-h-[240px] md:shrink-0">
 						<table class="text-xs">
 							<thead class="sticky top-0 bg-card">
 								<tr class="text-text-dim border-b border-card-border">
-									<th class="pb-1 pr-8 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>
-									<th class="pb-1 pr-8 text-right font-medium">Pace</th>
+									<th class="pb-1 pr-3 md:pr-8 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>
+									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">Pace</th>
 									{#if trail}
-										<th class="pb-1 pr-8 text-right font-medium">GAP</th>
+										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">GAP</th>
 									{/if}
-									<th class="pb-1 pr-8 text-right font-medium">HR</th>
+									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">HR</th>
 									{#if hasElev}
-										<th class="pb-1 pr-8 text-right font-medium">D+</th>
-										<th class="pb-1 pr-8 text-right font-medium">D-</th>
+										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">D+</th>
+										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">D-</th>
 									{/if}
 									{#if hasPower}
-										<th class="pb-1 pr-8 text-right font-medium">Pwr</th>
+										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">Pwr</th>
 									{/if}
 									{#if hasCadence}
 										<th class="pb-1 text-right font-medium">Cad</th>
@@ -188,19 +188,19 @@
 								{#each splits as split, i}
 									{@const cumDist = splits.slice(0, i).reduce((s, x) => s + x.distance_meters, 0)}
 									<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-										<td class="py-0.5 pr-8 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
-										<td class="py-0.5 pr-8 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
 										{#if trail}
-											<td class="py-0.5 pr-8 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
+											<td class="py-0.5 pr-3 md:pr-8 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
 										{/if}
-										<td class="py-0.5 pr-8 num text-right" style="color: {hrZoneColor(split.avg_hr, hrZones)}">{split.avg_hr || '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {hrZoneColor(split.avg_hr, hrZones)}">{split.avg_hr || '-'}</td>
 										{#if hasElev}
 										{@const avgGrade = split.distance_meters > 0 ? (split.elevation_gain - split.elevation_loss) / split.distance_meters * 100 : 0}
-											<td class="py-0.5 pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain)}</td>
-											<td class="py-0.5 pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss)}</td>
+											<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain)}</td>
+											<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss)}</td>
 										{/if}
 										{#if hasPower}
-											<td class="py-0.5 pr-8 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
+											<td class="py-0.5 pr-3 md:pr-8 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
 										{/if}
 										{#if hasCadence}
 											<td class="py-0.5 num text-right text-text-secondary">{Math.round(split.avg_cadence) || '-'}</td>

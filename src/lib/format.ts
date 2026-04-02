@@ -42,9 +42,7 @@ export function formatRacePace(seconds: number, km: number): string {
 }
 
 export function timeAgo(dateStr: string): string {
-	// DB stores UTC without a Z suffix — append it so Date parses correctly
-	const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
-	const diff = Date.now() - new Date(utcStr).getTime();
+	const diff = Date.now() - new Date(dateStr).getTime();
 	const mins = Math.floor(diff / 60000);
 	if (mins < 1) return 'just now';
 	if (mins < 60) return `${mins}m ago`;

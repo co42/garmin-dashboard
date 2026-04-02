@@ -112,9 +112,15 @@ function getLastSuccessfulSync(db: ReturnType<typeof getDb>): string | null {
 // Main sync
 // ---------------------------------------------------------------------------
 
-export async function runSync(): Promise<SyncResult> {
+export async function runSync(fullReset = false): Promise<SyncResult> {
 	const start = Date.now();
 	const db = getDb();
+
+	if (fullReset) {
+		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
+			db.exec(`DELETE FROM ${table}`);
+		}
+	}
 
 	const logStmt = db.prepare('INSERT INTO sync_log (status) VALUES (?)');
 	const { lastInsertRowid: logId } = logStmt.run('running');
@@ -183,7 +189,7 @@ export async function runSync(): Promise<SyncResult> {
 
 		// Phase 2: Store snapshots (always-fresh data)
 		const upsertSnapshot = db.prepare(
-			`INSERT INTO snapshots (command, data, synced_at) VALUES (?, ?, datetime('now'))
+			`INSERT INTO snapshots (command, data, synced_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 			 ON CONFLICT(command) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at`
 		);
 		const snapshotBatch = db.transaction(() => {
@@ -245,7 +251,7 @@ export async function runSync(): Promise<SyncResult> {
 
 		// Phase 4: Store activities + fetch splits for new ones
 		const upsertActivity = db.prepare(
-			`INSERT INTO activities (id, data, synced_at) VALUES (?, ?, datetime('now'))
+			`INSERT INTO activities (id, data, synced_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 			 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at`
 		);
 		const existingIds = new Set(
@@ -369,7 +375,7 @@ export async function runSync(): Promise<SyncResult> {
 		// Phase 6: Courses
 		const courseList = await garminSafe<any[]>(['courses', 'list'], []);
 		const upsertCourse = db.prepare(
-			`INSERT INTO courses (id, data, geo_points, synced_at) VALUES (?, ?, ?, datetime('now'))
+			`INSERT INTO courses (id, data, geo_points, synced_at) VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 			 ON CONFLICT(id) DO UPDATE SET data = excluded.data, geo_points = COALESCE(excluded.geo_points, courses.geo_points), synced_at = excluded.synced_at`
 		);
 		const existingCourseGeoIds = new Set(
@@ -479,7 +485,7 @@ export async function runSync(): Promise<SyncResult> {
 		upsertSnapshot.run('calendar', JSON.stringify(calendarEntries));
 
 		// Finish
-		db.prepare('UPDATE sync_log SET finished_at = datetime(?), status = ? WHERE id = ?')
+		db.prepare('UPDATE sync_log SET finished_at = ?, status = ? WHERE id = ?')
 			.run(new Date().toISOString(), 'ok', logId);
 
 		return {
@@ -500,7 +506,7 @@ export async function runSync(): Promise<SyncResult> {
 			},
 		};
 	} catch (err: any) {
-		db.prepare('UPDATE sync_log SET finished_at = datetime(?), status = ?, error = ? WHERE id = ?')
+		db.prepare('UPDATE sync_log SET finished_at = ?, status = ?, error = ? WHERE id = ?')
 			.run(new Date().toISOString(), 'error', err.message, logId);
 
 		return {

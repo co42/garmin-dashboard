@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { HillScore, DailyTrainingStatus, EnduranceScore, HrZone } from '$lib/types.js';
 	import { AXES, RADAR_AXIS_ORDER, AXIS_COLORS, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
-	import { C, CHART_TOOLTIP, ZONE_COLORS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, ZONE_COLORS, MONO } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -118,8 +118,9 @@
 			radar: {
 				indicator: rd.map(d => ({ name: d.axis, max: 100 })),
 				shape: 'polygon',
-				radius: '75%',
-				axisName: { color: C.textSecondary, fontSize: 11 },
+				radius: '68%',
+				center: ['50%', '55%'],
+				axisName: { color: C.textSecondary, fontSize: 11, fontFamily: MONO },
 				axisLine: { lineStyle: { color: C.hover } },
 				splitLine: { lineStyle: { color: C.cardBorder } },
 				splitArea: { show: false },
@@ -175,7 +176,7 @@
 </script>
 
 <div class="rounded-lg bg-card p-2 h-full flex flex-col">
-	<div class="flex items-center justify-center gap-3 text-[10px] px-2 pt-1">
+	<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] px-2 pt-1">
 		{#each RADAR_AXIS_ORDER as key}
 			<Tip text={AXES[key].tip}>
 				<span class="flex items-center gap-1 text-text-secondary">
@@ -185,18 +186,18 @@
 			</Tip>
 		{/each}
 	</div>
-	<div class="flex flex-1 min-h-0">
-	<div bind:this={radarEl} class="flex-1 min-h-[200px] w-full"></div>
+	<div class="flex flex-col md:flex-row flex-1 min-h-0">
+	<div bind:this={radarEl} class="flex-1 min-h-[220px] w-full"></div>
 	{#if hrZones.length > 0}
-		<div class="flex flex-col justify-center gap-1 pr-2 pl-0 shrink-0">
+		<div class="flex md:flex-col items-center md:items-start justify-center gap-2 md:gap-1 px-2 md:pr-2 md:pl-0 shrink-0">
 			{#each [1, 2, 3, 4, 5] as z}
 				{@const hz = hrZones.find(h => h.zone === z)}
 				{#if hz}
-					<div class="flex items-center gap-1.5">
-						<div class="w-1.5 h-5 rounded-full" style="background: {ZONE_COLORS[z - 1]};"></div>
-						<div class="leading-none">
-							<span class="num text-[10px] font-semibold" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
-							<span class="num text-[10px] text-text-secondary ml-0.5">{hz.min_bpm}–{#if hz.max_bpm == null}<b class="text-text">{maxHr ?? '?'}</b>{:else}{hz.max_bpm}{/if}</span>
+					<div class="flex items-center gap-1 md:gap-1.5">
+						<div class="w-1 md:w-1.5 h-4 md:h-5 rounded-full" style="background: {ZONE_COLORS[z - 1]};"></div>
+						<div class="leading-none text-center md:text-left">
+							<span class="num text-[9px] md:text-[10px] font-semibold" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
+							<span class="num text-[9px] md:text-[10px] text-text-secondary block md:inline md:ml-0.5">{hz.min_bpm}–{#if hz.max_bpm == null}<b class="text-text">{maxHr ?? '?'}</b>{:else}{hz.max_bpm}{/if}</span>
 						</div>
 					</div>
 				{/if}

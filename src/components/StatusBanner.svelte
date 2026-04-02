@@ -3,6 +3,9 @@
 	import { C, statusColor, acwrColor, fitnessTrend, readinessColor, readinessLabel } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
 	import Tip from './Tip.svelte';
+	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
+	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
+	import XCircle from 'phosphor-svelte/lib/XCircle';
 
 	interface Props {
 		status: DailyTrainingStatus;
@@ -52,11 +55,11 @@
 
 </script>
 
-<div class="rounded-lg bg-card p-5">
+<div class="rounded-lg bg-card p-3 md:p-5">
 	<!-- Top: Status + ACWR + Days off | Readiness + Recovery -->
-	<div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+	<div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-x-6">
 		<!-- Left: Training status -->
-		<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+		<div class="flex items-center gap-x-5 gap-y-2">
 			<Tip text={"Decided by two axes:\n• VO2max trend — are you getting fitter?\n• ACWR — are you training enough?\n\nProductive = VO2max improving + ACWR 0.8–1.3."}>
 				<div class="text-center">
 					<p class="text-xl font-bold" style="color: {color}">{fmt(status.status)}</p>
@@ -65,31 +68,31 @@
 			</Tip>
 
 			<Tip text={"Acute:Chronic Workload Ratio\n7-day load ÷ 28-day average.\n\n< 0.8 = undertraining\n0.8–1.3 = optimal\n> 1.3 = overreaching risk\n\nCurrently " + status.acute_load + " acute / " + status.chronic_load + " chronic."}>
-				<div class="text-center">
-					<span class="text-xs text-text-secondary">ACWR</span>
-					<p class="num text-sm font-medium text-text">{status.acwr.toFixed(1)} <span class="text-xs font-normal" style="color: {acwrC}">{status.acwr_status.toLowerCase()}</span></p>
+				<div>
+					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">ACWR</span>
+					<p class="num text-xl font-bold text-text flex items-center gap-1">{status.acwr.toFixed(1)} <span style="color: {acwrC}">{#if status.acwr_status === 'OPTIMAL'}<CheckCircle size={16} weight="fill" />{:else if status.acwr_status === 'HIGH' || status.acwr_status === 'LOW'}<WarningCircle size={16} weight="fill" />{:else}<XCircle size={16} weight="fill" />{/if}</span></p>
 				</div>
 			</Tip>
 
 			<Tip text={"Computed from VO2max history over ~4 weeks.\nImproving = getting fitter\nSteady = plateauing\nDeclining = losing fitness"}>
-				<div class="text-center">
-					<span class="text-xs text-text-secondary">VO2max</span>
-					<p class="num text-sm font-medium text-text">{status.vo2max_precise.toFixed(1)} <span class="text-xs font-normal" style="color: {trend.color}">{trend.arrow}</span></p>
+				<div>
+					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">VO2max</span>
+					<p class="num text-xl font-bold text-text">{status.vo2max_precise.toFixed(1)} <span class="text-xs font-normal" style="color: {trend.color}">{trend.arrow}</span></p>
 				</div>
 			</Tip>
 		</div>
 
 		<!-- Right: Readiness + Recovery + Last run -->
-		<div class="ml-auto flex items-center gap-4">
+		<div class="md:ml-auto flex items-center gap-3 md:gap-4">
 			<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor" + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + readiness.morning.score + "%" : "")}>
-				<div class="text-right">
+				<div class="md:text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</span>
 					<p class="num text-xl font-bold" style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</p>
 				</div>
 			</Tip>
-			<div class="h-8 w-px bg-card-border"></div>
+			<div class="hidden md:block h-8 w-px bg-card-border"></div>
 			<Tip text={"Time until Garmin estimates full recovery from recent training.\nCounts down from the last readiness snapshot." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time_minutes) : "")}>
-				<div class="text-right">
+				<div class="md:text-right">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Recovery</span>
 					<p class="num text-xl font-bold text-text">
 						{recoveryTime(remainingRecovery(latest))}
@@ -97,9 +100,9 @@
 				</div>
 			</Tip>
 			{#if daysSinceLastRun != null}
-				<div class="h-8 w-px bg-card-border"></div>
+				<div class="hidden md:block h-8 w-px bg-card-border"></div>
 				<Tip text="Gaps longer than 7–10 days start causing measurable fitness loss.">
-					<div class="text-right">
+					<div class="md:text-right">
 						<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Last run</span>
 						<p class="num text-xl font-bold text-text">{daysSinceLastRun}d</p>
 					</div>

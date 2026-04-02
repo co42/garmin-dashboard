@@ -19,7 +19,7 @@ const SCHEMA = `
 CREATE TABLE IF NOT EXISTS snapshots (
 	command TEXT PRIMARY KEY,
 	data TEXT NOT NULL,
-	synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+	synced_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 -- Daily time-series (all JSON blobs)
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS daily_endurance_score (
 CREATE TABLE IF NOT EXISTS activities (
 	id INTEGER PRIMARY KEY,
 	data TEXT NOT NULL,
-	synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+	synced_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS activity_splits (
@@ -90,14 +90,19 @@ CREATE TABLE IF NOT EXISTS courses (
 	id INTEGER PRIMARY KEY,
 	data TEXT NOT NULL,
 	geo_points TEXT,
-	synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+	synced_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	started_at TEXT NOT NULL DEFAULT (datetime('now')),
+	started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
 	finished_at TEXT,
 	status TEXT DEFAULT 'running',
 	error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL
 );
 `;

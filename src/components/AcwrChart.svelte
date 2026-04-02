@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { DailyTrainingStatus } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import ChartLineUp from 'phosphor-svelte/lib/ChartLineUp';
 
@@ -25,7 +25,7 @@
 		const chronicValues = history.map(d => d.chronic_load);
 
 		_chart.setOption({
-			grid: { top: 40, right: 60, bottom: 30, left: 50 },
+			grid: { top: 40, right: 8, bottom: 30, left: 50 },
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
@@ -57,7 +57,7 @@
 					{ name: 'Chronic', itemStyle: { color: C.teal } },
 				],
 				top: 6,
-				textStyle: { color: C.textSecondary, fontSize: 11 },
+				textStyle: { color: C.textSecondary, fontSize: 11, fontFamily: MONO },
 			},
 			xAxis: {
 				type: 'category', data: days,
@@ -73,10 +73,9 @@
 					splitLine: CHART_AXIS.splitLine,
 				},
 				{
-					type: 'value', name: 'Load',
-					nameTextStyle: { color: C.textDim, fontSize: 10 },
+					type: 'value',
 					axisLine: { show: false },
-					axisLabel: CHART_AXIS.axisLabel,
+					axisLabel: { show: false },
 					splitLine: { show: false },
 				},
 			],

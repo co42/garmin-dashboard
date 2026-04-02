@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { ActivityDetailPoint } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO } from '$lib/colors.js';
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
@@ -146,7 +146,7 @@
 				min: Math.floor(elevMin - elevPad),
 				max: Math.ceil(elevMax + elevPad),
 				axisLine: { show: false },
-				axisLabel: { color: C.textDim, fontSize: 10, formatter: (v: number) => `${v}m` },
+				axisLabel: { color: C.textDim, fontSize: 10, fontFamily: MONO, formatter: (v: number) => `${v}m` },
 				splitLine: CHART_AXIS.splitLine,
 			},
 			series,

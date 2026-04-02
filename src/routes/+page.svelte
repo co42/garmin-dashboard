@@ -58,7 +58,7 @@
 	}
 </script>
 
-<header class="sticky top-0 z-40 border-b border-card-border bg-bg/90 px-6 py-3 backdrop-blur">
+<header class="sticky top-0 z-40 border-b border-card-border bg-bg/90 px-3 md:px-6 py-3 backdrop-blur">
 	<div class="mx-auto flex max-w-[1400px] items-center justify-between">
 		<h1 class="flex items-center gap-2 text-lg font-semibold tracking-tight">
 			<img src={favicon} alt="" width="24" height="24" class="rounded-md" />
@@ -89,8 +89,8 @@
 	</div>
 {:else}
 	{@const w = filterWindow(d)}
-	<main class="mx-auto max-w-[1400px] p-4 md:p-6">
-	<div class="grid gap-4">
+	<main class="mx-auto max-w-[1400px] p-3 md:p-6 overflow-x-hidden">
+	<div class="grid gap-4 min-w-0">
 
 		<!-- ═══ BANNER ═══ -->
 		<StatusBanner status={d.currentStatus} statusHistory={w.status} readiness={d.readiness} daysSinceLastRun={d.daysSinceLastRun} />

@@ -50,7 +50,7 @@
 </script>
 
 <div class="grid grid-cols-2 gap-3 h-full">
-	<div class="rounded-lg bg-card px-4 py-3 flex flex-col justify-center">
+	<div class="rounded-lg bg-card px-3 md:px-4 py-2 md:py-3 flex flex-col justify-center">
 		<Tip text={"Garmin's energy reserve (0–100).\nDrains with activity and stress.\nRecharges with rest and sleep.\n\n< 25 = skip training\n> 60 = green light for hard efforts"}>
 			<span class="text-[10px] font-medium uppercase text-text-dim">Body Battery</span>
 		</Tip>
@@ -59,7 +59,7 @@
 	</div>
 
 	{#if latestSleep}
-		<div class="rounded-lg bg-card px-4 py-3 flex flex-col justify-center">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-2 md:py-3 flex flex-col justify-center">
 			<Tip text={"Sleep quality (0–100).\n\n80+ = good\n60–79 = okay\n< 60 = poor — recovery compromised"}>
 				<span class="text-[10px] font-medium uppercase text-text-dim">Sleep Score</span>
 			</Tip>
@@ -69,7 +69,7 @@
 	{/if}
 
 	{#if latestHr}
-		<div class="rounded-lg bg-card px-4 py-3 flex flex-col justify-center">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-2 md:py-3 flex flex-col justify-center">
 			<Tip text={"Heart rate at complete rest.\nLower = fitter.\n\n↓ over weeks = improving fitness\nSudden spike = illness or overtraining"}>
 				<span class="text-[10px] font-medium uppercase text-text-dim">Resting HR</span>
 			</Tip>
@@ -80,7 +80,7 @@
 
 	{#if stress.avg_stress > 0}
 		{@const sl = stressLabel(stress.avg_stress)}
-		<div class="rounded-lg bg-card px-4 py-3 flex flex-col justify-center">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-2 md:py-3 flex flex-col justify-center">
 			<Tip text={"All-day stress (0–100) from HRV.\n\n≤ 25 = low (ideal)\n26–50 = medium\n> 50 = high — impairs recovery"}>
 				<span class="text-[10px] font-medium uppercase text-text-dim">Stress</span>
 			</Tip>

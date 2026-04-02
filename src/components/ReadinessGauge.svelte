@@ -60,6 +60,7 @@
 				title: { show: false },
 				detail: {
 					valueAnimation: true, fontSize: 28, fontWeight: 'bold',
+					fontFamily: "'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace",
 					color: C.text, offsetCenter: [0, 0],
 					formatter: (v: number) => `${v}%`,
 				},
@@ -76,15 +77,15 @@
 	}
 </script>
 
-<div class="rounded-lg bg-card p-4">
+<div class="rounded-lg bg-card p-3 md:p-4">
 	<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor\n\nComputed from HRV, sleep, recovery time, stress, and ACWR."}>
 		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Gauge size={14} weight="bold" /> Readiness</h2>
 	</Tip>
 
-	<div class="flex items-center gap-6">
+	<div class="flex items-center gap-3 md:gap-6">
 		<!-- Gauge -->
 		<div class="shrink-0">
-			<div bind:this={chartEl} class="h-[120px] w-[140px]"></div>
+			<div bind:this={chartEl} class="h-[100px] w-[110px] md:h-[120px] md:w-[140px]"></div>
 			<div class="-mt-1 text-center text-xs text-text-secondary">
 				{readinessLabel(entry.score)}
 				{#if hasBoth && readiness.morning}

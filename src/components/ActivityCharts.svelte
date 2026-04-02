@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { ActivityDetailPoint } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO } from '$lib/colors.js';
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
@@ -180,7 +180,7 @@
 				min: Math.floor(elevMin - elevPad),
 				max: Math.ceil(elevMax + elevPad),
 				axisLine: { show: false },
-				axisLabel: { color: C.textDim, fontSize: 10, formatter: (v: number) => `${v}m` },
+				axisLabel: { color: C.textDim, fontSize: 10, fontFamily: MONO, formatter: (v: number) => `${v}m` },
 				splitLine: CHART_AXIS.splitLine,
 			});
 
@@ -238,7 +238,7 @@
 			type: 'value', gridIndex: perfGridIndex,
 			min: paceMin, max: paceMax, interval: paceStep, inverse: true,
 			axisLine: { show: false },
-			axisLabel: { color: C.textDim, fontSize: 10, formatter: (v: number) => paceStr(v) },
+			axisLabel: { color: C.textDim, fontSize: 10, fontFamily: MONO, formatter: (v: number) => paceStr(v) },
 			splitLine: CHART_AXIS.splitLine,
 		});
 		const hrYIdx = yAxes.length;
@@ -341,7 +341,7 @@
 	});
 </script>
 
-<div class="flex items-center justify-between mb-1 text-[9px] text-text-dim">
+<div class="flex flex-wrap items-center justify-between gap-y-1 mb-1 text-[9px] text-text-dim">
 	<div class="flex items-center gap-2">
 		{#each legendItems as item}
 			<button
@@ -355,7 +355,7 @@
 	</div>
 	{#if showElevation}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="flex items-center gap-2" onmouseleave={() => highlightGrad(null)}>
+		<div class="hidden md:flex items-center gap-2" onmouseleave={() => highlightGrad(null)}>
 			{#each gradLegend as { color, label }}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<span

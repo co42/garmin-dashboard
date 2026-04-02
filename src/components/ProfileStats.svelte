@@ -51,20 +51,20 @@
 		{/if}
 	</div>
 
-	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+	<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 		{#each DISTANCES as dist}
 			{@const pr = recordMap.get(dist.recordType)}
 			{@const recent = pr?.date ? isRecent(pr.date) : false}
 			{@const prActivity = pr?.activity_id ? activityMap.get(pr.activity_id) : undefined}
 			{@const location = prActivity?.location_name}
-			<div class="rounded-lg bg-card px-4 py-3" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
-				<div class="mb-2 flex items-baseline justify-between">
-					<span class="text-xs font-semibold uppercase tracking-wider text-text-secondary">{dist.label}</span>
+			<div class="rounded-lg bg-card px-3 md:px-4 py-3" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
+				<div class="mb-2 flex items-baseline justify-between gap-2 min-w-0">
+					<span class="text-xs font-semibold uppercase tracking-wider text-text-secondary shrink-0">{dist.label}</span>
 					{#if pr?.date}
 						{#if pr.activity_id && onNavigate}
-							<button type="button" class="num text-[10px] text-text-dim cursor-pointer hover:text-text-secondary transition-colors" onclick={() => onNavigate(pr.activity_id!)}>{#if location}<span class="text-text-secondary">{location}</span> ·&nbsp;{/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</button>
+							<button type="button" class="num text-[10px] text-text-dim cursor-pointer hover:text-text-secondary transition-colors truncate min-w-0" onclick={() => onNavigate(pr.activity_id!)}>{#if location}<span class="text-text-secondary">{location}</span> · {/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</button>
 						{:else}
-							<span class="num text-[10px] text-text-dim">{#if location}<span class="text-text-secondary">{location}</span> ·&nbsp;{/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</span>
+							<span class="num text-[10px] text-text-dim truncate min-w-0">{#if location}<span class="text-text-secondary">{location}</span> · {/if}{yearLabel(pr.date)}{#if recent}<span style="color: {C.green}"> NEW</span>{/if}</span>
 						{/if}
 					{/if}
 				</div>

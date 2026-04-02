@@ -27,18 +27,20 @@ export const C = {
 /** HR zone colors Z1–Z5 (Garmin spec: gray, blue, green, orange, red) */
 export const ZONE_COLORS = [C.textDim, C.blue, C.green, C.orange, C.red] as const;
 
+export const MONO = "'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace";
+
 /** Reusable tooltip config for echarts */
 export const CHART_TOOLTIP = {
 	confine: true,
 	backgroundColor: C.cardBorder,
 	borderColor: C.hover,
-	textStyle: { color: C.text, fontSize: 12 },
+	textStyle: { color: C.text, fontSize: 12, fontFamily: MONO },
 } as const;
 
 /** Reusable axis styles for echarts */
 export const CHART_AXIS = {
 	axisLine: { lineStyle: { color: C.hover } },
-	axisLabel: { color: C.textDim, fontSize: 10 },
+	axisLabel: { color: C.textDim, fontSize: 10, fontFamily: MONO },
 	splitLine: { lineStyle: { color: C.cardBorder } },
 } as const;
 

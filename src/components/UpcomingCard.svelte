@@ -13,6 +13,8 @@
 	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
+	import TrendUp from 'phosphor-svelte/lib/TrendUp';
+	import PauseCircle from 'phosphor-svelte/lib/PauseCircle';
 
 	interface Props {
 		calendar: CalendarEntry[];
@@ -65,6 +67,10 @@
 		id: number;
 		date: string;
 		entry: CalendarEntry;
+	} | {
+		kind: 'rest';
+		id: number;
+		date: string;
 	};
 
 	// ── Build rows ──────────────────────────────────────────────────────────
@@ -104,7 +110,19 @@
 			.filter(c => c.item_type === 'event' && c.date >= weekStart && c.date < weekEnd)
 			.map((c): Row => ({ kind: 'event', id: c.id, date: c.date, entry: c }));
 
-		return [...activityRows, ...scheduledInWeek, ...eventRows].sort((a, b) => a.date.localeCompare(b.date));
+		const rows = [...activityRows, ...scheduledInWeek, ...eventRows];
+		const filledDates = new Set(rows.map(r => r.date));
+
+		// Fill in rest days for dates with nothing
+		for (let i = 0; i < 7; i++) {
+			const date = addDays(weekStart, i);
+			if (date >= weekEnd) break;
+			if (!filledDates.has(date)) {
+				rows.push({ kind: 'rest', id: -i - 1, date });
+			}
+		}
+
+		return rows.sort((a, b) => a.date.localeCompare(b.date));
 	}
 
 	const thisWeekRows = $derived(weekRows(thisWeekStr, nextWeekStr));
@@ -128,13 +146,10 @@
 	}
 
 	function dateLabel(dateStr: string): string {
-		const diff = daysBetween(todayStr, dateStr);
-		const jTag = diff === 0 ? 'J' : diff > 0 ? `J+${diff}` : `J${diff}`;
-		// Display formatting uses local parse — safe here since it's only for labels
 		const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
 		const wk = d.toLocaleDateString('en-GB', { weekday: 'short' });
-		const dm = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-		return `${wk} ${dm} (${jTag})`;
+		const dm = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+		return `${wk} ${dm}`;
 	}
 
 	function daysUntilDate(dateStr: string): number {
@@ -265,9 +280,10 @@
 {/snippet}
 
 {#snippet rowCard(row: Row)}
+	{@const isToday = row.date === todayStr}
 	{#if row.kind === 'done'}
 		<!-- Completed activity — shared row component (has its own padding) -->
-		<div class="rounded-lg bg-card">
+		<div class="rounded-lg bg-card {isToday ? 'ring-1 ring-blue-400/50' : ''}">
 			<ActivityRow
 				activity={row.activity}
 				splits={splits[row.activity.id]}
@@ -281,19 +297,19 @@
 	{:else if row.kind === 'event'}
 		{@const days = daysUntilDate(row.date)}
 		{@const linkedCourse = row.entry.course_id ? courseMap.get(row.entry.course_id) ?? null : null}
-		<div class="rounded-lg bg-card px-4 py-3">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
 			<div class="flex items-center gap-2.5">
 				<span class="shrink-0 text-red-400"><FlagCheckered size={16} weight="fill" /></span>
-				<div class="min-w-0 flex-1">
-					<div class="text-sm font-semibold text-text">{row.entry.title}</div>
+				<div class="min-w-0 flex-1 overflow-hidden">
+					<div class="text-sm font-semibold text-text truncate">{row.entry.title}</div>
 					{#if linkedCourse}
 						<button
-							class="flex items-center gap-2 mt-0.5 text-xs text-text-dim hover:text-text-secondary transition-colors cursor-pointer"
+							class="flex items-center gap-3 mt-0.5 text-xs leading-none cursor-pointer hover:opacity-80 transition-opacity max-w-full overflow-hidden"
 							onclick={() => onNavigateCourse?.(linkedCourse.id)}
 						>
-							<span class="flex items-center gap-1"><Path size={11} weight="bold" /> {linkedCourse.name}</span>
-							<span class="num">{formatDistance(linkedCourse.distance_meters)} km</span>
-							<span class="num">D+ {Math.round(linkedCourse.elevation_gain_meters)}m</span>
+							<span class="flex items-center gap-1 text-text-secondary truncate min-w-0"><Path size={11} weight="bold" class="shrink-0" /> <span class="truncate">{linkedCourse.name}</span></span>
+							<span class="num text-text font-semibold shrink-0">{formatDistance(linkedCourse.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
+							<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{Math.round(linkedCourse.elevation_gain_meters)}m</span>
 						</button>
 					{/if}
 				</div>
@@ -302,10 +318,10 @@
 				</span>
 			</div>
 		</div>
-	{:else}
+	{:else if row.kind === 'scheduled'}
 		<!-- Scheduled workout: collapsible -->
 		{@const entry = row.entry}
-		<div class="rounded-lg bg-card px-4 py-3">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
 			<button
 				class="flex w-full items-center gap-2.5 text-left cursor-pointer"
 				onclick={() => toggle(entry.id)}
@@ -318,7 +334,7 @@
 					{/if}
 				</span>
 				<div class="min-w-0 flex-1">
-					<div class="text-sm font-semibold text-text">{entry.title}</div>
+					<div class="text-sm font-semibold text-text truncate">{entry.title}</div>
 				</div>
 				<span class="shrink-0 text-xs text-text-dim font-mono tabular-nums">{dateLabel(entry.date)}</span>
 				{#if entry.steps.length > 0}
@@ -338,6 +354,16 @@
 					{@render nonRunningSteps(entry.steps)}
 				{/if}
 			{/if}
+		</div>
+	{:else if row.kind === 'rest'}
+		<div class="rounded-lg bg-card px-3 md:px-4 py-3 opacity-40 {isToday ? 'ring-1 ring-blue-400/50 !opacity-60' : ''}">
+			<div class="flex items-center gap-2.5">
+				<span class="shrink-0 text-text-secondary"><PauseCircle size={16} /></span>
+				<div class="min-w-0 flex-1">
+					<div class="text-sm font-semibold text-text">Rest</div>
+				</div>
+				<span class="shrink-0 text-xs text-text-dim font-mono tabular-nums">{dateLabel(row.date)}</span>
+			</div>
 		</div>
 	{/if}
 {/snippet}
@@ -381,7 +407,7 @@
 				{/each}
 			</div>
 		{:else}
-			<div class="rounded-lg bg-card px-4 py-3 text-xs text-text-dim">Nothing this week</div>
+			<div class="rounded-lg bg-card px-3 md:px-4 py-3 text-xs text-text-dim">Nothing this week</div>
 		{/if}
 	</div>
 
@@ -396,7 +422,7 @@
 				{/each}
 			</div>
 		{:else}
-			<div class="rounded-lg bg-card px-4 py-3 text-xs text-text-dim">Nothing this week</div>
+			<div class="rounded-lg bg-card px-3 md:px-4 py-3 text-xs text-text-dim">Nothing this week</div>
 		{/if}
 	</div>
 </div>

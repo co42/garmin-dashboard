@@ -14,6 +14,7 @@
 	import PersonSimpleTaiChi from 'phosphor-svelte/lib/PersonSimpleTaiChi';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
 	import Timer from 'phosphor-svelte/lib/Timer';
+	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CaretUp from 'phosphor-svelte/lib/CaretUp';
@@ -68,7 +69,9 @@
 
 	function fmtDate(dateStr: string): string {
 		const d = new Date(dateStr);
-		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+		const wk = d.toLocaleDateString('en-GB', { weekday: 'short' });
+		const dm = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+		return `${wk} ${dm}`;
 	}
 
 	function fmtTime(dateStr: string): string {
@@ -173,7 +176,7 @@
 
 <button
 	type="button"
-	class="w-full text-left px-4 py-3 cursor-pointer hover:bg-card-border/20 transition-colors rounded-lg"
+	class="w-full text-left px-3 md:px-4 py-3 cursor-pointer hover:bg-card-border/20 transition-colors rounded-lg"
 	onclick={() => { if (context === 'feed') ontoggle?.(); else if (onNavigate) onNavigate(activity.id); else scrollToActivity(); }}
 >
 	<!-- Row 1: Name + badge + weather + date -->
@@ -230,7 +233,7 @@
 		<span class="ml-auto shrink-0 flex items-center gap-2 text-xs text-text-dim num">
 			{fmtDate(activity.start_time)} {fmtTime(activity.start_time)}
 			{#if activity.location_name}
-				<span class="text-text-dim">· {activity.location_name}</span>
+				<span class="hidden md:inline text-text-dim">· {activity.location_name}</span>
 			{/if}
 			{#if weather?.weather_description}
 				{@const wt = weatherType(weather.weather_description)}
@@ -272,16 +275,16 @@
 			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{activity.pace_min_km.replace(' /km', '')}</span>
 		{/if}
 		{#if trail}
-			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><Mountains size={11} weight="bold" />{activity.elevation_gain}m</span>
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{activity.elevation_gain}m</span>
 		{/if}
 		{#if activity.avg_hr}
-			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-px"><Heartbeat size={12} weight="bold" />{activity.avg_hr}{#if activity.max_hr}<span class="text-text-dim">/{activity.max_hr}</span>{/if}</span>
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-px"><Heartbeat size={12} weight="bold" />{activity.avg_hr}{#if activity.max_hr}<span class="hidden sm:inline text-text-dim">/{activity.max_hr}</span>{/if}</span>
 		{/if}
 
 		<!-- Right group: sparkline + load + zones -->
 		<span class="ml-auto flex items-end gap-3 shrink-0">
 			{#if sparkBars.length >= 2}
-				<div class="flex items-end gap-px h-3" title="Pace per split">
+				<div class="hidden md:flex items-end gap-px h-3" title="Pace per split">
 					{#each sparkBars as b}
 						{@const pct = 20 + ((b.pace - paceMin) / paceRange) * 80}
 						{@const w = Math.max(1, Math.round((b.dist / maxDist) * 6))}
@@ -308,7 +311,7 @@
 			{#if zones.total > 0}
 				{@const maxPct = Math.max(...zones.pcts)}
 				<Tip text={zones.pcts.map((p, i) => `Z${i + 1}  ${Math.round(p)}%`).join('\n')} mono>
-					<div class="flex items-end gap-px h-4 w-16">
+					<div class="hidden sm:flex items-end gap-px h-4 w-16">
 						{#each zones.pcts as pct, i}
 							<div
 								class="flex-1 rounded-t-sm"

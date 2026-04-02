@@ -3,7 +3,7 @@
 	import type { DailyTrainingStatus, HillScore, EnduranceScore } from '$lib/types.js';
 	import { AXES, AXIS_ORDER, AXIS_COLORS, PROFILE_LABEL, normalize, formatRaw, computeBalance } from '$lib/profile.js';
 	import { weekMonday, utcDate } from '$lib/dates.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 	import Tip from './Tip.svelte';
 
@@ -133,7 +133,7 @@
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
-				textStyle: { color: C.text, fontSize: 11 },
+				textStyle: { color: C.text, fontSize: 11, fontFamily: MONO },
 				formatter: (params: any) => {
 					if (!Array.isArray(params) || params.length === 0) return '';
 					const idx = params[0].dataIndex;
@@ -181,11 +181,11 @@
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
-	<div class="flex items-center justify-between mb-2">
+	<div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
 		<Tip text={`5 dimensions plotted weekly.\nY-axis: normalized 0–100% (${PROFILE_LABEL}).\nTooltips show raw values.`}>
 			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
 		</Tip>
-		<div class="flex items-center gap-3 text-[10px]">
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
 			{#each AXIS_ORDER as key}
 				<Tip text={AXES[key].tip}>
 					<span class="flex items-center gap-1 text-text-secondary">

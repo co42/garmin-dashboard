@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { HrvDay } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS, hrvStatusColor } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, MONO, hrvStatusColor } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 
@@ -48,7 +48,7 @@
 					{ name: 'Baseline', itemStyle: { color: C.green }, lineStyle: { type: 'dashed' } },
 				],
 				top: 4,
-				textStyle: { color: C.textSecondary, fontSize: 10 },
+				textStyle: { color: C.textSecondary, fontSize: 10, fontFamily: MONO },
 			},
 			tooltip: {
 				...CHART_TOOLTIP,

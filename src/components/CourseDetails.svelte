@@ -104,26 +104,26 @@
 	]).filter(Boolean) as { label: string; value: string }[]);
 </script>
 
-<div class="border-t border-card-border/50 px-4 py-4 space-y-5">
+<div class="border-t border-card-border/50 px-3 md:px-4 py-4 space-y-5">
 
 	<!-- ═══ MAP + SPLITS ═══ -->
 	{#if hasGeoPoints}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><MapPin size={12} weight="bold" /> Map & Splits</h3>
-			<div class="flex gap-4">
-				<div class="h-[240px] flex-1 min-w-0 rounded overflow-hidden border border-card-border/50">
+			<div class="flex flex-col md:flex-row gap-4">
+				<div class="h-[200px] md:h-[240px] md:flex-1 md:min-w-0 rounded overflow-hidden border border-card-border/50">
 					<ActivityMap {polyline} />
 				</div>
 
 				{#if kmSplits().length > 0}
-					<div class="overflow-y-auto max-h-[240px] shrink-0">
+					<div class="overflow-x-auto overflow-y-auto max-h-[240px] md:shrink-0">
 						<table class="text-xs">
 							<thead class="sticky top-0 bg-card">
 								<tr class="text-text-dim border-b border-card-border">
-									<th class="pb-1 pr-8 text-left font-medium">km</th>
-									<th class="pb-1 pr-8 text-right font-medium">D+</th>
-									<th class="pb-1 pr-8 text-right font-medium">D-</th>
-									<th class="pb-1 pr-8 text-right font-medium">Min</th>
+									<th class="pb-1 pr-3 md:pr-8 text-left font-medium">km</th>
+									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">D+</th>
+									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">D-</th>
+									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">Min</th>
 									<th class="pb-1 text-right font-medium">Max</th>
 								</tr>
 							</thead>
@@ -131,10 +131,10 @@
 								{#each kmSplits() as split}
 									{@const avgGrade = split.dist > 0 ? (split.elevGain - split.elevLoss) / split.dist * 100 : 0}
 									<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-										<td class="py-0.5 pr-8 num text-text-dim">{split.km}</td>
-										<td class="py-0.5 pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{split.elevGain}</td>
-										<td class="py-0.5 pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{split.elevLoss}</td>
-										<td class="py-0.5 pr-8 num text-right text-text-secondary">{split.minElev}m</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-text-dim">{split.km}</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{split.elevGain}</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{split.elevLoss}</td>
+										<td class="py-0.5 pr-3 md:pr-8 num text-right text-text-secondary">{split.minElev}m</td>
 										<td class="py-0.5 num text-right text-text-secondary">{split.maxElev}m</td>
 									</tr>
 								{/each}

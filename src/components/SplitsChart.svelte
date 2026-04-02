@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { ActivityDetailPoint } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
@@ -126,7 +126,7 @@
 				data: series.map(s => ({ name: s.name, itemStyle: { color: s.itemStyle?.color ?? C.green } })),
 				selected: { 'Pace': true, 'GAP': true, 'HR': true, 'Power': false, 'Cadence': false },
 				top: 2,
-				textStyle: { color: C.textSecondary, fontSize: 10 },
+				textStyle: { color: C.textSecondary, fontSize: 10, fontFamily: MONO },
 			},
 			tooltip: {
 				...CHART_TOOLTIP,
@@ -159,7 +159,7 @@
 				{
 					type: 'value', min: paceMin, max: paceMax, interval: paceStep, inverse: true,
 					axisLine: { show: false },
-					axisLabel: { color: C.textDim, fontSize: 10, formatter: (v: number) => paceStr(v) },
+					axisLabel: { color: C.textDim, fontSize: 10, fontFamily: MONO, formatter: (v: number) => paceStr(v) },
 					splitLine: CHART_AXIS.splitLine,
 				},
 				{ type: 'value', min: hrMin, max: hrMax, show: false },

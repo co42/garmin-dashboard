@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Activity, HrZone } from '$lib/types.js';
-	import { C, ZONE_COLORS, CHART_TOOLTIP, CHART_AXIS } from '$lib/colors.js';
+	import { C, ZONE_COLORS, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import ChartPieSlice from 'phosphor-svelte/lib/ChartPieSlice';
 
@@ -102,12 +102,12 @@
 			xAxis: {
 				type: 'category', data: zoneLabels,
 				axisLine: CHART_AXIS.axisLine,
-				axisLabel: { color: C.textSecondary, fontSize: 10, lineHeight: 14, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace' },
+				axisLabel: { color: C.textSecondary, fontSize: 10, lineHeight: 14, fontFamily: MONO },
 			},
 			yAxis: {
 				type: 'value', max: 1,
 				axisLine: { show: false },
-				axisLabel: { color: C.textDim, fontSize: 10, formatter: (v: number) => `${Math.round(v * 100)}%` },
+				axisLabel: { color: C.textDim, fontSize: 10, fontFamily: MONO, formatter: (v: number) => `${Math.round(v * 100)}%` },
 				splitLine: CHART_AXIS.splitLine,
 			},
 			series: [{
@@ -118,7 +118,7 @@
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
-				textStyle: { color: C.text, fontSize: 12, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace' },
+				textStyle: { color: C.text, fontSize: 12, fontFamily: MONO },
 				formatter: (params: any) => {
 					const i = params[0].dataIndex;
 					const bpm = zoneBpmTip[i];
