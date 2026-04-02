@@ -42,15 +42,15 @@ export interface AxisDef {
 
 export const AXES: Record<string, AxisDef> = {
 	vo2max: {
-		// Percentile among runners (ACSM + runner-specific adjustments):
-		// ~5th pct runner ≈ 35, ~50th pct ≈ 48, ~99.5th pct ≈ 70
+		// Percentile among male runners ~35yo (Running Level + VDOT equivalence):
+		// ~5th pct runner ≈ 30, ~20th pct ≈ 35, ~50th pct ≈ 42, ~95th pct ≈ 57, ~99.9th pct ≈ 70
 		name: 'VO2max',
 		unit: '',
-		floor: 35,
+		floor: 30,
 		ceil: 70,
-		zeroLabel: '35 mL/kg/min (beginner)',
-		hundredLabel: '70 (elite)',
-		scaleTip: '0% = 35 mL/kg/min · 100% = 70',
+		zeroLabel: '30 mL/kg/min (beginner)',
+		hundredLabel: '70 (national competitive)',
+		scaleTip: '0% = 30 mL/kg/min · 100% = 70',
 	},
 	endurance: {
 		// Garmin endurance score 0–10,000:
