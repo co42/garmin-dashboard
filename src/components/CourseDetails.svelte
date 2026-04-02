@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Course, ActivityDetailPoint } from '$lib/types.js';
 	import { formatDistance } from '$lib/format.js';
-	import { C, gradColor } from '$lib/colors.js';
+	import { C, gradColor, arrMin, arrMax } from '$lib/colors.js';
 	import ElevationChart from './ElevationChart.svelte';
 	import ActivityMap from './ActivityMap.svelte';
 	import Tip from './Tip.svelte';
@@ -46,8 +46,8 @@
 		if (!hasElevation) return null;
 		const elevs = course.geo_points.filter(p => p.elevation != null).map(p => p.elevation);
 		if (elevs.length === 0) return null;
-		const min = Math.min(...elevs);
-		const max = Math.max(...elevs);
+		const min = arrMin(elevs);
+		const max = arrMax(elevs);
 		const start = elevs[0];
 		const end = elevs[elevs.length - 1];
 		return { min, max, start, end, range: max - min };

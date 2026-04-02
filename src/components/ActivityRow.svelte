@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatDistance, formatTime } from '$lib/format.js';
-	import { C, ZONE_COLORS, hrZoneColor } from '$lib/colors.js';
+	import { C, ZONE_COLORS, hrZoneColor, arrMin, arrMax } from '$lib/colors.js';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
 	import SneakerMove from 'phosphor-svelte/lib/SneakerMove';
@@ -156,10 +156,10 @@
 			? splits.map(s => ({ pace: parsePace(s), dist: s.distance_meters, hr: s.avg_hr })).filter(b => b.pace > 0 && b.dist > 0)
 			: []
 	);
-	const paceMin = $derived(sparkBars.length > 0 ? Math.min(...sparkBars.map(b => b.pace)) : 0);
-	const paceMax = $derived(sparkBars.length > 0 ? Math.max(...sparkBars.map(b => b.pace)) : 0);
+	const paceMin = $derived(sparkBars.length > 0 ? arrMin(sparkBars.map(b => b.pace)) : 0);
+	const paceMax = $derived(sparkBars.length > 0 ? arrMax(sparkBars.map(b => b.pace)) : 0);
 	const paceRange = $derived(paceMax - paceMin || 1);
-	const maxDist = $derived(sparkBars.length > 0 ? Math.max(...sparkBars.map(b => b.dist)) : 1);
+	const maxDist = $derived(sparkBars.length > 0 ? arrMax(sparkBars.map(b => b.dist)) : 1);
 
 	function teValueColor(te: number): string {
 		if (te >= 4.0) return C.purple;
@@ -309,7 +309,7 @@
 			</Tip>
 
 			{#if zones.total > 0}
-				{@const maxPct = Math.max(...zones.pcts)}
+				{@const maxPct = arrMax(zones.pcts)}
 				<Tip text={zones.pcts.map((p, i) => `Z${i + 1}  ${Math.round(p)}%`).join('\n')} mono>
 					<div class="hidden sm:flex items-end gap-px h-4 w-16">
 						{#each zones.pcts as pct, i}

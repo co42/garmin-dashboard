@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { ActivityDetailPoint } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO, arrMin, arrMax } from '$lib/colors.js';
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
@@ -133,23 +133,23 @@
 		// Pace range
 		const allPaces = sampled.map(p => p.pace).filter((p): p is number => p != null && p > 120 && p < 900);
 		if (hasGap) allPaces.push(...sampled.map(p => p.gap).filter((p): p is number => p != null && p > 120 && p < 900));
-		const rawPaceMin = allPaces.length > 0 ? Math.min(...allPaces) : 200;
-		const rawPaceMax = allPaces.length > 0 ? Math.max(...allPaces) : 500;
+		const rawPaceMin = allPaces.length > 0 ? arrMin(allPaces) : 200;
+		const rawPaceMax = allPaces.length > 0 ? arrMax(allPaces) : 500;
 		const paceStep = niceInterval(rawPaceMax - rawPaceMin);
 		const paceMin = paceFloor(rawPaceMin - paceStep * 0.3, paceStep);
 		const paceMax = paceCeil(rawPaceMax + paceStep * 0.3, paceStep);
 
 		const allHrs = sampled.map(p => p.hr).filter((h): h is number => h != null && h > 0);
-		const hrMin = allHrs.length > 0 ? Math.floor((Math.min(...allHrs) - 5) / 10) * 10 : 100;
-		const hrMax = allHrs.length > 0 ? Math.ceil((Math.max(...allHrs) + 5) / 10) * 10 : 180;
+		const hrMin = allHrs.length > 0 ? Math.floor((arrMin(allHrs) - 5) / 10) * 10 : 100;
+		const hrMax = allHrs.length > 0 ? Math.ceil((arrMax(allHrs) + 5) / 10) * 10 : 180;
 
 		const allPowers = sampled.map(p => p.power).filter((p): p is number => p != null && p > 0);
-		const pwrMin = allPowers.length > 0 ? Math.floor((Math.min(...allPowers) - 20) / 50) * 50 : 0;
-		const pwrMax = allPowers.length > 0 ? Math.ceil((Math.max(...allPowers) + 20) / 50) * 50 : 500;
+		const pwrMin = allPowers.length > 0 ? Math.floor((arrMin(allPowers) - 20) / 50) * 50 : 0;
+		const pwrMax = allPowers.length > 0 ? Math.ceil((arrMax(allPowers) + 20) / 50) * 50 : 500;
 
 		const allCadences = sampled.map(p => p.cadence).filter((c): c is number => c != null && c > 0);
-		const cadMin = allCadences.length > 0 ? Math.floor((Math.min(...allCadences) - 5) / 10) * 10 : 140;
-		const cadMax = allCadences.length > 0 ? Math.ceil((Math.max(...allCadences) + 5) / 10) * 10 : 200;
+		const cadMin = allCadences.length > 0 ? Math.floor((arrMin(allCadences) - 5) / 10) * 10 : 140;
+		const cadMax = allCadences.length > 0 ? Math.ceil((arrMax(allCadences) + 5) / 10) * 10 : 200;
 
 		// ── Layout: elevation on top, performance below ──
 		// If no elevation, performance takes full height
@@ -163,8 +163,8 @@
 
 		if (hasElev) {
 			const elevs = elevPoints.map(p => p.elev);
-			const elevMin = Math.min(...elevs);
-			const elevMax = Math.max(...elevs);
+			const elevMin = arrMin(elevs);
+			const elevMax = arrMax(elevs);
 			const elevPad = Math.max((elevMax - elevMin) * 0.1, 5);
 
 			// Grid 0: elevation

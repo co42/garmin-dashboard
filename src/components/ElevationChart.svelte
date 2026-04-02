@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { ActivityDetailPoint } from '$lib/types.js';
-	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO } from '$lib/colors.js';
+	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO, arrMin, arrMax } from '$lib/colors.js';
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
@@ -75,8 +75,8 @@
 		if (points.length === 0) return;
 
 		const elevs = points.map(p => p.elev);
-		const elevMin = Math.min(...elevs);
-		const elevMax = Math.max(...elevs);
+		const elevMin = arrMin(elevs);
+		const elevMax = arrMax(elevs);
 		const elevPad = Math.max((elevMax - elevMin) * 0.1, 5);
 		const totalKm = points[points.length - 1].km;
 		const kmStep = totalKm > 50 ? 5 : totalKm > 25 ? 2 : 1;

@@ -29,6 +29,18 @@ export const ZONE_COLORS = [C.textDim, C.blue, C.green, C.orange, C.red] as cons
 
 export const MONO = "'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace";
 
+/** Safe min/max for large arrays (avoids stack overflow from Math.min(...arr)) */
+export function arrMin(arr: number[]): number {
+	let v = Infinity;
+	for (let i = 0; i < arr.length; i++) if (arr[i] < v) v = arr[i];
+	return v;
+}
+export function arrMax(arr: number[]): number {
+	let v = -Infinity;
+	for (let i = 0; i < arr.length; i++) if (arr[i] > v) v = arr[i];
+	return v;
+}
+
 /** Reusable tooltip config for echarts */
 export const CHART_TOOLTIP = {
 	confine: true,

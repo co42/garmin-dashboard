@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { C, fitnessTrend } from '$lib/colors.js';
+	import { C, fitnessTrend, arrMin, arrMax } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 
 	interface Props {
@@ -38,7 +38,7 @@
 		_chart.setOption({
 			grid: { top: 2, right: 0, bottom: 2, left: 0 },
 			xAxis: { type: 'category', show: false, data: sparkline.map((_, i) => i) },
-			yAxis: { type: 'value', show: false, min: Math.min(...sparkline) * 0.95, max: Math.max(...sparkline) * 1.05 },
+			yAxis: { type: 'value', show: false, min: arrMin(sparkline) * 0.95, max: arrMax(sparkline) * 1.05 },
 			series: [{
 				type: 'line', data: sparkline, symbol: 'none',
 				lineStyle: { width: 1.5, color: sparklineColor },
