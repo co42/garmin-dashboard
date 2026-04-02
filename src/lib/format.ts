@@ -8,9 +8,9 @@ export function formatTime(seconds: number): string {
 
 export function formatPace(seconds: number, meters: number): string {
 	if (!meters) return '-';
-	const pace = seconds / (meters / 1000);
+	const pace = Math.round(seconds / (meters / 1000));
 	const m = Math.floor(pace / 60);
-	const s = Math.floor(pace % 60);
+	const s = pace % 60;
 	return `${m}:${s.toString().padStart(2, '0')} /km`;
 }
 
@@ -35,9 +35,9 @@ export function formatRaceTime(seconds: number): string {
 }
 
 export function formatRacePace(seconds: number, km: number): string {
-	const pace = seconds / km;
+	const pace = Math.round(seconds / km);
 	const m = Math.floor(pace / 60);
-	const s = Math.floor(pace % 60);
+	const s = pace % 60;
 	return `${m}:${s.toString().padStart(2, '0')} /km`;
 }
 

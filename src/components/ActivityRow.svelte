@@ -105,9 +105,9 @@
 
 	function speedToPace(speed: number | null): string {
 		if (!speed || speed <= 0) return '-';
-		const paceSeconds = 1000 / speed;
+		const paceSeconds = Math.round(1000 / speed);
 		const m = Math.floor(paceSeconds / 60);
-		const s = Math.floor(paceSeconds % 60);
+		const s = paceSeconds % 60;
 		return `${m}:${s.toString().padStart(2, '0')}`;
 	}
 

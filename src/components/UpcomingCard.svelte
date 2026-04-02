@@ -166,8 +166,8 @@
 	}
 
 	function fmtPace(speedMs: number): string {
-		const secs = 1000 / speedMs;
-		const m = Math.floor(secs / 60), sec = Math.floor(secs % 60);
+		const secs = Math.round(1000 / speedMs);
+		const m = Math.floor(secs / 60), sec = secs % 60;
 		return `${m}:${sec.toString().padStart(2, '0')}/km`;
 	}
 
