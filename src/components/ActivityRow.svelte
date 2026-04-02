@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatDistance, formatTime } from '$lib/format.js';
-	import { C, ZONE_COLORS } from '$lib/colors.js';
+	import { C, ZONE_COLORS, hrZoneColor } from '$lib/colors.js';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
 	import SneakerMove from 'phosphor-svelte/lib/SneakerMove';
@@ -78,11 +78,11 @@
 	function badgeColor(label: string | null): string {
 		if (!label) return C.textDim;
 		const l = label.toUpperCase();
-		if (l.includes('TEMPO') || l.includes('THRESHOLD')) return C.amber;
-		if (l.includes('INTERVAL') || l.includes('SPEED') || l.includes('VO2MAX')) return C.red;
-		if (l.includes('RECOVERY') || l.includes('BASE')) return C.teal;
-		if (l.includes('LONG')) return C.blue;
-		return C.green;
+		if (l.includes('INTERVAL') || l.includes('SPEED') || l.includes('VO2MAX')) return C.purple;
+		if (l.includes('TEMPO') || l.includes('THRESHOLD')) return C.orange;
+		if (l.includes('RECOVERY') || l.includes('BASE')) return C.cyan;
+		if (l.includes('LONG')) return C.cyan;
+		return C.cyan;
 	}
 
 	function teShort(label: string | null): { code: string; name: string; desc: string } | null {
@@ -141,14 +141,28 @@
 	const hasElevation = $derived(activity.elevation_gain != null && activity.elevation_gain > 0);
 
 	// Mini pace sparkline from splits
-	const paces = $derived(
+	function parsePace(s: ActivitySplit): number {
+		if (s.pace_seconds && s.pace_seconds > 0) return s.pace_seconds;
+		if (!s.pace) return 0;
+		const m = s.pace.match(/^(\d+):(\d+)/);
+		return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : 0;
+	}
+	const sparkBars = $derived(
 		(splits && splits.length >= 2)
-			? splits.map(s => s.pace_seconds ?? 0).filter(p => p > 0)
+			? splits.map(s => ({ pace: parsePace(s), dist: s.distance_meters, hr: s.avg_hr })).filter(b => b.pace > 0 && b.dist > 0)
 			: []
 	);
-	const paceMin = $derived(paces.length > 0 ? Math.min(...paces) : 0);
-	const paceMax = $derived(paces.length > 0 ? Math.max(...paces) : 0);
+	const paceMin = $derived(sparkBars.length > 0 ? Math.min(...sparkBars.map(b => b.pace)) : 0);
+	const paceMax = $derived(sparkBars.length > 0 ? Math.max(...sparkBars.map(b => b.pace)) : 0);
 	const paceRange = $derived(paceMax - paceMin || 1);
+	const maxDist = $derived(sparkBars.length > 0 ? Math.max(...sparkBars.map(b => b.dist)) : 1);
+
+	function teValueColor(te: number): string {
+		if (te >= 4.0) return C.purple;
+		if (te >= 3.0) return C.orange;
+		if (te >= 1.0) return C.cyan;
+		return C.textDim;
+	}
 
 	function scrollToActivity() {
 		const el = document.getElementById(`activity-${activity.id}`);
@@ -267,29 +281,30 @@
 		{/if}
 
 		<!-- Right group: sparkline + load + zones -->
-		<span class="ml-auto flex items-center gap-3 shrink-0">
-			{#if paces.length >= 2}
-				<div class="flex items-end gap-px h-3" title="Pace per km">
-					{#each paces as p}
-						{@const pct = 20 + ((p - paceMin) / paceRange) * 80}
-						<div class="w-1 rounded-t-sm" style="height: {pct}%; background: {C.blue};"></div>
+		<span class="ml-auto flex items-end gap-3 shrink-0">
+			{#if sparkBars.length >= 2}
+				<div class="flex items-end gap-px h-3" title="Pace per split">
+					{#each sparkBars as b}
+						{@const pct = 20 + ((b.pace - paceMin) / paceRange) * 80}
+						{@const w = Math.max(1, Math.round((b.dist / maxDist) * 6))}
+						<div class="rounded-t-sm" style="height: {pct}%; width: {w}px; background: {hrZoneColor(b.hr, hrZones)};"></div>
 					{/each}
 				</div>
 			{/if}
 
 			{#if activity.activity_training_load != null}
-				<Tip text={'Training Load\n4-week cumulative training stress from this session.\nHigher = more demanding. Color is relative to your median load.'}>
-					<span class="flex items-center gap-0.5 num font-bold" style="color: {loadColor}">
+				<Tip text={'Training Load\n4-week cumulative training stress from this session.\nHigher = more demanding.'}>
+					<span class="flex items-center gap-0.5 num font-bold text-text-secondary leading-none">
 						<Flame size={12} weight="fill" />
 						{Math.round(activity.activity_training_load)}
 					</span>
 				</Tip>
 			{/if}
-			<Tip text={'Aerobic Training Effect\n' + (activity.aerobic_training_effect_message?.replace(/_\d+$/, '').replace(/_/g, ' ').toLowerCase() ?? '')}>
-				<span class="num text-[11px] text-text-dim">{(activity.aerobic_training_effect ?? 0).toFixed(1)}</span>
+			<Tip text={'Aerobic TE ' + (activity.aerobic_training_effect ?? 0).toFixed(1) + '\n' + (activity.aerobic_training_effect_message?.replace(/_\d+$/, '').replace(/_/g, ' ').toLowerCase() ?? '')}>
+				<span class="num text-xs font-semibold leading-none" style="color: {teValueColor(activity.aerobic_training_effect ?? 0)}">{(activity.aerobic_training_effect ?? 0).toFixed(1)}</span>
 			</Tip>
-			<Tip text={'Anaerobic Training Effect\n' + (activity.anaerobic_training_effect_message?.replace(/_\d+$/, '').replace(/_/g, ' ').toLowerCase() ?? '')}>
-				<span class="num text-[11px] text-text-dim">{(activity.anaerobic_training_effect ?? 0).toFixed(1)}</span>
+			<Tip text={'Anaerobic TE ' + (activity.anaerobic_training_effect ?? 0).toFixed(1) + '\n' + (activity.anaerobic_training_effect_message?.replace(/_\d+$/, '').replace(/_/g, ' ').toLowerCase() ?? '')}>
+				<span class="num text-xs font-semibold leading-none" style="color: {teValueColor(activity.anaerobic_training_effect ?? 0)}">{(activity.anaerobic_training_effect ?? 0).toFixed(1)}</span>
 			</Tip>
 
 			{#if zones.total > 0}

@@ -16,20 +16,23 @@
 	const latestHr = $derived(heartRate.length > 0 ? heartRate[heartRate.length - 1] : null);
 
 	function bbColor(val: number): string {
-		if (val >= 60) return C.green;
-		if (val >= 30) return C.amber;
+		if (val >= 76) return C.green;
+		if (val >= 51) return C.teal;  // yellow-green
+		if (val >= 26) return C.orange;
 		return C.red;
 	}
 
 	function sleepColor(score: number): string {
+		if (score >= 90) return C.purple;
 		if (score >= 80) return C.green;
 		if (score >= 60) return C.amber;
 		return C.red;
 	}
 
 	function stressLabel(avg: number): { text: string; color: string } {
-		if (avg <= 25) return { text: 'Low', color: C.green };
-		if (avg <= 50) return { text: 'Medium', color: C.amber };
+		if (avg <= 25) return { text: 'Rest', color: C.blue };
+		if (avg <= 50) return { text: 'Low', color: C.amber };
+		if (avg <= 75) return { text: 'Medium', color: C.orange };
 		return { text: 'High', color: C.red };
 	}
 

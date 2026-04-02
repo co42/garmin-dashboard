@@ -13,7 +13,29 @@
 	let chartEl: HTMLDivElement;
 
 	let _chart: any; let _ro: ResizeObserver;
+	let _elevSegColors: string[] = [];
+	let _totalSeries = 0;
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+
+	const gradLegend = [
+		{ color: GRADIENT_COLORS.vSteepDown, label: '<-15%' },
+		{ color: GRADIENT_COLORS.steepDown, label: '-15/-8%' },
+		{ color: GRADIENT_COLORS.modDown, label: '-8/-2%' },
+		{ color: GRADIENT_COLORS.flat, label: 'flat' },
+		{ color: GRADIENT_COLORS.modUp, label: '2/8%' },
+		{ color: GRADIENT_COLORS.steepUp, label: '8/15%' },
+		{ color: GRADIENT_COLORS.vSteepUp, label: '>15%' },
+	];
+
+	function highlightGrad(color: string | null) {
+		if (!_chart || _elevSegColors.length === 0) return;
+		const updates: any[] = _elevSegColors.map(sc => {
+			const on = color === null || sc === color;
+			return { lineStyle: { opacity: on ? 1 : 0.15 }, areaStyle: { opacity: on ? 0.45 : 0.08 } };
+		});
+		while (updates.length < _totalSeries) updates.push({});
+		_chart.setOption({ series: updates });
+	}
 
 	// Legend state managed in HTML
 	type LegendItem = { name: string; color: string };
@@ -43,6 +65,7 @@
 	}
 
 	function gradColor(grad: number): string {
+		if (grad < -15) return GRADIENT_COLORS.vSteepDown;
 		if (grad < -8) return GRADIENT_COLORS.steepDown;
 		if (grad < -2) return GRADIENT_COLORS.modDown;
 		if (grad < 2) return GRADIENT_COLORS.flat;
@@ -175,6 +198,7 @@
 				curData.push([elevPoints[i].km, elevPoints[i].elev]);
 			}
 			segments.push({ color: curColor, data: curData });
+			_elevSegColors = segments.map(s => s.color);
 
 			for (const seg of segments) {
 				series.push({
@@ -263,6 +287,7 @@
 		}
 
 		// Legend items (exclude internal series)
+		_totalSeries = series.length;
 		const defaultSelected: Record<string, boolean> = { 'Pace': true, 'GAP': true, 'HR': true, 'Power': false, 'Cadence': false };
 		legendItems = series
 			.filter(s => s.name && !s.name.startsWith('_') && !s.silent)
@@ -329,13 +354,18 @@
 		{/each}
 	</div>
 	{#if showElevation}
-		<div class="flex items-center gap-2">
-			<span class="flex items-center gap-1"><span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{GRADIENT_COLORS.steepDown}"></span>&lt;-8%</span>
-			<span class="flex items-center gap-1"><span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{GRADIENT_COLORS.modDown}"></span>-8/-2%</span>
-			<span class="flex items-center gap-1"><span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{GRADIENT_COLORS.flat}"></span>flat</span>
-			<span class="flex items-center gap-1"><span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{GRADIENT_COLORS.modUp}"></span>2/8%</span>
-			<span class="flex items-center gap-1"><span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{GRADIENT_COLORS.steepUp}"></span>8/15%</span>
-			<span class="flex items-center gap-1"><span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{GRADIENT_COLORS.vSteepUp}"></span>&gt;15%</span>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="flex items-center gap-2" onmouseleave={() => highlightGrad(null)}>
+			{#each gradLegend as { color, label }}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="flex items-center gap-1"
+					onmouseenter={() => highlightGrad(color)}
+				>
+					<span class="inline-block w-2.5 h-1.5 rounded-sm" style="background:{color}"></span>
+					{label}
+				</span>
+			{/each}
 		</div>
 	{/if}
 </div>

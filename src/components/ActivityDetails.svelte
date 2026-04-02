@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityDetails as ActivityDetailsType, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatTime } from '$lib/format.js';
-	import { C } from '$lib/colors.js';
+	import { C, hrZoneColor, gradColor } from '$lib/colors.js';
 	import ActivityCharts from './ActivityCharts.svelte';
 	import ActivityMap from './ActivityMap.svelte';
 	import Tip from './Tip.svelte';
@@ -100,6 +100,7 @@
 	const advancedMetrics = $derived(([
 		activity.fastest_split_1000 ? { label: 'Best 1km', value: formatSplitSeconds(activity.fastest_split_1000), tip: 'Fastest 1km split in this activity.' } : null,
 		activity.fastest_split_5000 ? { label: 'Best 5km', value: formatSplitSeconds(activity.fastest_split_5000), tip: 'Fastest 5km split in this activity.\nOnly meaningful for runs longer than 5km.' } : null,
+		(() => { const cs = splits.filter(s => s.avg_cadence > 0 && s.duration_seconds > 0); if (cs.length === 0) return null; const totalDur = cs.reduce((s, x) => s + x.duration_seconds, 0); const avg = cs.reduce((s, x) => s + x.avg_cadence * x.duration_seconds, 0) / totalDur; return { label: 'Cadence', value: Math.round(avg) + ' spm', tip: 'Average cadence (steps per minute), weighted by split duration.' }; })(),
 		activity.avg_stride_length ? { label: 'Stride', value: activity.avg_stride_length.toFixed(2) + 'm', tip: 'Average stride length.\nLonger strides at the same cadence = faster pace.' } : null,
 		activity.avg_ground_contact_time ? { label: 'GCT', value: Math.round(activity.avg_ground_contact_time) + 'ms', tip: 'Ground Contact Time — how long your foot stays on the ground per step.\nLower is generally better (elite ~200ms, recreational ~280ms+).' } : null,
 		activity.avg_vertical_oscillation ? { label: 'Vert Osc', value: activity.avg_vertical_oscillation.toFixed(1) + 'cm', tip: 'Vertical Oscillation — how much you bounce per step.\nLess bounce = more efficient running.' } : null,
@@ -153,30 +154,30 @@
 	{#if hasMap || splits.length > 0}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><MapPin size={12} weight="bold" /> Map & Splits</h3>
-			<div class="grid gap-4 {hasMap ? 'md:grid-cols-2' : ''}">
+			<div class="flex gap-4">
 				{#if hasMap && details}
-					<div class="h-[240px] rounded overflow-hidden border border-card-border/50">
+					<div class="h-[240px] flex-1 min-w-0 rounded overflow-hidden border border-card-border/50">
 						<ActivityMap polyline={details.polyline} />
 					</div>
 				{/if}
 
 				{#if splits.length > 0}
-					<div class="overflow-y-auto max-h-[240px]">
-						<table class="w-full text-xs">
+					<div class="overflow-y-auto max-h-[240px] shrink-0">
+						<table class="text-xs">
 							<thead class="sticky top-0 bg-card">
 								<tr class="text-text-dim border-b border-card-border">
-									<th class="pb-1 pr-2 text-left font-medium w-8">km</th>
-									<th class="pb-1 pr-2 text-right font-medium">Pace</th>
+									<th class="pb-1 pr-8 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>
+									<th class="pb-1 pr-8 text-right font-medium">Pace</th>
 									{#if trail}
-										<th class="pb-1 pr-2 text-right font-medium">GAP</th>
+										<th class="pb-1 pr-8 text-right font-medium">GAP</th>
 									{/if}
-									<th class="pb-1 pr-2 text-right font-medium">HR</th>
+									<th class="pb-1 pr-8 text-right font-medium">HR</th>
 									{#if hasElev}
-										<th class="pb-1 pr-2 text-right font-medium">D+</th>
-										<th class="pb-1 pr-2 text-right font-medium">D-</th>
+										<th class="pb-1 pr-8 text-right font-medium">D+</th>
+										<th class="pb-1 pr-8 text-right font-medium">D-</th>
 									{/if}
 									{#if hasPower}
-										<th class="pb-1 pr-2 text-right font-medium">Pwr</th>
+										<th class="pb-1 pr-8 text-right font-medium">Pwr</th>
 									{/if}
 									{#if hasCadence}
 										<th class="pb-1 text-right font-medium">Cad</th>
@@ -184,20 +185,22 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each splits as split}
+								{#each splits as split, i}
+									{@const cumDist = splits.slice(0, i).reduce((s, x) => s + x.distance_meters, 0)}
 									<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-										<td class="py-0.5 pr-2 num text-text-dim">{split.split}</td>
-										<td class="py-0.5 pr-2 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
+										<td class="py-0.5 pr-8 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
+										<td class="py-0.5 pr-8 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
 										{#if trail}
-											<td class="py-0.5 pr-2 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
+											<td class="py-0.5 pr-8 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
 										{/if}
-										<td class="py-0.5 pr-2 num text-right text-text-secondary">{split.avg_hr || '-'}</td>
+										<td class="py-0.5 pr-8 num text-right" style="color: {hrZoneColor(split.avg_hr, hrZones)}">{split.avg_hr || '-'}</td>
 										{#if hasElev}
-											<td class="py-0.5 pr-2 num text-right text-text-secondary">+{Math.round(split.elevation_gain)}</td>
-											<td class="py-0.5 pr-2 num text-right text-text-secondary">-{Math.round(split.elevation_loss)}</td>
+										{@const avgGrade = split.distance_meters > 0 ? (split.elevation_gain - split.elevation_loss) / split.distance_meters * 100 : 0}
+											<td class="py-0.5 pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain)}</td>
+											<td class="py-0.5 pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss)}</td>
 										{/if}
 										{#if hasPower}
-											<td class="py-0.5 pr-2 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
+											<td class="py-0.5 pr-8 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
 										{/if}
 										{#if hasCadence}
 											<td class="py-0.5 num text-right text-text-secondary">{Math.round(split.avg_cadence) || '-'}</td>

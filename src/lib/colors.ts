@@ -24,8 +24,8 @@ export const C = {
 	hover: '#2a2a3a',
 } as const;
 
-/** HR zone colors Z1–Z5 */
-export const ZONE_COLORS = [C.blue, C.green, C.amber, C.red, C.purple] as const;
+/** HR zone colors Z1–Z5 (Garmin spec: gray, blue, green, orange, red) */
+export const ZONE_COLORS = [C.textDim, C.blue, C.green, C.orange, C.red] as const;
 
 /** Reusable tooltip config for echarts */
 export const CHART_TOOLTIP = {
@@ -42,10 +42,10 @@ export const CHART_AXIS = {
 	splitLine: { lineStyle: { color: C.cardBorder } },
 } as const;
 
-/** Load type colors (aerobic high, aerobic low, anaerobic) */
+/** Load type colors (Garmin Training Load Focus: low aero=blue, high aero=orange, anaerobic=purple) */
 export const LOAD_COLORS = {
-	aeroHigh: C.blue,
-	aeroLow: C.green,
+	aeroHigh: C.orange,
+	aeroLow: C.blue,
 	anaerobic: C.purple,
 } as const;
 
@@ -56,11 +56,11 @@ export const LOAD_COLORS = {
 export function statusColor(status: string): string {
 	const s = status.toUpperCase().replace(/_\d+$/, '');
 	if (s === 'PRODUCTIVE') return C.green;
-	if (s === 'PEAKING') return C.green;
+	if (s === 'PEAKING') return C.purple;
 	if (s === 'MAINTAINING') return C.blue;
 	if (s === 'BASE') return C.blue;
-	if (s === 'RECOVERY') return C.teal;
-	if (s === 'DETRAINING') return C.orange;
+	if (s === 'RECOVERY') return C.amber;
+	if (s === 'DETRAINING') return C.red;
 	if (s === 'UNPRODUCTIVE') return C.red;
 	if (s === 'OVERREACHING') return C.red;
 	if (s === 'STRAINED') return C.red;
@@ -92,8 +92,22 @@ export function acwrColor(status: string): string {
 
 export function hrvStatusColor(status: string): string {
 	if (status === 'BALANCED') return C.green;
-	if (status === 'UNBALANCED') return C.amber;
+	if (status === 'UNBALANCED') return C.orange;
 	return C.red;
+}
+
+/** Returns the ZONE_COLORS index (0-4) for a given HR, or -1 if unknown */
+export function hrZoneIndex(hr: number, zones: { zone: number; min_bpm: number; max_bpm: number | null }[]): number {
+	if (!hr || zones.length === 0) return -1;
+	for (let i = zones.length - 1; i >= 0; i--) {
+		if (hr >= zones[i].min_bpm) return i;
+	}
+	return 0;
+}
+
+export function hrZoneColor(hr: number, zones: { zone: number; min_bpm: number; max_bpm: number | null }[]): string {
+	const idx = hrZoneIndex(hr, zones);
+	return idx >= 0 ? ZONE_COLORS[idx] : C.textDim;
 }
 
 export function computeMedianLoad(loads: (number | null)[]): number {
@@ -113,13 +127,25 @@ export function loadColor(load: number | null, medianLoad: number): string {
 
 /** Elevation gradient colors */
 export const GRADIENT_COLORS = {
-	steepDown: C.blue,     // < -8%
+	vSteepDown: C.purple,  // < -15%
+	steepDown: C.blue,     // -15% to -8%
 	modDown: C.cyan,       // -8% to -2%
 	flat: C.green,         // -2% to 2%
 	modUp: C.amber,        // 2% to 8%
 	steepUp: C.orange,     // 8% to 15%
 	vSteepUp: C.red,       // > 15%
 } as const;
+
+/** Returns the gradient color for a given grade percentage */
+export function gradColor(grade: number): string {
+	if (grade < -15) return GRADIENT_COLORS.vSteepDown;
+	if (grade < -8) return GRADIENT_COLORS.steepDown;
+	if (grade < -2) return GRADIENT_COLORS.modDown;
+	if (grade < 2) return GRADIENT_COLORS.flat;
+	if (grade < 8) return GRADIENT_COLORS.modUp;
+	if (grade < 15) return GRADIENT_COLORS.steepUp;
+	return GRADIENT_COLORS.vSteepUp;
+}
 
 export function fitnessTrend(trend: string): { label: string; arrow: string; color: string } {
 	const t = trend.toLowerCase();
