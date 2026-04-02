@@ -11,53 +11,51 @@
 	let { text, mono = false, children }: Props = $props();
 	let show = $state(false);
 	let tipEl = $state<HTMLSpanElement>();
-	let style = $state('');
+	let triggerEl = $state<HTMLSpanElement>();
+	let pos = $state({ left: '0px', top: '0px' });
 
 	async function reposition() {
 		show = true;
 		await tick();
-		if (!tipEl) return;
+		if (!tipEl || !triggerEl) return;
 
-		const rect = tipEl.getBoundingClientRect();
+		const tr = triggerEl.getBoundingClientRect();
+		const tip = tipEl.getBoundingClientRect();
 		const pad = 8;
-		let xShift = 0;
 
-		// Clamp horizontally
-		if (rect.left < pad) {
-			xShift = pad - rect.left;
-		} else if (rect.right > window.innerWidth - pad) {
-			xShift = window.innerWidth - pad - rect.right;
-		}
+		// Center horizontally on trigger, clamp to viewport
+		let left = tr.left + tr.width / 2 - tip.width / 2;
+		if (left < pad) left = pad;
+		if (left + tip.width > window.innerWidth - pad) left = window.innerWidth - pad - tip.width;
 
-		// If tooltip goes above viewport, flip below
-		if (rect.top < pad) {
-			style = `transform: translateX(calc(-50% + ${xShift}px)); top: calc(100% + 8px); bottom: auto;`;
-		} else {
-			style = xShift !== 0 ? `transform: translateX(calc(-50% + ${xShift}px));` : '';
-		}
+		// Above trigger by default, flip below if no room
+		let top = tr.top - tip.height - 8;
+		if (top < pad) top = tr.bottom + 8;
+
+		pos = { left: `${left}px`, top: `${top}px` };
 	}
 
 	function hide() {
 		show = false;
-		style = '';
 	}
 </script>
 
 <span
 	class="tip-trigger"
 	role="note"
+	bind:this={triggerEl}
 	onmouseenter={reposition}
 	onmouseleave={hide}
 >
 	{@render children()}
-	{#if show}
-		<span class="tip-content" class:mono bind:this={tipEl} {style}>
-			{#each text.split('\n') as line, i}
-				{#if i > 0}<br/>{/if}{line}
-			{/each}
-		</span>
-	{/if}
 </span>
+{#if show}
+	<span class="tip-content" class:mono bind:this={tipEl} style="left:{pos.left};top:{pos.top}">
+		{#each text.split('\n') as line, i}
+			{#if i > 0}<br/>{/if}{line}
+		{/each}
+	</span>
+{/if}
 
 <style>
 	.tip-trigger {
@@ -65,10 +63,7 @@
 		cursor: help;
 	}
 	.tip-content {
-		position: absolute;
-		bottom: calc(100% + 8px);
-		left: 50%;
-		transform: translateX(-50%);
+		position: fixed;
 		z-index: 50;
 		width: max-content;
 		max-width: min(340px, calc(100vw - 24px));
