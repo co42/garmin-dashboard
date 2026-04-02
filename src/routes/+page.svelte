@@ -150,7 +150,7 @@
 
 		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-2">
-			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} />
+			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} />
 			<TrainingPolarization activities={w.activities} hrZones={d.hrZones} />
 		</div>
 

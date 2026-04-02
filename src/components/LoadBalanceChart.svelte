@@ -1,15 +1,17 @@
 <script lang="ts">
-	import type { DailyTrainingStatus } from '$lib/types.js';
+	import type { DailyTrainingStatus, Activity } from '$lib/types.js';
 	import { C, LOAD_COLORS } from '$lib/colors.js';
+	import { deconvolveDailyLoad, segmentLoad, type LoadSegments } from '$lib/load-deconv.js';
 	import Tip from './Tip.svelte';
 	import Scales from 'phosphor-svelte/lib/Scales';
 
 	interface Props {
 		status: DailyTrainingStatus;
 		statusHistory: DailyTrainingStatus[];
+		activities: Activity[];
 	}
 
-	let { status, statusHistory }: Props = $props();
+	let { status, statusHistory, activities }: Props = $props();
 
 	const barTips: Record<string, string> = {
 		'Aero High': 'Load from tempo runs, threshold efforts, and hard aerobic sessions. Builds speed endurance and lactate clearance.',
@@ -17,30 +19,32 @@
 		'Anaerobic': 'Load from intervals, sprints, and VO2max sessions. Builds top-end speed and neuromuscular power.',
 	};
 
-	// Find status from last Sunday (day before this Monday) for "since Monday" delta
-	const prevStatus = $derived(() => {
-		const now = new Date();
-		const day = now.getUTCDay();
-		const monday = new Date(now);
-		monday.setUTCDate(now.getUTCDate() - (day === 0 ? 6 : day - 1));
-		// We want the status from the day before Monday (= last Sunday)
-		const sunday = new Date(monday);
-		sunday.setUTCDate(monday.getUTCDate() - 1);
-		const sundayStr = sunday.toISOString().slice(0, 10);
-		let best: DailyTrainingStatus | null = null;
-		for (const s of statusHistory) {
-			if (s.date <= sundayStr) best = s;
+	// Build activity days map once
+	const activityDays = $derived(() => {
+		const m = new Map<string, number>();
+		for (const a of activities) {
+			const d = a.start_time.slice(0, 10);
+			m.set(d, (m.get(d) ?? 0) + (a.activity_training_load ?? 0));
 		}
-		return best;
+		return m;
 	});
 
+	// Deconvolve each channel
+	const contribsLow = $derived(deconvolveDailyLoad(statusHistory, s => s.monthly_load_aerobic_low, activityDays()));
+	const contribsHigh = $derived(deconvolveDailyLoad(statusHistory, s => s.monthly_load_aerobic_high, activityDays()));
+	const contribsAnaerobic = $derived(deconvolveDailyLoad(statusHistory, s => s.monthly_load_anaerobic, activityDays()));
+
+	const targetDate = $derived(status.date.slice(0, 10));
+
 	const bars = $derived(() => {
-		const prev = prevStatus();
+		const segLow = segmentLoad(contribsLow, targetDate, status.monthly_load_aerobic_low);
+		const segHigh = segmentLoad(contribsHigh, targetDate, status.monthly_load_aerobic_high);
+		const segAnaerobic = segmentLoad(contribsAnaerobic, targetDate, status.monthly_load_anaerobic);
 		return [
 			{
 				label: 'Aero Low',
 				value: status.monthly_load_aerobic_low,
-				prevValue: prev?.monthly_load_aerobic_low ?? status.monthly_load_aerobic_low,
+				segments: segLow,
 				min: status.monthly_load_aerobic_low_target_min,
 				max: status.monthly_load_aerobic_low_target_max,
 				color: LOAD_COLORS.aeroLow,
@@ -48,7 +52,7 @@
 			{
 				label: 'Aero High',
 				value: status.monthly_load_aerobic_high,
-				prevValue: prev?.monthly_load_aerobic_high ?? status.monthly_load_aerobic_high,
+				segments: segHigh,
 				min: status.monthly_load_aerobic_high_target_min,
 				max: status.monthly_load_aerobic_high_target_max,
 				color: LOAD_COLORS.aeroHigh,
@@ -56,7 +60,7 @@
 			{
 				label: 'Anaerobic',
 				value: status.monthly_load_anaerobic,
-				prevValue: prev?.monthly_load_anaerobic ?? status.monthly_load_anaerobic,
+				segments: segAnaerobic,
 				min: status.monthly_load_anaerobic_target_min,
 				max: status.monthly_load_anaerobic_target_max,
 				color: LOAD_COLORS.anaerobic,
@@ -84,7 +88,7 @@
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full">
-	<Tip text={"Your 4-week training load broken into three types.\nEach has a personalized target range.\nDashed = load added since Monday.\n\nAll three in range = balanced training.\nShortages or surpluses indicate imbalanced training."}>
+	<Tip text={"Your 4-week training load broken into three types.\nEach has a personalized target range.\n\nBright = last 7 days · Medium = middle 14 days · Faded = expiring in 7 days\n\nAll three in range = balanced training."}>
 		<h2 class="mb-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Scales size={14} weight="bold" /> Load Balance</h2>
 	</Tip>
 
@@ -93,33 +97,34 @@
 			{@const max = scaleMax(bars())}
 			{@const zoneLeft = (bar.min / max) * 100}
 			{@const zoneWidth = ((bar.max - bar.min) / max) * 100}
-			{@const valueWidth = Math.min((bar.value / max) * 100, 100)}
-			{@const prevWidth = Math.min((bar.prevValue / max) * 100, 100)}
-			{@const weekDelta = Math.round(bar.value - bar.prevValue)}
+			{@const seg = bar.segments}
+			{@const expiringW = Math.min((seg.expiring / max) * 100, 100)}
+			{@const middleW = Math.min((seg.middle / max) * 100, 100)}
+			{@const recentW = Math.min((seg.recent / max) * 100, 100)}
 			<div>
 				<div class="mb-1.5 flex items-baseline justify-between">
 					<span class="flex items-baseline gap-1.5">
 						<Tip text={barTips[bar.label]}>
 							<span class="text-xs font-medium text-text-secondary">{bar.label}</span>
 						</Tip>
-						{#if weekDelta !== 0}
-							<span class="num text-[10px] text-text-dim">({weekDelta > 0 ? '+' : ''}{weekDelta} this wk)</span>
-						{/if}
 					</span>
 					<span class="num text-xs font-medium" style="color: {deltaColor(bar.value, bar.min, bar.max)}">
 						{delta(bar.value, bar.min, bar.max)}
 					</span>
 				</div>
-				<Tip text="{Math.round(bar.value)} / target {bar.min}–{bar.max}{weekDelta !== 0 ? '\n' + (weekDelta > 0 ? '+' : '') + weekDelta + ' since Monday' : ''}">
+				<Tip text={`${Math.round(bar.value)} / target ${bar.min}–${bar.max}\nExpiring 7d: ${String(Math.round(seg.expiring)).padStart(4)}\nMiddle 14d:  ${String(Math.round(seg.middle)).padStart(4)}\nRecent 7d:   ${String(Math.round(seg.recent)).padStart(4)}`} mono>
 				<div class="relative h-5 rounded bg-card-border">
-					<!-- Solid: load from before this week -->
-					{#if prevWidth > 0}
-						<div class="absolute left-0 top-0 h-full transition-all" style="width: {Math.min(prevWidth, valueWidth)}%; background: {bar.color}; opacity: 0.7; border-radius: {valueWidth <= prevWidth ? '4px' : '4px 0 0 4px'};"></div>
+					<!-- Expiring: oldest 7 days (faded) -->
+					{#if expiringW > 0}
+						<div class="absolute left-0 top-0 h-full transition-all" style="width: {expiringW}%; background: {bar.color}; opacity: 0.25; border-radius: {middleW + recentW <= 0 ? '4px' : '4px 0 0 4px'};"></div>
 					{/if}
-					<!-- Striped: load added this week -->
-					{#if valueWidth > prevWidth}
-						<div class="absolute top-0 h-full transition-all" style="left: {prevWidth}%; width: {valueWidth - prevWidth}%; background: {bar.color}; opacity: 0.4; border-radius: {prevWidth <= 0 ? '4px' : '0 4px 4px 0'};"></div>
-						<div class="absolute top-0 h-full transition-all" style="left: {prevWidth}%; width: {valueWidth - prevWidth}%; background: repeating-linear-gradient(110deg, transparent 0px, transparent 3px, {bar.color}40 3px, {bar.color}40 5px); border-radius: {prevWidth <= 0 ? '4px' : '0 4px 4px 0'};"></div>
+					<!-- Middle: 14 days (medium) -->
+					{#if middleW > 0}
+						<div class="absolute top-0 h-full transition-all" style="left: {expiringW}%; width: {middleW}%; background: {bar.color}; opacity: 0.55; {expiringW <= 0 && recentW <= 0 ? 'border-radius: 4px;' : expiringW <= 0 ? 'border-radius: 4px 0 0 4px;' : recentW <= 0 ? 'border-radius: 0 4px 4px 0;' : ''}"></div>
+					{/if}
+					<!-- Recent: last 7 days (bright) -->
+					{#if recentW > 0}
+						<div class="absolute top-0 h-full transition-all" style="left: {expiringW + middleW}%; width: {recentW}%; background: {bar.color}; opacity: 0.9; border-radius: {expiringW + middleW <= 0 ? '4px' : '0 4px 4px 0'};"></div>
 					{/if}
 					<!-- Target zone -->
 					<div class="absolute top-0 z-10 h-full rounded-sm border-2 border-white/50" style="left: {zoneLeft}%; width: {zoneWidth}%;"></div>
