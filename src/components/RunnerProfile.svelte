@@ -26,7 +26,7 @@
 	// Rolling 30-day average of balance scores
 	function rolling30dBalance(history: DailyTrainingStatus[], atDate?: string): number {
 		const cutoff = atDate
-			? new Date(new Date(atDate).getTime() - 30 * 86400000).toISOString().slice(0, 10)
+			? new Date(new Date(atDate + 'T00:00:00Z').getTime() - 30 * 86400000).toISOString().slice(0, 10)
 			: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 		const endDate = atDate ?? new Date().toISOString().slice(0, 10);
 		const window = history.filter(s => s.date >= cutoff && s.date <= endDate);

@@ -36,7 +36,7 @@
 	function remainingRecovery(entry: { recovery_time_minutes: number; timestamp_local?: string } | null): number {
 		if (!entry || entry.recovery_time_minutes <= 0) return 0;
 		if (!entry.timestamp_local) return entry.recovery_time_minutes;
-		const elapsed = (Date.now() - new Date(entry.timestamp_local).getTime()) / 60000;
+		const elapsed = (Date.now() - new Date(entry.timestamp_local.replace(/\.0$/, '')).getTime()) / 60000;
 		return Math.max(0, Math.round(entry.recovery_time_minutes - elapsed));
 	}
 

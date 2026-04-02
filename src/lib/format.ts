@@ -18,11 +18,12 @@ export function formatDistance(meters: number): string {
 	return (meters / 1000).toFixed(1);
 }
 
-/** Parse a date string safely for display (works on Safari/iOS). */
+/** Parse a date string safely for display (works on Safari/iOS).
+ *  Handles: ISO "2026-04-02T10:00:00Z", date-only "2026-04-02",
+ *  and Garmin "2025-09-27 19:25:37.0 GMT". */
 function safeDate(dateStr: string): Date {
-	// Full ISO timestamps (with T and Z) parse fine everywhere
 	if (dateStr.includes('T')) return new Date(dateStr);
-	// Date-only "YYYY-MM-DD" — Safari rejects this, must add time+Z
+	// Always extract YYYY-MM-DD to avoid Safari parsing issues
 	return new Date(dateStr.slice(0, 10) + 'T12:00:00Z');
 }
 

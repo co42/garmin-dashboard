@@ -17,7 +17,7 @@
 
 	function isRecent(date?: string): boolean {
 		if (!date) return false;
-		return Date.now() - new Date(date).getTime() < 30 * 86400000;
+		return Date.now() - new Date(date.slice(0, 10) + 'T12:00:00Z').getTime() < 30 * 86400000;
 	}
 </script>
 
