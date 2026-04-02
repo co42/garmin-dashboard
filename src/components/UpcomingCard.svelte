@@ -146,9 +146,9 @@
 	}
 
 	function dateLabel(dateStr: string): string {
-		const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
-		const wk = d.toLocaleDateString('en-GB', { weekday: 'short' });
-		const dm = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+		const d = new Date(dateStr.slice(0, 10) + 'T12:00:00Z');
+		const wk = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+		const dm = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 		return `${wk} ${dm}`;
 	}
 
@@ -299,7 +299,7 @@
 		{@const linkedCourse = row.entry.course_id ? courseMap.get(row.entry.course_id) ?? null : null}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
 			<div class="flex items-center gap-2.5">
-				<span class="shrink-0 text-red-400"><FlagCheckered size={16} weight="fill" /></span>
+				<span class="shrink-0 text-red-400"><FlagCheckered size={16} weight="bold" /></span>
 				<div class="min-w-0 flex-1 overflow-hidden">
 					<div class="text-sm font-semibold text-text truncate">{row.entry.title}</div>
 					{#if linkedCourse}

@@ -11,7 +11,7 @@ FROM node:22-alpine
 RUN apk add --no-cache ca-certificates curl
 
 # Install garmin CLI (musl, statically linked)
-ARG GARMIN_CLI_VERSION=1.9.1
+ARG GARMIN_CLI_VERSION=1.9.2
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
       echo "No linux arm64 garmin-cli build available yet — sync will not work"; \

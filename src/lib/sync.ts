@@ -43,9 +43,9 @@ export interface SyncResult {
 // Date helpers
 // ---------------------------------------------------------------------------
 
+/** Today in Europe/Paris wall-clock time (server runs in this TZ). */
 function todayISO(): string {
-	const d = new Date();
-	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
 }
 
 function addDays(dateStr: string, n: number): string {

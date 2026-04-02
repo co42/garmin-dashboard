@@ -60,7 +60,7 @@
 			// Daily mode: one point per day from statusHistory
 			return statusHistory.map(s => {
 				const dt = utcDate(s.date);
-				const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`;
+				const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}`;
 				return buildPoint(s.date, label, s, hillByDate.get(s.date), endurByDate.get(s.date));
 			});
 		}
@@ -77,7 +77,7 @@
 		return [...weekStatus.keys()].sort().map(week => {
 			const s = weekStatus.get(week)!;
 			const dt = utcDate(week);
-			const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`;
+			const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}`;
 			return buildPoint(week, label, s, hillByWeek.get(week), endurByWeek.get(week));
 		});
 	});

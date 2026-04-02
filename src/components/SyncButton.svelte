@@ -97,7 +97,7 @@
 					role="menuitem"
 					onclick={() => { if (confirm('Delete all data and re-sync from scratch?\nThis takes a few minutes.')) sync(true); }}
 				>
-					<Skull size={12} weight="fill" /> Full re-sync
+					<Skull size={12} weight="bold" /> Full re-sync
 				</button>
 			</div>
 		{/if}

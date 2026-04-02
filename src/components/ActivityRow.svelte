@@ -69,14 +69,14 @@
 
 	function fmtDate(dateStr: string): string {
 		const d = new Date(dateStr);
-		const wk = d.toLocaleDateString('en-GB', { weekday: 'short' });
-		const dm = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+		const wk = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'Europe/Paris' });
+		const dm = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'Europe/Paris' });
 		return `${wk} ${dm}`;
 	}
 
 	function fmtTime(dateStr: string): string {
 		const d = new Date(dateStr);
-		return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+		return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/Paris' });
 	}
 
 	function badgeColor(label: string | null): string {
@@ -296,7 +296,7 @@
 			{#if activity.activity_training_load != null}
 				<Tip text={'Training Load\n4-week cumulative training stress from this session.\nHigher = more demanding.'}>
 					<span class="flex items-end gap-0.5 num font-bold text-text-secondary leading-none">
-						<Flame size={12} weight="fill" />
+						<Flame size={12} weight="bold" />
 						{Math.round(activity.activity_training_load)}
 					</span>
 				</Tip>

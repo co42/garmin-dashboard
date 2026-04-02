@@ -18,15 +18,21 @@ export function formatDistance(meters: number): string {
 	return (meters / 1000).toFixed(1);
 }
 
+/** Parse a date string safely for display (works on Safari/iOS). */
+function safeDate(dateStr: string): Date {
+	// Full ISO timestamps (with T and Z) parse fine everywhere
+	if (dateStr.includes('T')) return new Date(dateStr);
+	// Date-only "YYYY-MM-DD" — Safari rejects this, must add time+Z
+	return new Date(dateStr.slice(0, 10) + 'T12:00:00Z');
+}
+
 export function formatDate(dateStr: string): string {
-	const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
-	return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+	return safeDate(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
 export function formatDateTime(dateStr: string): string {
-	const d = new Date(dateStr.replace(' ', 'T'));
-	return d.toLocaleDateString('en-GB', {
-		day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+	return safeDate(dateStr).toLocaleDateString('en-GB', {
+		day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC',
 	});
 }
 
@@ -42,7 +48,7 @@ export function formatRacePace(seconds: number, km: number): string {
 }
 
 export function timeAgo(dateStr: string): string {
-	const diff = Date.now() - new Date(dateStr).getTime();
+	const diff = Date.now() - safeDate(dateStr).getTime();
 	const mins = Math.floor(diff / 60000);
 	if (mins < 1) return 'just now';
 	if (mins < 60) return `${mins}m ago`;

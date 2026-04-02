@@ -175,8 +175,7 @@ export function loadDashboard(): DashboardData | null {
 
 	// Computed
 	const lastRunDate = activities.length > 0 ? activities[0].start_time.slice(0, 10) : null;
-	const now = new Date();
-	const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+	const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
 	const daysSinceLastRun = lastRunDate
 		? Math.max(0, daysBetween(lastRunDate, todayStr))
 		: null;

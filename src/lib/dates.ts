@@ -12,7 +12,7 @@
 
 /** Parse any date string to UTC midnight. Extracts YYYY-MM-DD, ignores time. */
 export function utcDate(s: string): Date {
-	return new Date(s.slice(0, 10));
+	return new Date(s.slice(0, 10) + 'T00:00:00Z');
 }
 
 /** Format a UTC Date as "YYYY-MM-DD". */

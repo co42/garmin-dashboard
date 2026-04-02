@@ -19,8 +19,8 @@
 	let { course, expanded = false, ontoggle }: Props = $props();
 
 	function fmtDate(dateStr: string): string {
-		const d = new Date(dateStr);
-		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+		const d = new Date(dateStr.includes('T') ? dateStr : dateStr.slice(0, 10) + 'T12:00:00Z');
+		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 	}
 
 	const isTrail = $derived(

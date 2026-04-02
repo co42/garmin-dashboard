@@ -32,8 +32,8 @@
 	}
 
 	function yearLabel(date: string): string {
-		const d = new Date(date);
-		return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+		const d = new Date(date.includes('T') ? date : date.slice(0, 10) + 'T12:00:00Z');
+		return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 	}
 
 	function isRecent(date: string): boolean {
@@ -47,7 +47,7 @@
 			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Timer size={14} weight="bold" /> Race Times</h2>
 		</Tip>
 		{#if predictions.date}
-			<span class="num text-xs text-text-secondary">{new Date(predictions.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+			<span class="num text-xs text-text-secondary">{new Date(predictions.date.includes('T') ? predictions.date : predictions.date.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })}</span>
 		{/if}
 	</div>
 

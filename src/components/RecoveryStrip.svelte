@@ -64,7 +64,7 @@
 				<span class="text-[10px] font-medium uppercase text-text-dim">Sleep Score</span>
 			</Tip>
 				<p class="num text-xl font-bold" style="color: {sleepColor(latestSleep.score)}">{latestSleep.score}%</p>
-			<p class="num text-[10px] text-text-dim">{latestSleep.sleep_score_qualifier ? latestSleep.sleep_score_qualifier.toLowerCase() + ' · ' : ''}{new Date(latestSleep.date).toLocaleDateString('en-GB')}</p>
+			<p class="num text-[10px] text-text-dim">{latestSleep.sleep_score_qualifier ? latestSleep.sleep_score_qualifier.toLowerCase() + ' · ' : ''}{new Date(latestSleep.date.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC' })}</p>
 		</div>
 	{/if}
 

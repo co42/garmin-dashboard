@@ -6,6 +6,9 @@
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
 	import XCircle from 'phosphor-svelte/lib/XCircle';
+	import TrendUp from 'phosphor-svelte/lib/TrendUp';
+	import TrendDown from 'phosphor-svelte/lib/TrendDown';
+	import ArrowRight from 'phosphor-svelte/lib/ArrowRight';
 
 	interface Props {
 		status: DailyTrainingStatus;
@@ -70,14 +73,14 @@
 			<Tip text={"Acute:Chronic Workload Ratio\n7-day load ÷ 28-day average.\n\n< 0.8 = undertraining\n0.8–1.3 = optimal\n> 1.3 = overreaching risk\n\nCurrently " + status.acute_load + " acute / " + status.chronic_load + " chronic."}>
 				<div>
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">ACWR</span>
-					<p class="num text-xl font-bold text-text flex items-center gap-1">{status.acwr.toFixed(1)} <span style="color: {acwrC}">{#if status.acwr_status === 'OPTIMAL'}<CheckCircle size={16} weight="fill" />{:else if status.acwr_status === 'HIGH' || status.acwr_status === 'LOW'}<WarningCircle size={16} weight="fill" />{:else}<XCircle size={16} weight="fill" />{/if}</span></p>
+					<p class="num text-xl font-bold text-text flex items-center gap-1">{status.acwr.toFixed(1)} <span style="color: {acwrC}">{#if status.acwr_status === 'OPTIMAL'}<CheckCircle size={16} weight="bold" />{:else if status.acwr_status === 'HIGH' || status.acwr_status === 'LOW'}<WarningCircle size={16} weight="bold" />{:else}<XCircle size={16} weight="bold" />{/if}</span></p>
 				</div>
 			</Tip>
 
 			<Tip text={"Computed from VO2max history over ~4 weeks.\nImproving = getting fitter\nSteady = plateauing\nDeclining = losing fitness"}>
 				<div>
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">VO2max</span>
-					<p class="num text-xl font-bold text-text">{status.vo2max_precise.toFixed(1)} <span class="text-xs font-normal" style="color: {trend.color}">{trend.arrow}</span></p>
+					<p class="num text-xl font-bold text-text flex items-center gap-1">{status.vo2max_precise.toFixed(1)} <span style="color: {trend.color}">{#if trend.arrow === '↑'}<TrendUp size={16} weight="bold" />{:else if trend.arrow === '↓'}<TrendDown size={16} weight="bold" />{:else}<ArrowRight size={16} weight="bold" />{/if}</span></p>
 				</div>
 			</Tip>
 		</div>
