@@ -127,6 +127,7 @@ export interface UserSettings {
 	height_cm: number;
 	weight_kg: number;
 	lactate_threshold_hr: number;
+	max_hr: number | null;
 	vo2max_running: number;
 	sleep_time: string;
 	wake_time: string;

@@ -116,8 +116,9 @@
 				hillScoreHistory={w.hillScore}
 				enduranceScoreHistory={w.endurance}
 				hrZones={d.hrZones}
-				maxHr={(() => { const cutoff = new Date(Date.now() - 91 * 86400000).toISOString().slice(0, 10); const hrs = d.activities.filter(a => a.start_time.slice(0, 10) >= cutoff && a.max_hr != null && a.max_hr > 0).map(a => a.max_hr!); return hrs.length > 0 ? Math.max(...hrs) : null; })()}
+				maxHr={d.userSettings?.max_hr ?? null}
 				lactateHr={d.userSettings?.lactate_threshold_hr ?? d.lactateThreshold.heart_rate ?? null}
+				lactatePace={d.lactateThreshold.pace ?? null}
 			/>
 			<ProfileTrend
 				statusHistory={w.status}
@@ -150,7 +151,7 @@
 		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-2">
 			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} />
-			<TrainingPolarization activities={w.activities} hrZones={d.hrZones} />
+			<TrainingPolarization activities={w.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} />
 		</div>
 
 		<div class="grid gap-4 md:grid-cols-2">

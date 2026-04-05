@@ -8,21 +8,22 @@
 	interface Props {
 		activities: Activity[];
 		hrZones: HrZone[];
+		maxHr: number | null;
 	}
 
-	let { activities, hrZones }: Props = $props();
+	let { activities, hrZones, maxHr }: Props = $props();
 
 	const zoneLabels = $derived(
 		[1, 2, 3, 4, 5].map(z => {
 			const hz = hrZones.find(h => h.zone === z);
-			return hz ? `Z${z}\n${hz.min_bpm}–${hz.max_bpm == null ? '∞' : hz.max_bpm}` : `Z${z}`;
+			return hz ? `Z${z}\n${hz.min_bpm}–${hz.max_bpm == null ? (maxHr ?? '∞') : hz.max_bpm}` : `Z${z}`;
 		})
 	);
 
 	const zoneBpmTip = $derived(
 		[1, 2, 3, 4, 5].map(z => {
 			const hz = hrZones.find(h => h.zone === z);
-			return hz ? `${hz.min_bpm}–${hz.max_bpm == null ? 'max' : hz.max_bpm} bpm` : '';
+			return hz ? `${hz.min_bpm}–${hz.max_bpm == null ? (maxHr ?? 'max') : hz.max_bpm} bpm` : '';
 		})
 	);
 	let chartEl: HTMLDivElement;

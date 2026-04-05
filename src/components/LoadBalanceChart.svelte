@@ -88,7 +88,7 @@
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full">
-	<Tip text={"Your 4-week training load broken into three types.\nEach has a personalized target range.\n\nBright = last 7 days · Medium = middle 14 days · Faded = expiring in 7 days\n\nAll three in range = balanced training."}>
+	<Tip text={"Your 4-week training load broken into three types.\nEach has a personalized target range.\n\nLeft (bright) = last 7 days · Middle = 14 days · Right (faded) = expiring in 7 days\n\nAll three in range = balanced training."}>
 		<h2 class="mb-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Scales size={14} weight="bold" /> Load Balance</h2>
 	</Tip>
 
@@ -98,9 +98,9 @@
 			{@const zoneLeft = (bar.min / max) * 100}
 			{@const zoneWidth = ((bar.max - bar.min) / max) * 100}
 			{@const seg = bar.segments}
-			{@const expiringW = Math.min((seg.expiring / max) * 100, 100)}
-			{@const middleW = Math.min((seg.middle / max) * 100, 100)}
 			{@const recentW = Math.min((seg.recent / max) * 100, 100)}
+			{@const middleW = Math.min((seg.middle / max) * 100, 100)}
+			{@const expiringW = Math.min((seg.expiring / max) * 100, 100)}
 			<div>
 				<div class="mb-1.5 flex items-baseline justify-between">
 					<span class="flex items-baseline gap-1.5">
@@ -112,19 +112,19 @@
 						{delta(bar.value, bar.min, bar.max)}
 					</span>
 				</div>
-				<Tip text="" html={`<b>${Math.round(bar.value)}</b> <span style="color:${C.textDim}">/ target ${bar.min}–${bar.max}</span><table style="border-spacing:8px 2px;margin-top:4px"><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.25;margin-right:4px"></span>Expiring&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.expiring)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.55;margin-right:4px"></span>Middle&nbsp;</td><td style="color:${C.textDim}">14d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.middle)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.9;margin-right:4px"></span>Recent&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.recent)}</b></td></tr></table>`}>
+				<Tip text="" html={`<b>${Math.round(bar.value)}</b> <span style="color:${C.textDim}">/ target ${bar.min}–${bar.max}</span><table style="border-spacing:8px 2px;margin-top:4px"><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.9;margin-right:4px"></span>Recent&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.recent)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.55;margin-right:4px"></span>Middle&nbsp;</td><td style="color:${C.textDim}">14d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.middle)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.25;margin-right:4px"></span>Expiring&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.expiring)}</b></td></tr></table>`}>
 				<div class="relative h-5 rounded bg-card-border">
-					<!-- Expiring: oldest 7 days (faded) -->
-					{#if expiringW > 0}
-						<div class="absolute left-0 top-0 h-full transition-all" style="width: {expiringW}%; background: {bar.color}; opacity: 0.25; border-radius: {middleW + recentW <= 0 ? '4px' : '4px 0 0 4px'};"></div>
+					<!-- Recent: last 7 days (bright) -->
+					{#if recentW > 0}
+						<div class="absolute left-0 top-0 h-full transition-all" style="width: {recentW}%; background: {bar.color}; opacity: 0.9; border-radius: {middleW + expiringW <= 0 ? '4px' : '4px 0 0 4px'};"></div>
 					{/if}
 					<!-- Middle: 14 days (medium) -->
 					{#if middleW > 0}
-						<div class="absolute top-0 h-full transition-all" style="left: {expiringW}%; width: {middleW}%; background: {bar.color}; opacity: 0.55; {expiringW <= 0 && recentW <= 0 ? 'border-radius: 4px;' : expiringW <= 0 ? 'border-radius: 4px 0 0 4px;' : recentW <= 0 ? 'border-radius: 0 4px 4px 0;' : ''}"></div>
+						<div class="absolute top-0 h-full transition-all" style="left: {recentW}%; width: {middleW}%; background: {bar.color}; opacity: 0.55; {recentW <= 0 && expiringW <= 0 ? 'border-radius: 4px;' : recentW <= 0 ? 'border-radius: 4px 0 0 4px;' : expiringW <= 0 ? 'border-radius: 0 4px 4px 0;' : ''}"></div>
 					{/if}
-					<!-- Recent: last 7 days (bright) -->
-					{#if recentW > 0}
-						<div class="absolute top-0 h-full transition-all" style="left: {expiringW + middleW}%; width: {recentW}%; background: {bar.color}; opacity: 0.9; border-radius: {expiringW + middleW <= 0 ? '4px' : '0 4px 4px 0'};"></div>
+					<!-- Expiring: oldest 7 days (faded) -->
+					{#if expiringW > 0}
+						<div class="absolute top-0 h-full transition-all" style="left: {recentW + middleW}%; width: {expiringW}%; background: {bar.color}; opacity: 0.25; border-radius: {recentW + middleW <= 0 ? '4px' : '0 4px 4px 0'};"></div>
 					{/if}
 					<!-- Target zone -->
 					<div class="absolute top-0 z-10 h-full rounded-sm border-2 border-white/50" style="left: {zoneLeft}%; width: {zoneWidth}%;"></div>

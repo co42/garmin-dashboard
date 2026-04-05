@@ -17,9 +17,10 @@
 		hrZones: HrZone[];
 		maxHr: number | null;
 		lactateHr: number | null;
+		lactatePace: string | null;
 	}
 
-	let { hillScore, currentStatus, enduranceScore, vo2max, statusHistory, fullStatusHistory, hillScoreHistory, enduranceScoreHistory, hrZones, maxHr, lactateHr }: Props = $props();
+	let { hillScore, currentStatus, enduranceScore, vo2max, statusHistory, fullStatusHistory, hillScoreHistory, enduranceScoreHistory, hrZones, maxHr, lactateHr, lactatePace }: Props = $props();
 
 	let radarEl: HTMLDivElement;
 
@@ -231,9 +232,9 @@
 			{/each}
 			{#if lactateHr}
 				<Tip text={"Lactate Threshold heart rate.\nThe intensity above which lactate accumulates faster than your body can clear it.\nUsed by Garmin to set your HR zones.\n\nAbove LT = anaerobic, time-limited.\nBelow LT = aerobic, sustainable."}>
-					<div class="mt-1 pt-1 border-t border-card-border/30">
-						<span class="num text-[10px] text-text-dim">LT</span>
-						<span class="num text-[10px] text-text-secondary font-medium ml-0.5">{lactateHr} bpm</span>
+					<div class="mt-1 pt-1 border-t border-card-border/30 leading-tight">
+						<div><span class="num text-[10px] text-text-dim">LT</span><span class="num text-[10px] text-text-secondary font-medium ml-1">{lactateHr} bpm</span></div>
+						{#if lactatePace}<div><span class="num text-[10px] text-text-dim invisible">LT</span><span class="num text-[10px] text-text-secondary font-medium ml-1">{lactatePace}/km</span></div>{/if}
 					</div>
 				</Tip>
 			{/if}
