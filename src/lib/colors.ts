@@ -68,6 +68,7 @@ export const LOAD_COLORS = {
 // =============================================================================
 
 export function statusColor(status: string): string {
+	if (!status) return C.textDim;
 	const s = status.toUpperCase().replace(/_\d+$/, '');
 	if (s === 'PRODUCTIVE') return C.green;
 	if (s === 'PEAKING') return C.purple;

@@ -29,6 +29,7 @@
 	const latestColor = $derived(latest ? readinessColor(latest.score) : C.textDim);
 
 	function fmt(s: string): string {
+		if (!s) return '—';
 		return s.replace(/_\d+$/, '').split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 	}
 
