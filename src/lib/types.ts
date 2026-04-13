@@ -364,6 +364,11 @@ export interface CalendarEntry {
 	is_race: boolean;
 	url: string | null;
 	steps: WorkoutStep[];
+	// Adaptive workout (Garmin Coach) fields
+	workout_description: string | null;
+	estimated_distance_meters: number | null;
+	estimated_duration_secs: number | null;
+	training_effect_label: string | null;
 }
 
 // --- Dashboard aggregate ---

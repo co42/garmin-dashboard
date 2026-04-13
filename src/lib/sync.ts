@@ -440,15 +440,19 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			}
 		}
 
-		// Enrich events with courseId/isRace/url from raw calendar API
-		const eventItems = calendarItems.filter(ci => ci.item_type === 'event' && ci.date);
-		const eventMonths = new Set<string>();
-		for (const ci of eventItems) {
+		// Enrich events + adaptive workouts from raw calendar API
+		const needsRawCalendar = calendarItems.filter(
+			ci => (ci.item_type === 'event' || ci.item_type === 'fbtAdaptiveWorkout') && ci.date
+		);
+		const rawCalMonths = new Set<string>();
+		for (const ci of needsRawCalendar) {
 			const [y, m] = ci.date!.split('-');
-			eventMonths.add(`${y}/${parseInt(m) - 1}`);
+			rawCalMonths.add(`${y}/${parseInt(m) - 1}`);
 		}
 		const rawEventMap = new Map<number, { courseId: number | null; isRace: boolean; url: string | null }>();
-		for (const ym of eventMonths) {
+		const adaptivePlanIds = new Set<number>();
+		const adaptiveUuidMap = new Map<number, { trainingPlanId: number; workoutUuid: string; sportTypeKey: string | null }>();
+		for (const ym of rawCalMonths) {
 			const [y, m] = ym.split('/');
 			const raw = await garminSafe<any>(['api', `/calendar-service/year/${y}/month/${m}`], null);
 			if (raw?.calendarItems) {
@@ -459,6 +463,34 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 							isRace: item.isRace ?? false,
 							url: item.url ?? null,
 						});
+					} else if (item.itemType === 'fbtAdaptiveWorkout' && item.trainingPlanId && item.workoutUuid) {
+						adaptivePlanIds.add(item.trainingPlanId);
+						adaptiveUuidMap.set(item.id, {
+							trainingPlanId: item.trainingPlanId,
+							workoutUuid: item.workoutUuid,
+							sportTypeKey: item.sportTypeKey ?? null,
+						});
+					}
+				}
+			}
+		}
+
+		// Fetch adaptive training plan details
+		type AdaptiveTask = { workoutDescription: string | null; estimatedDistanceInMeters: number | null; estimatedDurationInSecs: number | null; trainingEffectLabel: string | null; sportTypeKey: string | null };
+		const adaptiveTaskMap = new Map<string, AdaptiveTask>();
+		for (const planId of adaptivePlanIds) {
+			const plan = await garminSafe<any>(['api', `/trainingplan-service/trainingplan/fbt-adaptive/${planId}`], null);
+			if (plan?.taskList) {
+				for (const task of plan.taskList) {
+					const tw = task.taskWorkout;
+					if (tw?.workoutUuid) {
+						adaptiveTaskMap.set(tw.workoutUuid, {
+							workoutDescription: tw.workoutDescription ?? null,
+							estimatedDistanceInMeters: tw.estimatedDistanceInMeters ?? null,
+							estimatedDurationInSecs: tw.estimatedDurationInSecs ?? null,
+							trainingEffectLabel: tw.trainingEffectLabel ?? null,
+							sportTypeKey: tw.sportType?.sportTypeKey ?? null,
+						});
 					}
 				}
 			}
@@ -468,10 +500,12 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			if (!ci.title || !ci.date) continue;
 			const raw = ci.workout_id != null ? workoutRawMap.get(ci.workout_id) : null;
 			const eventData = rawEventMap.get(ci.id);
+			const adaptiveInfo = adaptiveUuidMap.get(ci.id);
+			const adaptiveTask = adaptiveInfo ? adaptiveTaskMap.get(adaptiveInfo.workoutUuid) : null;
 			calendarEntries.push({
 				id: ci.id,
 				item_type: ci.item_type,
-				sport_type: raw?.sportType?.sportTypeKey ?? null,
+				sport_type: raw?.sportType?.sportTypeKey ?? adaptiveTask?.sportTypeKey ?? adaptiveInfo?.sportTypeKey ?? null,
 				title: ci.title,
 				date: ci.date,
 				workout_id: ci.workout_id,
@@ -479,6 +513,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				is_race: eventData?.isRace ?? false,
 				url: eventData?.url ?? null,
 				steps: ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [],
+				workout_description: adaptiveTask?.workoutDescription ?? null,
+				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? null,
+				estimated_duration_secs: adaptiveTask?.estimatedDurationInSecs ?? null,
+				training_effect_label: adaptiveTask?.trainingEffectLabel ?? null,
 			});
 		}
 

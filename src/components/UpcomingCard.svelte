@@ -15,6 +15,7 @@
 	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
 	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 	import PauseCircle from 'phosphor-svelte/lib/PauseCircle';
+	import Robot from 'phosphor-svelte/lib/Robot';
 
 	interface Props {
 		calendar: CalendarEntry[];
@@ -102,7 +103,7 @@
 
 		// Scheduled workouts in this week range (future only, not done)
 		const scheduledInWeek: Row[] = sorted
-			.filter(c => c.item_type === 'workout' && c.date >= weekStart && c.date < weekEnd && c.date >= todayStr && !isWorkoutDone(c))
+			.filter(c => (c.item_type === 'workout' || c.item_type === 'fbtAdaptiveWorkout') && c.date >= weekStart && c.date < weekEnd && c.date >= todayStr && !isWorkoutDone(c))
 			.map((c): Row => ({ kind: 'scheduled', id: c.id, date: c.date, entry: c }));
 
 		// Events in this week range
@@ -354,13 +355,16 @@
 	{:else if row.kind === 'scheduled'}
 		<!-- Scheduled workout: collapsible -->
 		{@const entry = row.entry}
+		{@const hasDetails = entry.steps.length > 0 || entry.item_type === 'fbtAdaptiveWorkout'}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
 			<button
-				class="flex w-full items-center gap-2.5 leading-5 text-left cursor-pointer"
-				onclick={() => toggle(entry.id)}
+				class="flex w-full items-center gap-2.5 leading-5 text-left {hasDetails ? 'cursor-pointer' : ''}"
+				onclick={() => hasDetails && toggle(entry.id)}
 			>
 				<span class="shrink-0 leading-[0] text-text-dim">
-					{#if isRunning(entry)}
+					{#if entry.item_type === 'fbtAdaptiveWorkout'}
+						<Robot size={16} />
+					{:else if isRunning(entry)}
 						<PersonSimpleRun size={16} />
 					{:else}
 						<Barbell size={16} />
@@ -370,7 +374,7 @@
 					<div class="text-sm font-semibold text-text truncate">{entry.title}</div>
 				</div>
 				<span class="shrink-0 text-[10px] text-text-dim font-mono tabular-nums">{dateLabel(entry.date)}</span>
-				{#if entry.steps.length > 0}
+				{#if hasDetails}
 					<span class="shrink-0 text-text-dim">
 						{#if expanded.has(entry.id)}
 							<CaretDown size={12} />
@@ -380,11 +384,28 @@
 					</span>
 				{/if}
 			</button>
-			{#if expanded.has(entry.id) && entry.steps.length > 0}
-				{#if isRunning(entry)}
-					{@render runningSteps(entry.steps)}
-				{:else}
-					{@render nonRunningSteps(entry.steps)}
+			{#if expanded.has(entry.id)}
+				{#if entry.item_type === 'fbtAdaptiveWorkout'}
+					<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary pl-[26px]">
+						{#if entry.workout_description}
+							<span class="font-medium text-text">{entry.workout_description}</span>
+						{/if}
+						{#if entry.estimated_distance_meters}
+							<span>{fmtDist(entry.estimated_distance_meters)}</span>
+						{/if}
+						{#if entry.estimated_duration_secs}
+							<span>{fmtDuration(entry.estimated_duration_secs)}</span>
+						{/if}
+						{#if entry.training_effect_label && entry.training_effect_label !== 'UNKNOWN' && entry.training_effect_label !== 'INVALID'}
+							<span class="capitalize">{entry.training_effect_label.toLowerCase().replace(/_/g, ' ')}</span>
+						{/if}
+					</div>
+				{:else if entry.steps.length > 0}
+					{#if isRunning(entry)}
+						{@render runningSteps(entry.steps)}
+					{:else}
+						{@render nonRunningSteps(entry.steps)}
+					{/if}
 				{/if}
 			{/if}
 		</div>

@@ -61,7 +61,7 @@ export function loadDashboard(): DashboardData | null {
 
 	// Current status (latest day)
 	const latestStatusRow = db.prepare(
-		'SELECT data FROM daily_training_status ORDER BY date DESC LIMIT 1'
+		"SELECT data FROM daily_training_status WHERE json_extract(data, '$.status') IS NOT NULL ORDER BY date DESC LIMIT 1"
 	).get() as { data: string } | undefined;
 	const currentStatus: DailyTrainingStatus = latestStatusRow
 		? JSON.parse(latestStatusRow.data)
