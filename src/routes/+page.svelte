@@ -10,9 +10,9 @@
 	import AcwrChart from '../components/AcwrChart.svelte';
 	import HrvChart from '../components/HrvChart.svelte';
 	import RunnerProfile from '../components/RunnerProfile.svelte';
+
 	import ProfileTrend from '../components/ProfileTrend.svelte';
 	import ProfileStats from '../components/ProfileStats.svelte';
-	import TrainingPolarization from '../components/TrainingPolarization.svelte';
 	import WeeklyVolume from '../components/WeeklyVolume.svelte';
 	import ActivityFeed from '../components/ActivityFeed.svelte';
 	import CourseFeed from '../components/CourseFeed.svelte';
@@ -40,6 +40,16 @@
 		monday.setUTCDate(now.getUTCDate() - (day === 0 ? 6 : day - 1));
 		// Go back N weeks from this Monday
 		monday.setUTCDate(monday.getUTCDate() - (windowWeeks * 7));
+		return monday.toISOString().slice(0, 10);
+	});
+
+	// Fixed 13-week window for Weekly Volume (independent of 1M/3M toggle)
+	const volumeStart = $derived(() => {
+		const now = new Date();
+		const day = now.getUTCDay();
+		const monday = new Date(now);
+		monday.setUTCDate(now.getUTCDate() - (day === 0 ? 6 : day - 1));
+		monday.setUTCDate(monday.getUTCDate() - (13 * 7));
 		return monday.toISOString().slice(0, 10);
 	});
 
@@ -115,10 +125,6 @@
 				fullStatusHistory={d.statusHistory}
 				hillScoreHistory={w.hillScore}
 				enduranceScoreHistory={w.endurance}
-				hrZones={d.hrZones}
-				maxHr={d.userSettings?.max_hr ?? null}
-				lactateHr={d.userSettings?.lactate_threshold_hr ?? d.lactateThreshold.heart_rate ?? null}
-				lactatePace={d.lactateThreshold.pace ?? null}
 			/>
 			<ProfileTrend
 				statusHistory={w.status}
@@ -128,21 +134,6 @@
 		</div>
 		{/key}
 
-		<!-- ═══ BODY: How am I right now? ═══ -->
-		<Tip text={"Your current physical state.\nChanges daily based on sleep, stress, and recovery.\nAnswers: can I train today?"}>
-			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Heartbeat size={14} weight="bold" /> Body</h2>
-		</Tip>
-
-		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
-			<RecoveryStrip
-				bodyBattery={d.bodyBattery}
-				stress={d.stress}
-				sleepScores={w.sleep}
-				heartRate={w.heartRate}
-			/>
-			<ReadinessGauge readiness={d.readiness} />
-		</div>
-
 		<!-- ═══ TRAINING: How is my training going? ═══ -->
 		<Tip text={"Your training load, balance, and trends over weeks.\nAnswers: am I training the right amount and mix?"}>
 			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Lightning size={14} weight="bold" /> Training</h2>
@@ -150,19 +141,32 @@
 
 		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-2">
-			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} />
-			<TrainingPolarization activities={w.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} />
-		</div>
-
-		<div class="grid gap-4 md:grid-cols-2">
+			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} lactateHr={d.userSettings?.lactate_threshold_hr ?? d.lactateThreshold.heart_rate ?? null} lactatePace={d.lactateThreshold.pace ?? null} />
 			<AcwrChart history={w.status} />
-			<HrvChart hrv={w.hrv} />
 		</div>
 
-		<WeeklyVolume activities={w.activities} />
+		<WeeklyVolume activities={d.activities.filter(a => a.start_time.slice(0, 10) >= volumeStart())} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} />
 		{/key}
 
-		<ProfileStats predictions={d.racePredictions} records={d.records} activities={d.activities} onNavigate={(id) => feedRef?.navigateTo(id)} />
+		{#key windowWeeks}
+		<ProfileStats predictions={d.racePredictions} records={d.records} activities={d.activities} history={d.racePredictionHistory.filter(r => r.date >= windowStart())} onNavigate={(id) => feedRef?.navigateTo(id)} />
+		{/key}
+
+		<!-- ═══ BODY: How am I right now? ═══ -->
+		<Tip text={"Your current physical state.\nChanges daily based on sleep, stress, and recovery.\nAnswers: can I train today?"}>
+			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Heartbeat size={14} weight="bold" /> Body</h2>
+		</Tip>
+
+		<div class="grid gap-4 sm:grid-cols-3">
+			<RecoveryStrip
+				bodyBattery={d.bodyBattery}
+				stress={d.stress}
+				sleepScores={w.sleep}
+				heartRate={w.heartRate}
+			/>
+			<ReadinessGauge readiness={d.readiness} />
+			<HrvChart hrv={w.hrv} />
+		</div>
 
 		<!-- ═══ LOG ═══ -->
 		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>

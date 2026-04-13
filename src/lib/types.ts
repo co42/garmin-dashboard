@@ -7,6 +7,8 @@ export interface DailyTrainingStatus {
 	acwr_status: string;
 	acute_load: number;
 	chronic_load: number;
+	min_training_load_chronic: number | null;
+	max_training_load_chronic: number | null;
 	status: string; // "PRODUCTIVE_2", "DETRAINING", "MAINTAINING", etc.
 	fitness_trend: string;
 	fitness_trend_sport: string;
@@ -299,12 +301,12 @@ export interface PersonalRecord {
 export interface GearItem {
 	uuid: string;
 	display_name: string;
-	type: string;
+	brand: string;
+	gear_type: string;
 	distance_meters: number;
+	max_distance_meters: number;
 	activities: number;
 	date_begin: string | null;
-	date_end: string | null;
-	active: boolean;
 }
 
 // --- Courses ---
@@ -394,6 +396,7 @@ export interface DashboardData {
 	stressHistory: StressDay[];
 	hillScoreHistory: HillScore[];
 	enduranceScoreHistory: EnduranceScore[];
+	racePredictionHistory: RacePredictions[];
 
 	// Activities
 	activities: Activity[];

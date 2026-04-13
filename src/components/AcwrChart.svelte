@@ -12,27 +12,45 @@
 	let { history }: Props = $props();
 	let chartEl: HTMLDivElement;
 
+	const SERIES_KEYS = ['acwr', 'acute', 'chronic'] as const;
+	type SeriesKey = typeof SERIES_KEYS[number];
+
+	const SERIES_META: Record<SeriesKey, { name: string; color: string; tip: string }> = {
+		acwr:    { name: 'ACWR',    color: C.blue,  tip: 'Acute:Chronic Workload Ratio' },
+		acute:   { name: 'Acute',   color: C.amber, tip: '7-day acute load' },
+		chronic: { name: 'Chronic', color: C.teal,  tip: '28-day chronic load' },
+	};
+
+	let hiddenSeries = $state(new Set<SeriesKey>());
+
+	function toggleSeries(key: SeriesKey) {
+		const next = new Set(hiddenSeries);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
+		hiddenSeries = next;
+		renderChart();
+	}
+
 	let _chart: any; let _ro: ResizeObserver;
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
-	onMount(async () => {
-		const echarts = await import('echarts');
-		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+	function renderChart() {
+		if (!_chart) return;
 
 		const days = history.map(d => d.date.slice(5));
-		const acwrValues = history.map(d => d.acwr);
-		const acuteValues = history.map(d => d.acute_load);
-		const chronicValues = history.map(d => d.chronic_load);
+		const acwrValues = hiddenSeries.has('acwr') ? history.map(() => null) : history.map(d => d.acwr);
+		const acuteValues = hiddenSeries.has('acute') ? history.map(() => null) : history.map(d => d.acute_load);
+		const chronicValues = hiddenSeries.has('chronic') ? history.map(() => null) : history.map(d => d.chronic_load);
 
 		_chart.setOption({
-			grid: { top: 40, right: 8, bottom: 30, left: 50 },
+			grid: { top: 8, right: 8, bottom: 30, left: 50 },
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
 				textStyle: { color: C.text, fontSize: 11, fontFamily: MONO },
 				formatter: (params: any) => {
 					if (!Array.isArray(params) || params.length === 0) return '';
-					let html = `<b>${params[0].axisValueLabel}</b><table style="border-spacing:6px 1px">`;
+					let html = `<b>${params[0].axisValueLabel}</b><br/><table style="border-spacing:8px 1px">`;
 					for (const p of params) {
 						if (p.value == null) continue;
 						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:2px"></span>`;
@@ -52,25 +70,14 @@
 					return html;
 				},
 			},
-			legend: {
-				data: [
-					{ name: 'ACWR', icon: 'roundRect', itemStyle: { color: C.blue } },
-					{ name: 'Acute', icon: 'roundRect', itemStyle: { color: C.amber } },
-					{ name: 'Chronic', icon: 'roundRect', itemStyle: { color: C.teal } },
-				],
-				itemWidth: 14,
-				itemHeight: 3,
-				top: 6,
-				textStyle: { color: C.textSecondary, fontSize: 11, fontFamily: MONO },
-			},
+			legend: { show: false },
 			xAxis: {
 				type: 'category', data: days,
 				...CHART_AXIS,
 			},
 			yAxis: [
 				{
-					type: 'value', name: 'ACWR',
-					nameTextStyle: { color: C.textDim, fontSize: 10 },
+					type: 'value',
 					min: 0, max: 2,
 					axisLine: { show: false },
 					axisLabel: CHART_AXIS.axisLabel,
@@ -113,16 +120,36 @@
 					itemStyle: { color: C.teal },
 				},
 			],
-		});
+		}, true);
+	}
 
+	onMount(async () => {
+		const echarts = await import('echarts');
+		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+		renderChart();
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
 	});
 </script>
 
-<div class="rounded-lg bg-card p-4">
-	<Tip text={"White line = ACWR (acute ÷ chronic)\n\nDashed green lines = optimal zone (0.8–1.3)\nDashed red line = overreaching threshold (1.5)\n\nDashed amber = 7-day acute load\nSolid blue = 28-day chronic load"}>
-		<h2 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartLineUp size={14} weight="bold" /> ACWR Trend</h2>
-	</Tip>
-	<div bind:this={chartEl} class="h-[260px] w-full"></div>
+<div class="rounded-lg bg-card p-4 h-full flex flex-col">
+	<div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
+		<Tip text={"White line = ACWR (acute ÷ chronic)\n\nDashed green lines = optimal zone (0.8–1.3)\nDashed red line = overreaching threshold (1.5)\n\nDashed amber = 7-day acute load\nSolid teal = 28-day chronic load"}>
+			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartLineUp size={14} weight="bold" /> ACWR Trend</h2>
+		</Tip>
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+			{#each SERIES_KEYS as key}
+				<Tip text={SERIES_META[key].tip}>
+					<button
+						class="flex items-center gap-1 cursor-pointer transition-opacity {hiddenSeries.has(key) ? 'opacity-30' : 'text-text-secondary'}"
+						onclick={() => toggleSeries(key)}
+					>
+						<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{SERIES_META[key].color}"></span>
+						{SERIES_META[key].name}
+					</button>
+				</Tip>
+			{/each}
+		</div>
+	</div>
+	<div bind:this={chartEl} class="flex-1 min-h-[160px] w-full"></div>
 </div>

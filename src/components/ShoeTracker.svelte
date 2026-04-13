@@ -1,61 +1,72 @@
 <script lang="ts">
 	import type { GearItem } from '$lib/types.js';
+	import { C } from '$lib/colors.js';
+	import Sneaker from 'phosphor-svelte/lib/Sneaker';
+	import Tip from './Tip.svelte';
 
 	interface Props {
 		gear: GearItem[];
 	}
 
-	import { C } from '$lib/colors.js';
-	import Sneaker from 'phosphor-svelte/lib/Sneaker';
-
 	let { gear }: Props = $props();
 
-	// Filter to active shoes only
-	const shoes = $derived(gear.filter(g => g.active));
+	const shoes = $derived(gear.filter(g => g.gear_type === 'Shoes'));
 
-	function distanceKm(meters: number): string {
-		return (meters / 1000).toFixed(0);
+	function km(meters: number): number {
+		return Math.round(meters / 1000);
 	}
 
-	function healthColor(meters: number): string {
-		const km = meters / 1000;
-		if (km < 500) return C.green;
-		if (km < 800) return C.amber;
+	function pct(shoe: GearItem): number {
+		if (shoe.max_distance_meters <= 0) return 0;
+		return Math.min((shoe.distance_meters / shoe.max_distance_meters) * 100, 100);
+	}
+
+	function healthColor(shoe: GearItem): string {
+		const p = pct(shoe);
+		if (p < 60) return C.green;
+		if (p < 85) return C.amber;
 		return C.red;
 	}
 
-	function healthPct(meters: number): number {
-		return Math.min((meters / 1000) / 1000 * 100, 100); // Max at 1000km
+	function healthLabel(shoe: GearItem): string {
+		const p = pct(shoe);
+		if (p < 60) return 'Good';
+		if (p < 85) return 'Rotate';
+		return 'Replace';
 	}
 
-	function healthLabel(meters: number): string {
-		const km = meters / 1000;
-		if (km < 500) return 'Good';
-		if (km < 800) return 'Consider rotating';
-		return 'Replace soon';
+	function since(dateStr: string | null): string {
+		if (!dateStr) return '';
+		const d = new Date(dateStr);
+		return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 	}
 </script>
 
 {#if shoes.length > 0}
-	<div class="rounded-lg bg-card p-4">
-		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Sneaker size={14} weight="bold" /> Shoes</h2>
-		<div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-			{#each shoes as shoe}
-				{@const color = healthColor(shoe.distance_meters)}
-				<div class="rounded bg-card-border/30 px-3 py-2.5">
-					<div class="flex items-baseline justify-between">
-						<span class="text-sm font-medium text-text">{shoe.display_name}</span>
-						<span class="num text-xs font-bold" style="color: {color}">{distanceKm(shoe.distance_meters)} km</span>
+<div>
+	<h2 class="mt-4 mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Sneaker size={14} weight="bold" /> Shoes</h2>
+	<div class="grid gap-4 sm:grid-cols-2">
+		{#each shoes as shoe}
+			{@const color = healthColor(shoe)}
+			{@const p = pct(shoe)}
+			<Tip text={`${shoe.brand}\n${km(shoe.distance_meters)} / ${km(shoe.max_distance_meters)} km (${Math.round(p)}%)\n${shoe.activities} runs${shoe.date_begin ? ` · since ${since(shoe.date_begin)}` : ''}`}>
+				<div class="rounded-lg bg-card px-3 md:px-4 py-3">
+					<div class="flex items-baseline justify-between gap-2">
+						<span class="text-sm font-medium text-text truncate">{shoe.display_name}</span>
+						<span class="num text-xs shrink-0" style="color: {color}">
+							<span class="font-bold">{km(shoe.distance_meters)}</span><span class="text-text-dim">/{km(shoe.max_distance_meters)}km</span>
+						</span>
 					</div>
-					<div class="mt-2 h-1.5 rounded-full bg-card-border">
-						<div class="h-full rounded-full" style="width: {healthPct(shoe.distance_meters)}%; background: {color};"></div>
+					<div class="mt-2 h-1.5 rounded-full bg-card-border overflow-hidden">
+						<div class="h-full rounded-full transition-all" style="width: {p}%; background: {color};"></div>
 					</div>
-					<div class="mt-1 flex justify-between text-[10px] text-text-dim">
-						<span class="num">{shoe.activities} runs</span>
-						<span>{healthLabel(shoe.distance_meters)}</span>
+					<div class="mt-1.5 flex items-center justify-between text-[10px]">
+						<span class="num text-text-secondary">{shoe.activities} runs{#if shoe.date_begin}<span class="text-text-dim">&nbsp;·&nbsp;{since(shoe.date_begin)}</span>{/if}</span>
+						<span class="num font-medium" style="color: {color}">{healthLabel(shoe)}</span>
 					</div>
 				</div>
-			{/each}
-		</div>
+			</Tip>
+		{/each}
 	</div>
+</div>
 {/if}

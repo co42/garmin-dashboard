@@ -339,9 +339,9 @@
 			<span class="text-text-dim leading-[0]"><CheckCircle size={12} weight="duotone" /></span>
 		{/if}
 		<span class="text-[11px] font-semibold uppercase tracking-wide {isToday ? 'text-blue-400' : 'text-text-dim'}">
-			{isToday ? 'Today' : weekday}
+			{weekday}
 		</span>
-		<span class="text-[10px] text-text-dim">{dayMonth}</span>
+		<span class="text-[10px] {isToday ? 'text-blue-400 font-semibold' : 'text-text-dim'}">{dayMonth}</span>
 	</div>
 {/snippet}
 
@@ -395,8 +395,8 @@
 						<Barbell size={16} />
 					{/if}
 				</span>
-				<div class="font-medium text-sm text-text truncate min-w-0">{entry.title}</div>
-				<span class="shrink-0 flex items-center gap-2 text-xs num">
+				<div class="font-medium text-sm text-text truncate min-w-0 flex-1">{entry.title}</div>
+				<span class="shrink-0 flex items-center gap-2 text-xs num ml-auto">
 					{#if entry.estimated_distance_meters}
 						<span class="text-text font-semibold">{fmtDist(entry.estimated_distance_meters)}</span>
 					{/if}

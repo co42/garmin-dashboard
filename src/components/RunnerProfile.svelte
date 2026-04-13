@@ -1,28 +1,25 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { HillScore, DailyTrainingStatus, EnduranceScore, HrZone } from '$lib/types.js';
+	import type { HillScore, DailyTrainingStatus, EnduranceScore } from '$lib/types.js';
 	import { AXES, RADAR_AXIS_ORDER, AXIS_COLORS, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
-	import { C, CHART_TOOLTIP, ZONE_COLORS, MONO } from '$lib/colors.js';
-	import Tip from './Tip.svelte';
+	import { C, CHART_TOOLTIP, MONO } from '$lib/colors.js';
+	import ChartPolar from 'phosphor-svelte/lib/ChartPolar';
 
 	interface Props {
 		hillScore: HillScore;
 		currentStatus: DailyTrainingStatus;
 		enduranceScore: EnduranceScore;
 		vo2max: number;
-		statusHistory: DailyTrainingStatus[];       // windowed (for iteration bounds)
-		fullStatusHistory: DailyTrainingStatus[];    // full (for rolling 30d computations)
+		statusHistory: DailyTrainingStatus[];
+		fullStatusHistory: DailyTrainingStatus[];
 		hillScoreHistory: HillScore[];
 		enduranceScoreHistory: EnduranceScore[];
-		hrZones: HrZone[];
-		maxHr: number | null;
-		lactateHr: number | null;
-		lactatePace: string | null;
 	}
 
-	let { hillScore, currentStatus, enduranceScore, vo2max, statusHistory, fullStatusHistory, hillScoreHistory, enduranceScoreHistory, hrZones, maxHr, lactateHr, lactatePace }: Props = $props();
+	let { hillScore, currentStatus, enduranceScore, vo2max, statusHistory, fullStatusHistory, hillScoreHistory, enduranceScoreHistory }: Props = $props();
 
 	let radarEl: HTMLDivElement;
+	let axisTip = $state({ visible: false, text: '', x: 0, y: 0 });
 
 	// Rolling 30-day average of balance scores
 	function rolling30dBalance(history: DailyTrainingStatus[], atDate?: string): number {
@@ -130,11 +127,21 @@
 
 		_chart.setOption({
 			radar: {
-				indicator: rd.map(d => ({ name: d.axis, max: 100 })),
+				triggerEvent: true,
+				indicator: rd.map((d, i) => {
+					const key = RADAR_AXIS_ORDER[i];
+					return { name: `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`, max: 100 };
+				}),
 				shape: 'polygon',
-				radius: '68%',
-				center: ['50%', '55%'],
-				axisName: { color: C.textSecondary, fontSize: 11, fontFamily: MONO },
+				radius: '65%',
+				center: ['50%', '52%'],
+				axisName: {
+					rich: {
+						val: { color: C.text, fontSize: 12, fontWeight: 'bold', fontFamily: MONO, align: 'center' },
+						name: { color: C.textSecondary, fontSize: 10, fontFamily: MONO, align: 'center' },
+						...Object.fromEntries(RADAR_AXIS_ORDER.map((key, i) => [`dot${i}`, { color: AXIS_COLORS[key], fontSize: 12, align: 'center' }])),
+					},
+				},
 				axisLine: { lineStyle: { color: C.hover } },
 				splitLine: { lineStyle: { color: C.cardBorder } },
 				splitArea: { show: false },
@@ -200,45 +207,56 @@
 
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(radarEl);
+
+		// Axis name hover tooltips
+		const indicatorNames = rd.map((d, i) => `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`);
+		_chart.on('mouseover', (params: any) => {
+			if (params.targetType === 'axisName') {
+				const idx = indicatorNames.indexOf(params.name);
+				if (idx >= 0) {
+					const key = RADAR_AXIS_ORDER[idx];
+					const e = (params.event?.event ?? params.event) as MouseEvent;
+					axisTip = { visible: true, text: AXES[key].tip, x: e.clientX, y: e.clientY - 12 };
+				}
+			}
+		});
+		_chart.on('mouseout', (params: any) => {
+			if (params.targetType === 'axisName') {
+				axisTip = { ...axisTip, visible: false };
+			}
+		});
 	});
 </script>
 
-<div class="rounded-lg bg-card p-2 h-full flex flex-col">
-	<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] px-2 pt-1">
-		{#each RADAR_AXIS_ORDER as key}
-			<Tip text={AXES[key].tip}>
-				<span class="flex items-center gap-1 text-text-secondary">
-					<span class="inline-block w-1.5 h-1.5 rounded-full" style="background:{AXIS_COLORS[key]}"></span>
-					{AXES[key].name}
-				</span>
-			</Tip>
+<div class="rounded-lg bg-card p-4 h-full flex flex-col">
+	<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartPolar size={14} weight="bold" /> Profile</h2>
+	<div bind:this={radarEl} class="flex-1 min-h-[200px] w-full"></div>
+{#if axisTip.visible}
+	<span class="axis-tip" style="left:{axisTip.x}px;top:{axisTip.y}px">
+		{#each axisTip.text.split('\n') as line, i}
+			{#if i > 0}<br/>{/if}{line}
 		{/each}
-	</div>
-	<div class="flex flex-col md:flex-row flex-1 min-h-0">
-	<div bind:this={radarEl} class="flex-1 min-h-[220px] w-full"></div>
-	{#if hrZones.length > 0}
-		<div class="flex md:flex-col items-center md:items-start justify-center gap-2 md:gap-1 px-2 md:pr-2 md:pl-0 shrink-0">
-			{#each [1, 2, 3, 4, 5] as z}
-				{@const hz = hrZones.find(h => h.zone === z)}
-				{#if hz}
-					<div class="flex items-center gap-1 md:gap-1.5">
-						<div class="w-1 md:w-1.5 h-4 md:h-5 rounded-full" style="background: {ZONE_COLORS[z - 1]};"></div>
-						<div class="leading-none text-center md:text-left">
-							<span class="num text-[9px] md:text-[10px] font-semibold" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
-							<span class="num text-[9px] md:text-[10px] text-text-secondary block md:inline md:ml-0.5">{hz.min_bpm}–{#if hz.max_bpm == null}<b class="text-text">{maxHr ?? '?'}</b>{:else}{hz.max_bpm}{/if}</span>
-						</div>
-					</div>
-				{/if}
-			{/each}
-			{#if lactateHr}
-				<Tip text={"Lactate Threshold heart rate.\nThe intensity above which lactate accumulates faster than your body can clear it.\nUsed by Garmin to set your HR zones.\n\nAbove LT = anaerobic, time-limited.\nBelow LT = aerobic, sustainable."}>
-					<div class="mt-1 pt-1 border-t border-card-border/30 leading-tight">
-						<div><span class="num text-[10px] text-text-dim">LT</span><span class="num text-[10px] text-text-secondary font-medium ml-1">{lactateHr} bpm</span></div>
-						{#if lactatePace}<div><span class="num text-[10px] text-text-dim invisible">LT</span><span class="num text-[10px] text-text-secondary font-medium ml-1">{lactatePace}/km</span></div>{/if}
-					</div>
-				</Tip>
-			{/if}
-		</div>
-	{/if}
-	</div>
+	</span>
+{/if}
 </div>
+
+<style>
+	.axis-tip {
+		position: fixed;
+		z-index: 50;
+		width: max-content;
+		max-width: min(340px, calc(100vw - 24px));
+		padding: 8px 12px;
+		border-radius: 6px;
+		background: #1e1e2a;
+		border: 1px solid #2a2a3a;
+		color: #c8c8d4;
+		font-size: 11px;
+		line-height: 1.6;
+		font-weight: 400;
+		white-space: normal;
+		pointer-events: none;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+		transform: translateX(-50%) translateY(-100%);
+	}
+</style>

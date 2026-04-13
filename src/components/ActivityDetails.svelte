@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityDetails as ActivityDetailsType, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatTime } from '$lib/format.js';
-	import { C, hrZoneColor, gradColor } from '$lib/colors.js';
+	import { C, ZONE_COLORS, hrZoneColor, gradColor } from '$lib/colors.js';
+	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import ActivityCharts from './ActivityCharts.svelte';
 	import ActivityMap from './ActivityMap.svelte';
 	import Tip from './Tip.svelte';
@@ -70,6 +71,9 @@
 
 
 	const trail = $derived(isTrail(activity));
+
+	const zoneTimes = $derived([activity.hr_time_in_zone_1 ?? 0, activity.hr_time_in_zone_2 ?? 0, activity.hr_time_in_zone_3 ?? 0, activity.hr_time_in_zone_4 ?? 0, activity.hr_time_in_zone_5 ?? 0]);
+	const zoneTotal = $derived(zoneTimes.reduce((s, v) => s + v, 0));
 
 	// Compute per-km GAP from timeseries
 	const splitGaps = $derived(() => {
@@ -150,34 +154,59 @@
 		</div>
 	{/if}
 
+	<!-- ═══ HR ZONES (mobile only) ═══ -->
+	{#if zoneTotal > 0}
+		<div class="md:hidden">
+			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><Heartbeat size={12} weight="bold" /> HR Zones</h3>
+			<div class="flex flex-col gap-1.5">
+				{#each [1, 2, 3, 4, 5] as z}
+					{@const t = zoneTimes[z - 1]}
+					{@const pct = zoneTotal > 0 ? t / zoneTotal * 100 : 0}
+					{@const hz = hrZones.find(h => h.zone === z)}
+					{#if t > 0}
+						<div class="flex items-center gap-2 text-xs">
+							<span class="num font-semibold w-5 shrink-0" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
+							<div class="flex-1 h-1.5 rounded-full bg-card-border overflow-hidden">
+								<div class="h-full rounded-full" style="width: {pct}%; background: {ZONE_COLORS[z - 1]};"></div>
+							</div>
+							<span class="num text-text-secondary w-8 text-right shrink-0">{Math.round(pct)}%</span>
+							<span class="num text-text-dim w-12 text-right shrink-0">{Math.floor(t / 60)}:{Math.floor(t % 60).toString().padStart(2, '0')}</span>
+							{#if hz}<span class="num text-text-dim text-[10px] w-16 text-right shrink-0 hidden sm:inline">{hz.min_bpm}–{hz.max_bpm ?? '∞'}</span>{/if}
+						</div>
+					{/if}
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- ═══ MAP + SPLITS ═══ -->
 	{#if hasMap || splits.length > 0}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><MapPin size={12} weight="bold" /> Map & Splits</h3>
 			<div class="flex flex-col md:flex-row gap-4">
 				{#if hasMap && details}
-					<div class="h-[200px] md:h-[240px] md:flex-1 md:min-w-0 rounded overflow-hidden border border-card-border/50">
+					<div class="h-[200px] md:h-auto md:self-stretch md:flex-1 md:min-w-0 rounded overflow-hidden border border-card-border/50">
 						<ActivityMap polyline={details.polyline} />
 					</div>
 				{/if}
 
 				{#if splits.length > 0}
-					<div class="overflow-x-auto overflow-y-auto max-h-[240px] w-full md:w-auto md:shrink-0">
+					<div class="overflow-auto max-h-[240px] md:max-h-none md:overflow-visible w-full md:w-auto md:shrink-0">
 						<table class="text-xs w-full md:w-auto">
 							<thead class="sticky top-0 bg-card">
 								<tr class="text-text-dim border-b border-card-border">
-									<th class="pb-1 pr-3 md:pr-8 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>
-									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">Pace</th>
+									<th class="pb-1 pr-3 md:pr-4 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>
+									<th class="pb-1 pr-3 md:pr-4 text-right font-medium">Pace</th>
 									{#if trail}
-										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">GAP</th>
+										<th class="pb-1 pr-3 md:pr-4 text-right font-medium">GAP</th>
 									{/if}
-									<th class="pb-1 pr-3 md:pr-8 text-right font-medium">HR</th>
+									<th class="pb-1 pr-3 md:pr-4 text-right font-medium">HR</th>
 									{#if hasElev}
-										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">D+</th>
-										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">D-</th>
+										<th class="pb-1 pr-3 md:pr-4 text-right font-medium">D+</th>
+										<th class="pb-1 pr-3 md:pr-4 text-right font-medium">D-</th>
 									{/if}
 									{#if hasPower}
-										<th class="pb-1 pr-3 md:pr-8 text-right font-medium">Pwr</th>
+										<th class="pb-1 pr-3 md:pr-4 text-right font-medium">Pwr</th>
 									{/if}
 									{#if hasCadence}
 										<th class="pb-1 text-right font-medium">Cad</th>
@@ -188,19 +217,19 @@
 								{#each splits as split, i}
 									{@const cumDist = splits.slice(0, i).reduce((s, x) => s + x.distance_meters, 0)}
 									<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-										<td class="py-0.5 pr-3 md:pr-8 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
-										<td class="py-0.5 pr-3 md:pr-8 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-4 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
+										<td class="py-0.5 pr-3 md:pr-4 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
 										{#if trail}
-											<td class="py-0.5 pr-3 md:pr-8 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
 										{/if}
-										<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {hrZoneColor(split.avg_hr, hrZones)}">{split.avg_hr || '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {hrZoneColor(split.avg_hr, hrZones)}">{split.avg_hr || '-'}</td>
 										{#if hasElev}
 										{@const avgGrade = split.distance_meters > 0 ? (split.elevation_gain - split.elevation_loss) / split.distance_meters * 100 : 0}
-											<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain)}</td>
-											<td class="py-0.5 pr-3 md:pr-8 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss)}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain)}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss)}</td>
 										{/if}
 										{#if hasPower}
-											<td class="py-0.5 pr-3 md:pr-8 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
 										{/if}
 										{#if hasCadence}
 											<td class="py-0.5 num text-right text-text-secondary">{Math.round(split.avg_cadence) || '-'}</td>
@@ -211,6 +240,7 @@
 						</table>
 					</div>
 				{/if}
+
 			</div>
 		</div>
 	{/if}

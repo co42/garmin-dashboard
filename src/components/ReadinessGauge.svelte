@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
 	import type { Readiness } from '$lib/types.js';
 	import { C, readinessColor, readinessLabel } from '$lib/colors.js';
 	import { resolveReadiness } from '$lib/readiness.js';
@@ -15,8 +14,6 @@
 	const latest = $derived(readiness.latest ?? readiness.post_activity ?? readiness.morning);
 	const entry = $derived(latest ?? resolveReadiness(readiness));
 	const hasBoth = $derived(!!readiness.morning && !!readiness.post_activity);
-
-	let chartEl: HTMLDivElement;
 
 	const factorTips: Record<string, string> = {
 		HRV: 'Heart rate variability vs your personal baseline. Higher HRV = more recovered autonomic nervous system.',
@@ -36,66 +33,28 @@
 
 	const color = $derived(readinessColor(entry.score));
 
-	let _chart: any; let _ro: ResizeObserver;
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
-
-	onMount(async () => {
-		const echarts = await import('echarts');
-		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
-
-		_chart.setOption({
-			series: [{
-				type: 'gauge',
-				startAngle: 225,
-				endAngle: -45,
-				min: 0,
-				max: 100,
-				radius: '90%',
-				progress: { show: true, width: 12, roundCap: true, itemStyle: { color } },
-				pointer: { show: false },
-				axisLine: { lineStyle: { width: 12, color: [[1, C.cardBorder]] }, roundCap: true },
-				axisTick: { show: false },
-				splitLine: { show: false },
-				axisLabel: { show: false },
-				title: { show: false },
-				detail: {
-					valueAnimation: true, fontSize: 28, fontWeight: 'bold',
-					fontFamily: "'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace",
-					color: C.text, offsetCenter: [0, 0],
-					formatter: (v: number) => `${v}%`,
-				},
-				data: [{ value: entry.score }],
-			}],
-		});
-
-		_ro = new ResizeObserver(() => _chart.resize());
-		_ro.observe(chartEl);
-	});
-
 	function barColor(value: number): string {
 		return readinessColor(value);
 	}
 </script>
 
-<div class="rounded-lg bg-card p-3 md:p-4">
+<div class="rounded-lg bg-card p-3 md:p-4 h-full flex flex-col">
 	<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor\n\nComputed from HRV, sleep, recovery time, stress, and ACWR."}>
-		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Gauge size={14} weight="bold" /> Readiness</h2>
+		<h2 class="mb-3 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
+			<Gauge size={14} weight="bold" /> Readiness
+			<span class="ml-auto flex items-center gap-1.5">
+				<span class="num text-xs font-bold" style="color: {color}">{entry.score}%</span>
+				<span class="text-[10px] font-semibold" style="color: {color}">{readinessLabel(entry.score)}</span>
+				{#if hasBoth && readiness.morning}
+					<span class="text-[10px] text-text-dim font-normal">morning {readiness.morning.score}%</span>
+				{/if}
+			</span>
+		</h2>
 	</Tip>
 
-	<div class="flex items-center gap-3 md:gap-6">
-		<!-- Gauge -->
-		<div class="shrink-0">
-			<div bind:this={chartEl} class="h-[100px] w-[110px] md:h-[120px] md:w-[140px]"></div>
-			<div class="-mt-1 text-center text-xs text-text-secondary">
-				{readinessLabel(entry.score)}
-				{#if hasBoth && readiness.morning}
-					<span class="text-text-dim">· morning {readiness.morning.score}%</span>
-				{/if}
-			</div>
-		</div>
-
+	<div class="flex flex-col flex-1">
 		<!-- Factor bars -->
-		<div class="flex-1 space-y-2.5">
+		<div class="flex-1 flex flex-col justify-center space-y-2.5">
 			{#each factors as factor}
 				<div class="grid items-center gap-2" style="grid-template-columns: 52px 1fr 24px;">
 					<Tip text={factorTips[factor.label]}>

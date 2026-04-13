@@ -18,6 +18,8 @@ import type {
 	UserSettings,
 	Course,
 	CourseGeoPoint,
+	RacePredictions,
+	GearItem,
 } from './types.js';
 
 export interface SyncResult {
@@ -117,7 +119,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 	const db = getDb();
 
 	if (fullReset) {
-		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
+		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'daily_race_predictions', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
 			db.exec(`DELETE FROM ${table}`);
 		}
 	}
@@ -159,6 +161,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			stressHistory,
 			hillScoreHistory,
 			enduranceScoreHistory,
+			racePredictionHistory,
 			// Activities
 			activities,
 		] = await Promise.all([
@@ -183,9 +186,29 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			fetchDateRange<StressDay>(['health', 'stress'], fromDate, today),
 			fetchDateRange<HillScore>(['training', 'hill-score'], fromDate, today),
 			fetchDateRange<EnduranceScore>(['training', 'endurance-score'], fromDate, today),
+			fetchDateRange<RacePredictions>(['training', 'race-predictions'], fromDate, today),
 			// Activities
 			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running', '--after', activityAfter]),
 		]);
+
+		// Enrich gear with usage stats
+		interface GearListItem { uuid: string; display_name: string; brand: string; gear_type: string; max_distance_meters: number; date_begin: string | null; }
+		interface GearStats { uuid: string; total_activities: number; total_distance_meters: number; }
+		const enrichedGear: GearItem[] = await Promise.all(
+			(gear as GearListItem[]).map(async (g) => {
+				const stats = await garminSafe<GearStats>(['gear', 'stats', g.uuid], { uuid: g.uuid, total_activities: 0, total_distance_meters: 0 });
+				return {
+					uuid: g.uuid,
+					display_name: g.display_name,
+					brand: g.brand,
+					gear_type: g.gear_type,
+					distance_meters: stats.total_distance_meters,
+					max_distance_meters: g.max_distance_meters,
+					activities: stats.total_activities,
+					date_begin: g.date_begin,
+				};
+			})
+		);
 
 		// Phase 2: Store snapshots (always-fresh data)
 		const upsertSnapshot = db.prepare(
@@ -202,7 +225,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			if (stressSnapshot) upsertSnapshot.run('stress', JSON.stringify(stressSnapshot));
 			if (bodyBattery) upsertSnapshot.run('body_battery', JSON.stringify(bodyBattery));
 			upsertSnapshot.run('records', JSON.stringify(records));
-			upsertSnapshot.run('gear', JSON.stringify(gear));
+			upsertSnapshot.run('gear', JSON.stringify(enrichedGear));
 			if (hrZones.length > 0) upsertSnapshot.run('hr_zones', JSON.stringify(hrZones));
 			if (userSettings) upsertSnapshot.run('user_settings', JSON.stringify(userSettings));
 		});
@@ -221,6 +244,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		const stmtStress = upsertDaily('daily_stress');
 		const stmtHill = upsertDaily('daily_hill_score');
 		const stmtEndurance = upsertDaily('daily_endurance_score');
+		const stmtRacePred = upsertDaily('daily_race_predictions');
 
 		const timeseriesBatch = db.transaction(() => {
 			for (const s of statusHistory) {
@@ -245,6 +269,9 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			}
 			for (const es of enduranceScoreHistory) {
 				if (es.date && es.score != null) stmtEndurance.run(es.date, JSON.stringify(es));
+			}
+			for (const rp of racePredictionHistory) {
+				if (rp.date && rp.time_5k_seconds) stmtRacePred.run(rp.date, JSON.stringify(rp));
 			}
 		});
 		timeseriesBatch();

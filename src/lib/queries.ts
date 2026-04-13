@@ -77,6 +77,7 @@ export function loadDashboard(): DashboardData | null {
 	const stressHistory = loadDaily<StressDay>('daily_stress');
 	const hillScoreHistory = loadDaily<HillScore>('daily_hill_score');
 	const enduranceScoreHistory = loadDaily<EnduranceScore>('daily_endurance_score');
+	const racePredictionHistory = loadDaily<RacePredictions>('daily_race_predictions');
 
 	// Snapshots
 	const readiness = snapshot<Readiness>('readiness', {
@@ -202,6 +203,7 @@ export function loadDashboard(): DashboardData | null {
 		stressHistory,
 		hillScoreHistory,
 		enduranceScoreHistory,
+		racePredictionHistory,
 		activities,
 		recentSplits,
 		activityDetails,

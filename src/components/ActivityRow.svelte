@@ -116,13 +116,26 @@
 		return a.elevation_gain / (a.distance_meters / 1000) > 15;
 	}
 
-	function zoneData(a: Activity): { pcts: number[]; total: number } {
+	function zoneData(a: Activity): { pcts: number[]; times: number[]; total: number } {
 		const times = [
 			a.hr_time_in_zone_1 ?? 0, a.hr_time_in_zone_2 ?? 0,
 			a.hr_time_in_zone_3 ?? 0, a.hr_time_in_zone_4 ?? 0, a.hr_time_in_zone_5 ?? 0,
 		];
 		const total = times.reduce((s, v) => s + v, 0);
-		return { pcts: times.map(z => total > 0 ? z / total * 100 : 0), total };
+		return { pcts: times.map(z => total > 0 ? z / total * 100 : 0), times, total };
+	}
+
+	function zoneTooltipHtml(z: { pcts: number[]; times: number[]; total: number }): string {
+		let html = '<table style="border-spacing:8px 1px">';
+		for (let i = 0; i < 5; i++) {
+			if (z.times[i] <= 0) continue;
+			const m = Math.floor(z.times[i] / 60);
+			const s = Math.floor(z.times[i] % 60).toString().padStart(2, '0');
+			const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ZONE_COLORS[i]};margin-right:2px"></span>`;
+			html += `<tr><td>${dot}Z${i + 1}&nbsp;</td><td style="text-align:right"><b>${m}:${s}</b>&nbsp;</td><td style="text-align:right;color:${C.textDim}">${Math.round(z.pcts[i])}%</td></tr>`;
+		}
+		html += '</table>';
+		return html;
 	}
 
 	function weatherType(desc: string | undefined): 'sun' | 'cloud-sun' | 'cloud' | 'rain' | 'snow' | 'fog' | 'storm' | 'moon' {
@@ -268,7 +281,7 @@
 	</div>
 
 	<!-- Row 2: Metrics -->
-	<div class="flex flex-nowrap items-end gap-3 text-xs leading-none overflow-hidden">
+	<div class="flex flex-wrap items-end gap-x-3 gap-y-1.5 text-xs leading-none">
 		<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
 		<span class="num text-text-secondary shrink-0">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
 		{#if trail && activity.avg_grade_adjusted_speed}
@@ -284,9 +297,9 @@
 		{/if}
 
 		<!-- Right group: sparkline + load + zones -->
-		<span class="ml-auto flex items-end gap-3 shrink-0">
+		<span class="flex items-end gap-3 shrink-0 w-full sm:w-auto sm:ml-auto">
 			{#if sparkBars.length >= 2}
-				<div class="hidden md:flex items-end gap-px h-3" title="Pace per split">
+				<div class="flex items-end gap-px h-3" title="Pace per split">
 					{#each sparkBars as b}
 						{@const pct = 20 + ((b.pace - paceMin) / paceRange) * 80}
 						{@const w = Math.max(1, Math.round((b.dist / maxDist) * 6))}
@@ -312,8 +325,8 @@
 
 			{#if zones.total > 0}
 				{@const maxPct = arrMax(zones.pcts)}
-				<Tip text={zones.pcts.map((p, i) => `Z${i + 1}  ${Math.round(p)}%`).join('\n')} mono>
-					<div class="hidden sm:flex items-end gap-px h-4 w-16">
+				<Tip text="" html={zoneTooltipHtml(zones)}>
+					<div class="flex items-end gap-px h-4 w-16">
 						{#each zones.pcts as pct, i}
 							<div
 								class="flex-1 rounded-t-sm"
