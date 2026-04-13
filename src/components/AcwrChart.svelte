@@ -54,10 +54,12 @@
 			},
 			legend: {
 				data: [
-					{ name: 'ACWR', itemStyle: { color: C.blue } },
-					{ name: 'Acute', itemStyle: { color: C.amber } },
-					{ name: 'Chronic', itemStyle: { color: C.teal } },
+					{ name: 'ACWR', icon: 'roundRect', itemStyle: { color: C.blue } },
+					{ name: 'Acute', icon: 'roundRect', itemStyle: { color: C.amber } },
+					{ name: 'Chronic', icon: 'roundRect', itemStyle: { color: C.teal } },
 				],
+				itemWidth: 14,
+				itemHeight: 3,
 				top: 6,
 				textStyle: { color: C.textSecondary, fontSize: 11, fontFamily: MONO },
 			},

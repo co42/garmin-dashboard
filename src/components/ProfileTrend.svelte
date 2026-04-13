@@ -88,17 +88,20 @@
 		const data = computeData(mode);
 		const labels = data.map(d => d.label);
 
-		const makeSeries = (key: string, values: (number | null)[]) => ({
-			type: 'line' as const,
-			name: AXES[key].name,
-			data: values,
-			smooth: true,
-			symbol: 'circle',
-			symbolSize: mode === 'day' ? 3 : 4,
-			lineStyle: { width: 2, color: AXIS_COLORS[key] },
-			itemStyle: { color: AXIS_COLORS[key] },
-			connectNulls: false,
-		});
+		const makeSeries = (key: string, values: (number | null)[]) => {
+			const hidden = hiddenSeries.has(key);
+			return {
+				type: 'line' as const,
+				name: AXES[key].name,
+				data: hidden ? values.map(() => null) : values,
+				smooth: true,
+				symbol: 'circle',
+				symbolSize: mode === 'day' ? 3 : 4,
+				lineStyle: { width: 2, color: AXIS_COLORS[key] },
+				itemStyle: { color: AXIS_COLORS[key] },
+				connectNulls: false,
+			};
+		};
 
 		const normalizedMap: Record<string, (d: DataPoint) => number | null> = {
 			vo2max: d => d.vo2max,
@@ -181,6 +184,16 @@
 		_ro.observe(chartEl);
 	});
 
+	let hiddenSeries = $state(new Set<string>());
+
+	function toggleSeries(key: string) {
+		const next = new Set(hiddenSeries);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
+		hiddenSeries = next;
+		renderChart();
+	}
+
 	$effect(() => { mode; renderChart(); });
 </script>
 
@@ -204,10 +217,13 @@
 		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
 			{#each AXIS_ORDER as key}
 				<Tip text={AXES[key].tip}>
-					<span class="flex items-center gap-1 text-text-secondary">
+					<button
+						class="flex items-center gap-1 cursor-pointer transition-opacity {hiddenSeries.has(key) ? 'opacity-30' : 'text-text-secondary'}"
+						onclick={() => toggleSeries(key)}
+					>
 						<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{AXIS_COLORS[key]}"></span>
 						{AXES[key].name}
-					</span>
+					</button>
 				</Tip>
 			{/each}
 		</div>
