@@ -15,6 +15,9 @@
 	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
 	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 	import PauseCircle from 'phosphor-svelte/lib/PauseCircle';
+	import Timer from 'phosphor-svelte/lib/Timer';
+	import CrosshairSimple from 'phosphor-svelte/lib/CrosshairSimple';
+	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import Robot from 'phosphor-svelte/lib/Robot';
 
 	interface Props {
@@ -236,6 +239,16 @@
 		return parts.join(' · ');
 	}
 
+	function groupByDate(rows: Row[]): [string, Row[]][] {
+		const map = new Map<string, Row[]>();
+		for (const row of rows) {
+			const group = map.get(row.date);
+			if (group) group.push(row);
+			else map.set(row.date, [row]);
+		}
+		return [...map.entries()];
+	}
+
 	function activitySummary(a: Activity): string {
 		const parts: string[] = [];
 		if (a.distance_meters) parts.push(fmtDist(a.distance_meters));
@@ -313,11 +326,28 @@
 	</tbody></table>
 {/snippet}
 
+{#snippet dayHeader(date: string)}
+	{@const isToday = date === todayStr}
+	{@const isPast = date < todayStr}
+	{@const d = new Date(date + 'T12:00:00Z')}
+	{@const weekday = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' })}
+	{@const dayMonth = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+	<div class="flex items-center gap-1.5">
+		{#if isToday}
+			<span class="text-blue-400 leading-[0]"><CrosshairSimple size={12} weight="bold" /></span>
+		{:else if isPast}
+			<span class="text-text-dim leading-[0]"><CheckCircle size={12} weight="duotone" /></span>
+		{/if}
+		<span class="text-[11px] font-semibold uppercase tracking-wide {isToday ? 'text-blue-400' : 'text-text-dim'}">
+			{isToday ? 'Today' : weekday}
+		</span>
+		<span class="text-[10px] text-text-dim">{dayMonth}</span>
+	</div>
+{/snippet}
+
 {#snippet rowCard(row: Row)}
-	{@const isToday = row.date === todayStr}
 	{#if row.kind === 'done'}
-		<!-- Completed activity — shared row component (has its own padding) -->
-		<div class="rounded-lg bg-card {isToday ? 'ring-1 ring-blue-400/50' : ''}">
+		<div class="rounded-lg bg-card">
 			<ActivityRow
 				activity={row.activity}
 				splits={splits[row.activity.id]}
@@ -331,7 +361,7 @@
 	{:else if row.kind === 'event'}
 		{@const days = daysUntilDate(row.date)}
 		{@const linkedCourse = row.entry.course_id ? courseMap.get(row.entry.course_id) ?? null : null}
-		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
 			<div class="flex items-center gap-2.5 leading-5">
 				<span class="shrink-0 leading-[0] text-red-400"><FlagCheckered size={16} weight="bold" /></span>
 				<div class="min-w-0 flex-1 overflow-hidden">
@@ -353,14 +383,9 @@
 			</div>
 		</div>
 	{:else if row.kind === 'scheduled'}
-		<!-- Scheduled workout: collapsible -->
 		{@const entry = row.entry}
-		{@const hasDetails = entry.steps.length > 0 || entry.item_type === 'fbtAdaptiveWorkout'}
-		<div class="rounded-lg bg-card px-3 md:px-4 py-3 {isToday ? 'ring-1 ring-blue-400/50' : ''}">
-			<button
-				class="flex w-full items-center gap-2.5 leading-5 text-left {hasDetails ? 'cursor-pointer' : ''}"
-				onclick={() => hasDetails && toggle(entry.id)}
-			>
+		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
+			<div class="flex items-center gap-2.5 leading-5">
 				<span class="shrink-0 leading-[0] text-text-dim">
 					{#if entry.item_type === 'fbtAdaptiveWorkout'}
 						<Robot size={16} />
@@ -370,53 +395,29 @@
 						<Barbell size={16} />
 					{/if}
 				</span>
-				<div class="min-w-0 flex-1">
-					<div class="text-sm font-semibold text-text truncate">{entry.title}</div>
-				</div>
-				<span class="shrink-0 text-[10px] text-text-dim font-mono tabular-nums">{dateLabel(entry.date)}</span>
-				{#if hasDetails}
-					<span class="shrink-0 text-text-dim">
-						{#if expanded.has(entry.id)}
-							<CaretDown size={12} />
-						{:else}
-							<CaretRight size={12} />
-						{/if}
-					</span>
-				{/if}
-			</button>
-			{#if expanded.has(entry.id)}
-				{#if entry.item_type === 'fbtAdaptiveWorkout'}
-					<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary pl-[26px]">
-						{#if entry.workout_description}
-							<span class="font-medium text-text">{entry.workout_description}</span>
-						{/if}
-						{#if entry.estimated_distance_meters}
-							<span>{fmtDist(entry.estimated_distance_meters)}</span>
-						{/if}
-						{#if entry.estimated_duration_secs}
-							<span>{fmtDuration(entry.estimated_duration_secs)}</span>
-						{/if}
-						{#if entry.training_effect_label && entry.training_effect_label !== 'UNKNOWN' && entry.training_effect_label !== 'INVALID'}
-							<span class="capitalize">{entry.training_effect_label.toLowerCase().replace(/_/g, ' ')}</span>
-						{/if}
-					</div>
-				{:else if entry.steps.length > 0}
-					{#if isRunning(entry)}
-						{@render runningSteps(entry.steps)}
-					{:else}
-						{@render nonRunningSteps(entry.steps)}
+				<div class="font-medium text-sm text-text truncate min-w-0">{entry.title}</div>
+				<span class="shrink-0 flex items-center gap-2 text-xs num">
+					{#if entry.estimated_distance_meters}
+						<span class="text-text font-semibold">{fmtDist(entry.estimated_distance_meters)}</span>
 					{/if}
-				{/if}
-			{/if}
+					{#if entry.estimated_duration_secs}
+						<span class="text-text-secondary inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(entry.estimated_duration_secs)}</span>
+					{/if}
+					{#if entry.workout_description}
+						<span class="text-text-dim">{entry.workout_description}</span>
+					{:else if entry.steps.length > 0}
+						<span class="text-text-dim">{workoutSummary(entry.steps)}</span>
+					{/if}
+				</span>
+			</div>
 		</div>
 	{:else if row.kind === 'rest'}
-		<div class="rounded-lg bg-card px-3 md:px-4 py-3 opacity-40 {isToday ? 'ring-1 ring-blue-400/50 !opacity-60' : ''}">
+		<div class="rounded-lg bg-card px-3 md:px-4 py-3 opacity-40">
 			<div class="flex items-center gap-2.5 leading-5">
 				<span class="shrink-0 leading-[0] text-text-secondary"><PauseCircle size={16} /></span>
 				<div class="min-w-0 flex-1">
 					<div class="text-sm font-semibold text-text">Rest</div>
 				</div>
-				<span class="shrink-0 text-[10px] text-text-dim font-mono tabular-nums">{dateLabel(row.date)}</span>
 			</div>
 		</div>
 	{/if}
@@ -455,9 +456,16 @@
 			{#if isCurrentWeek}This Week{:else}{weekLabel(thisWeekStr)}{/if}
 		</h3>
 		{#if thisWeekRows.length > 0}
-			<div class="grid gap-3">
-				{#each thisWeekRows as row}
-					{@render rowCard(row)}
+			<div class="grid gap-4">
+				{#each groupByDate(thisWeekRows) as [date, rows]}
+					<div>
+						{@render dayHeader(date)}
+						<div class="grid gap-2 mt-1.5">
+							{#each rows as row}
+								{@render rowCard(row)}
+							{/each}
+						</div>
+					</div>
 				{/each}
 			</div>
 		{:else}
@@ -470,9 +478,16 @@
 			{#if isCurrentWeek}Next Week{:else}{weekLabel(nextWeekStr)}{/if}
 		</h3>
 		{#if nextWeekRows.length > 0}
-			<div class="grid gap-3">
-				{#each nextWeekRows as row}
-					{@render rowCard(row)}
+			<div class="grid gap-4">
+				{#each groupByDate(nextWeekRows) as [date, rows]}
+					<div>
+						{@render dayHeader(date)}
+						<div class="grid gap-2 mt-1.5">
+							{#each rows as row}
+								{@render rowCard(row)}
+							{/each}
+						</div>
+					</div>
 				{/each}
 			</div>
 		{:else}
