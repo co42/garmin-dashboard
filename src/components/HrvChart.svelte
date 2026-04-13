@@ -58,7 +58,7 @@
 		const hideBaseline = hiddenSeries.has('baseline');
 
 		_chart.setOption({
-			grid: { top: 8, right: 16, bottom: 30, left: 8 },
+			grid: { top: 8, right: 0, bottom: 30, left: 0 },
 			legend: { show: false },
 			tooltip: {
 				...CHART_TOOLTIP,
@@ -79,9 +79,9 @@
 				},
 			},
 			xAxis: {
-				type: 'category', data: dates,
+				type: 'category', data: dates, boundaryGap: false,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, interval: 6 },
+				axisLabel: { ...CHART_AXIS.axisLabel, interval: 6, showMinLabel: false, showMaxLabel: false },
 			},
 			yAxis: {
 				type: 'value',

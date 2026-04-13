@@ -95,8 +95,7 @@
 				name: AXES[key].name,
 				data: hidden ? values.map(() => null) : values,
 				smooth: true,
-				symbol: 'circle',
-				symbolSize: mode === 'day' ? 3 : 4,
+				symbol: 'none',
 				lineStyle: { width: 2, color: AXIS_COLORS[key] },
 				itemStyle: { color: AXIS_COLORS[key] },
 				connectNulls: false,
@@ -129,7 +128,7 @@
 		const maxNameLen = Math.max(...AXIS_ORDER.map(k => AXES[k].name.length));
 
 		_chart.setOption({
-			grid: { top: 8, right: 16, bottom: 30, left: 35 },
+			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
@@ -163,8 +162,9 @@
 			},
 			legend: { show: false },
 			xAxis: {
-				type: 'category', data: labels,
+				type: 'category', data: labels, boundaryGap: false,
 				...CHART_AXIS,
+				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false },
 			},
 			yAxis: {
 				type: 'value', min: 0, max: 100,

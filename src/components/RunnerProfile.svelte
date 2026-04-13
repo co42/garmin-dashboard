@@ -133,8 +133,8 @@
 					return { name: `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`, max: 100 };
 				}),
 				shape: 'polygon',
-				radius: '65%',
-				center: ['50%', '52%'],
+				radius: '72%',
+				center: ['50%', '58%'],
 				axisName: {
 					rich: {
 						val: { color: C.text, fontSize: 12, fontWeight: 'bold', fontFamily: MONO, align: 'center' },
