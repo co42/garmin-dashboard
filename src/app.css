@@ -46,3 +46,35 @@ body {
 .grid > * {
 	min-width: 0;
 }
+
+/* svelte-sonner theme overrides */
+[data-sonner-toaster][data-sonner-theme="dark"] {
+	--normal-bg: #13131a;
+	--normal-bg-hover: #1a1a24;
+	--normal-border: #1e1e2a;
+	--normal-border-hover: #2a2a3a;
+	--normal-text: #8888a0;
+	font-family: 'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast] [data-title] {
+	font-style: italic;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast] [data-description] {
+	color: #6a6a7e;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.02em;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast] [data-close-button] {
+	--normal-bg: #13131a;
+	--normal-border: #1e1e2a;
+	color: #6a6a7e;
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] [data-sonner-toast]:hover [data-close-button]:hover {
+	--normal-bg-hover: #1a1a24;
+	--normal-border-hover: #2a2a3a;
+	color: #e8e8ed;
+}

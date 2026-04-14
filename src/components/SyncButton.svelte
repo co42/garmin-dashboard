@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 	import { timeAgo } from '$lib/format.js';
+	import { randomSyncMessage } from '$lib/sync-messages.js';
 	import ArrowsClockwise from 'phosphor-svelte/lib/ArrowsClockwise';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import Skull from 'phosphor-svelte/lib/Skull';
@@ -11,23 +14,31 @@
 
 	let { lastSyncedAt }: Props = $props();
 	let syncing = $state(false);
-	let result = $state<{ status: string; duration_ms: number; counts?: any } | null>(null);
+	let error = $state(false);
 	let menuOpen = $state(false);
 	let containerEl = $state<HTMLDivElement>();
 
 	async function sync(full = false) {
 		menuOpen = false;
 		syncing = true;
-		result = null;
+		error = false;
 		try {
 			const url = full ? '/api/sync?full=1' : '/api/sync';
 			const res = await fetch(url, { method: 'POST' });
-			result = await res.json();
+			const result = await res.json();
 			if (result?.status === 'ok') {
-				setTimeout(() => window.location.reload(), 500);
+				const secs = (result.duration_ms / 1000).toFixed(1);
+				toast(randomSyncMessage(), {
+					description: `Synced in ${secs}s`,
+				});
+				await invalidateAll();
+			} else {
+				error = true;
+				toast.error('Sync failed');
 			}
-		} catch (err: any) {
-			result = { status: 'error', duration_ms: 0 };
+		} catch {
+			error = true;
+			toast.error('Sync failed');
 		} finally {
 			syncing = false;
 		}
@@ -103,9 +114,7 @@
 		{/if}
 	</div>
 
-	{#if result?.status === 'ok'}
-		<span class="num text-[10px] text-status-green">{(result.duration_ms / 1000).toFixed(1)}s</span>
-	{:else if result?.status === 'error'}
+	{#if error}
 		<span class="text-[10px] text-status-red">Failed</span>
 	{/if}
 
