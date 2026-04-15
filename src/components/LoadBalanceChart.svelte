@@ -26,7 +26,6 @@
 	};
 
 	const barTips: Record<string, string> = {
-		'Acute Load': 'Your 7-day training load vs Garmin\'s recommended range based on your fitness history.\nBelow = undertrained · In range = optimal · Above = overreaching.',
 		'Aero High': 'Load from tempo runs, threshold efforts, and hard aerobic sessions. Builds speed endurance and lactate clearance.',
 		'Aero Low': 'Load from easy runs, Z2 efforts, and recovery jogs. Builds your aerobic base — the foundation for everything else.',
 		'Anaerobic': 'Load from intervals, sprints, and VO2max sessions. Builds top-end speed and neuromuscular power.',
@@ -55,7 +54,7 @@
 		min: number;
 		max: number;
 		color: string;
-		segments: LoadSegments | null;
+		segments: LoadSegments;
 	}
 
 	const bars = $derived((): BarItem[] => {
@@ -63,24 +62,7 @@
 		const segHigh = segmentLoad(contribsHigh, targetDate, status.monthly_load_aerobic_high);
 		const segAnaerobic = segmentLoad(contribsAnaerobic, targetDate, status.monthly_load_anaerobic);
 
-		// Fall back to most recent non-null values from history when current status lacks them
-		const acuteMin = status.min_training_load_chronic
-			?? statusHistory.findLast(s => s.min_training_load_chronic != null)?.min_training_load_chronic
-			?? 0;
-		const acuteMax = status.max_training_load_chronic
-			?? statusHistory.findLast(s => s.max_training_load_chronic != null)?.max_training_load_chronic
-			?? 0;
-
 		return [
-			// Acute load target (simple bar, no segments)
-			...(acuteMin > 0 && acuteMax > 0 ? [{
-				label: 'Acute Load',
-				value: status.acute_load,
-				min: acuteMin,
-				max: acuteMax,
-				color: C.teal,
-				segments: null,
-			}] : []),
 			{
 				label: 'Aero Low',
 				value: status.monthly_load_aerobic_low,
@@ -127,11 +109,8 @@
 	}
 
 	function tooltipHtml(bar: BarItem): string {
-		if (bar.segments) {
-			const seg = bar.segments;
-			return `<b>${Math.round(bar.value)}</b> <span style="color:${C.textDim}">/ target ${bar.min}\u2013${bar.max}</span><table style="border-spacing:8px 2px;margin-top:4px"><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.9;margin-right:4px"></span>Recent&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.recent)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.55;margin-right:4px"></span>Middle&nbsp;</td><td style="color:${C.textDim}">14d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.middle)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.25;margin-right:4px"></span>Expiring&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.expiring)}</b></td></tr></table>`;
-		}
-		return `<table style="border-spacing:8px 1px"><tr><td style="color:${C.textDim}">Acute&nbsp;</td><td style="text-align:right"><b>${Math.round(bar.value)}</b></td></tr><tr><td style="color:${C.textDim}">Target&nbsp;</td><td style="text-align:right"><b>${Math.round(bar.min)}\u2013${Math.round(bar.max)}</b></td></tr><tr><td style="color:${C.textDim}">Chronic&nbsp;</td><td style="text-align:right"><b>${Math.round(status.chronic_load)}</b></td></tr></table>`;
+		const seg = bar.segments!;
+		return `<b>${Math.round(bar.value)}</b> <span style="color:${C.textDim}">/ target ${bar.min}\u2013${bar.max}</span><table style="border-spacing:8px 2px;margin-top:4px"><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.9;margin-right:4px"></span>Recent&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.recent)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.55;margin-right:4px"></span>Middle&nbsp;</td><td style="color:${C.textDim}">14d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.middle)}</b></td></tr><tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${bar.color};opacity:0.25;margin-right:4px"></span>Expiring&nbsp;</td><td style="color:${C.textDim}">7d&nbsp;</td><td style="text-align:right"><b>${Math.round(seg.expiring)}</b></td></tr></table>`;
 	}
 </script>
 
@@ -147,7 +126,6 @@
 			{@const max = scaleMax(bars())}
 			{@const zoneLeft = (bar.min / max) * 100}
 			{@const zoneWidth = ((bar.max - bar.min) / max) * 100}
-			{@const barW = Math.min((bar.value / max) * 100, 100)}
 			<tr>
 				<td class="pr-3 whitespace-nowrap align-middle">
 					<Tip text={barTips[bar.label]}>
@@ -157,8 +135,7 @@
 				<td class="w-full align-middle">
 					<Tip text="" html={tooltipHtml(bar)}>
 					<div class="relative h-5 rounded bg-card-border">
-						{#if bar.segments}
-							{@const seg = bar.segments}
+						{#each [bar.segments] as seg}
 							{@const recentW = Math.min((seg.recent / max) * 100, 100)}
 							{@const middleW = Math.min((seg.middle / max) * 100, 100)}
 							{@const expiringW = Math.min((seg.expiring / max) * 100, 100)}
@@ -171,9 +148,7 @@
 							{#if expiringW > 0}
 								<div class="absolute top-0 h-full transition-all" style="left: {recentW + middleW}%; width: {expiringW}%; background: {bar.color}; opacity: 0.25; border-radius: {recentW + middleW <= 0 ? '4px' : '0 4px 4px 0'};"></div>
 							{/if}
-						{:else}
-							<div class="absolute left-0 top-0 h-full rounded-l transition-all" style="width: {barW}%; background: {bar.color}; opacity: 0.7; {barW >= 100 ? 'border-radius: 4px;' : 'border-radius: 4px 0 0 4px;'}"></div>
-						{/if}
+						{/each}
 						<div class="absolute top-0 z-10 h-full rounded-sm border-2 border-white/50" style="left: {zoneLeft}%; width: {zoneWidth}%;"></div>
 					</div>
 					</Tip>
