@@ -176,7 +176,7 @@
 			{/each}
 			{#if lactateHr}
 				<Tip text={"Lactate Threshold heart rate.\nAbove LT = anaerobic, time-limited.\nBelow LT = aerobic, sustainable."}>
-					<span class="num text-text-dim"><span class="font-semibold" style="color: {C.red}">LT</span> {lactateHr}{#if lactatePace} {lactatePace}/km{/if}</span>
+					<span class="num text-text-dim"><span class="font-semibold" style="color: {C.red}">LT</span> {lactateHr}{#if lactatePace}&nbsp;{lactatePace}/km{/if}</span>
 				</Tip>
 			{/if}
 		</div>

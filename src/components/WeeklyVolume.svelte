@@ -167,7 +167,7 @@
 			xAxis: {
 				type: 'category', data: labels,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, rotate: 30 },
+				axisLabel: { ...CHART_AXIS.axisLabel },
 			},
 			yAxis: {
 				type: 'value',

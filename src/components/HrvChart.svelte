@@ -56,6 +56,7 @@
 		const hideNight = hiddenSeries.has('lastNight');
 		const hideWeekly = hiddenSeries.has('weeklyAvg');
 		const hideBaseline = hiddenSeries.has('baseline');
+		const nil = hrv.map(() => null);
 
 		_chart.setOption({
 			grid: { top: 8, right: 0, bottom: 30, left: 0 },
@@ -81,7 +82,7 @@
 			xAxis: {
 				type: 'category', data: dates, boundaryGap: false,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, interval: 6, showMinLabel: false, showMaxLabel: false },
+				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false },
 			},
 			yAxis: {
 				type: 'value',
@@ -92,23 +93,29 @@
 			},
 			series: [
 				{
-					type: 'line', name: 'Baseline', data: hideBaseline ? corridorHigh.map(() => null) : corridorHigh, smooth: true, symbol: 'none',
+					type: 'line', name: '_bandMin', data: hideBaseline ? nil : corridorLow,
+					stack: 'band', smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
+					itemStyle: { color: 'transparent' },
+					areaStyle: { color: 'transparent' },
 					z: 1,
 				},
 				{
-					type: 'line', name: 'Baseline', data: hideBaseline ? corridorLow.map(() => null) : corridorLow, smooth: true, symbol: 'none',
+					type: 'line', name: '_bandMax', data: hideBaseline ? nil : corridorHigh.map((v, i) => v - corridorLow[i]),
+					stack: 'band', smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
+					itemStyle: { color: 'transparent' },
+					areaStyle: { color: C.green + '18' },
 					z: 1,
 				},
 				{
-					type: 'line', name: 'Weekly avg', data: hideWeekly ? weeklyValues.map(() => null) : weeklyValues, smooth: true, symbol: 'none',
-					lineStyle: { width: 2.5, color: C.blue },
+					type: 'line', name: 'Weekly avg', data: hideWeekly ? nil : weeklyValues, smooth: true, symbol: 'none',
+					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
 					z: 3,
 				},
 				{
-					type: 'line', name: 'Last night', data: hideNight ? lastNightValues.map(() => null) : lastNightValues, smooth: true, symbol: 'none',
+					type: 'line', name: 'Last night', data: hideNight ? nil : lastNightValues, smooth: true, symbol: 'none',
 					lineStyle: { width: 1.5, color: C.amber + '80' },
 					itemStyle: { color: C.amber },
 					z: 2,

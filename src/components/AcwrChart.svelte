@@ -16,6 +16,30 @@
 	const ACWR_MIN = 0.8;
 	const ACWR_MAX = 1.3;
 
+	const LEGEND_KEYS = ['acute', 'chronic', 'optimal'] as const;
+	type LegendKey = typeof LEGEND_KEYS[number];
+
+	const LEGEND_META: Record<LegendKey, { name: string; color: string; opacity?: number; tip: string; modes: ('values' | 'ratio')[] }> = {
+		acute:   { name: 'Acute',   color: C.blue,  tip: '7-day training load (short-term stress)',   modes: ['values'] },
+		chronic: { name: 'Chronic', color: C.teal,   opacity: 0.4, tip: '28-day training load (fitness baseline)', modes: ['values'] },
+		optimal: { name: 'Optimal', color: C.green,  tip: 'Optimal acute range — ACWR 0.8–1.3',       modes: ['values', 'ratio'] },
+	};
+
+	// In ratio mode, show ACWR instead of acute/chronic
+	const RATIO_LEGEND: { name: string; color: string; tip: string } = {
+		name: 'ACWR', color: C.blue, tip: 'Acute / Chronic ratio',
+	};
+
+	let hiddenSeries = $state(new Set<LegendKey>());
+
+	function toggleSeries(key: LegendKey) {
+		const next = new Set(hiddenSeries);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
+		hiddenSeries = next;
+		renderChart();
+	}
+
 	let _chart: any; let _ro: ResizeObserver;
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
@@ -34,6 +58,9 @@
 		const acwrValues = history.map(d => d.chronic_load > 0 ? +(d.acute_load / d.chronic_load).toFixed(2) : null);
 		const bandMin = history.map(() => ACWR_MIN);
 		const bandMax = history.map(() => ACWR_MAX);
+		const hideAcwr = hiddenSeries.has('acute');
+		const hideOptimal = hiddenSeries.has('optimal');
+		const nil = history.map(() => null);
 
 		_chart.setOption({
 			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
@@ -65,7 +92,7 @@
 			},
 			series: [
 				{
-					type: 'line', data: bandMin, name: '_bandMin',
+					type: 'line', data: hideOptimal ? nil : bandMin, name: '_bandMin',
 					stack: 'band', smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					itemStyle: { color: 'transparent' },
@@ -73,7 +100,7 @@
 					z: 1,
 				},
 				{
-					type: 'line', data: bandMax.map((v, i) => +(v - bandMin[i]).toFixed(2)), name: '_bandMax',
+					type: 'line', data: hideOptimal ? nil : bandMax.map((v, i) => +(v - bandMin[i]).toFixed(2)), name: '_bandMax',
 					stack: 'band', smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					itemStyle: { color: 'transparent' },
@@ -81,7 +108,7 @@
 					z: 1,
 				},
 				{
-					type: 'line', data: acwrValues, name: 'ACWR',
+					type: 'line', data: hideAcwr ? nil : acwrValues, name: 'ACWR',
 					smooth: true, symbol: 'none',
 					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
@@ -98,6 +125,11 @@
 		// Optimal band: acute should be between chronic * 0.8 and chronic * 1.3
 		const bandMin = history.map(d => Math.round(d.chronic_load * ACWR_MIN));
 		const bandMax = history.map(d => Math.round(d.chronic_load * ACWR_MAX));
+
+		const hideAcute = hiddenSeries.has('acute');
+		const hideChronic = hiddenSeries.has('chronic');
+		const hideOptimal = hiddenSeries.has('optimal');
+		const nil = history.map(() => null);
 
 		_chart.setOption({
 			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
@@ -127,7 +159,7 @@
 			},
 			series: [
 				{
-					type: 'line', data: bandMin, name: '_bandMin',
+					type: 'line', data: hideOptimal ? nil : bandMin, name: '_bandMin',
 					stack: 'band', smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					itemStyle: { color: 'transparent' },
@@ -135,7 +167,7 @@
 					z: 1,
 				},
 				{
-					type: 'line', data: bandMax.map((v, i) => v - bandMin[i]), name: '_bandMax',
+					type: 'line', data: hideOptimal ? nil : bandMax.map((v, i) => v - bandMin[i]), name: '_bandMax',
 					stack: 'band', smooth: true, symbol: 'none',
 					lineStyle: { width: 1, type: 'dashed', color: C.green + '60' },
 					itemStyle: { color: 'transparent' },
@@ -143,14 +175,14 @@
 					z: 1,
 				},
 				{
-					type: 'line', data: chronicValues, name: 'Chronic',
+					type: 'line', data: hideChronic ? nil : chronicValues, name: 'Chronic',
 					smooth: true, symbol: 'none',
 					lineStyle: { width: 1.5, color: C.teal + '40' },
 					itemStyle: { color: C.teal },
 					z: 2,
 				},
 				{
-					type: 'line', data: acuteValues, name: 'Acute',
+					type: 'line', data: hideAcute ? nil : acuteValues, name: 'Acute',
 					smooth: true, symbol: 'none',
 					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
@@ -188,26 +220,39 @@
 				>Ratio</button>
 			</div>
 		</div>
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+		<div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
 			{#if mode === 'ratio'}
-				<span class="flex items-center gap-1 text-text-secondary">
-					<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{C.blue}"></span>
-					ACWR
-				</span>
+				<Tip text={RATIO_LEGEND.tip}>
+					<button
+						class="flex items-center gap-1 cursor-pointer transition-opacity {hiddenSeries.has('acute') ? 'opacity-30' : 'text-text-secondary'}"
+						onclick={() => toggleSeries('acute')}
+					>
+						<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{RATIO_LEGEND.color}"></span>
+						{RATIO_LEGEND.name}
+					</button>
+				</Tip>
 			{:else}
-				<span class="flex items-center gap-1 text-text-secondary">
-					<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{C.blue}"></span>
-					Acute
-				</span>
-				<span class="flex items-center gap-1 text-text-dim">
-					<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{C.teal}; opacity:0.4"></span>
-					Chronic
-				</span>
+				{#each LEGEND_KEYS.filter(k => LEGEND_META[k].modes.includes('values') && k !== 'optimal') as key}
+					<Tip text={LEGEND_META[key].tip}>
+						<button
+							class="flex items-center gap-1 cursor-pointer transition-opacity {hiddenSeries.has(key) ? 'opacity-30' : 'text-text-secondary'}"
+							onclick={() => toggleSeries(key)}
+						>
+							<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{LEGEND_META[key].color}{LEGEND_META[key].opacity ? `; opacity:${LEGEND_META[key].opacity}` : ''}"></span>
+							{LEGEND_META[key].name}
+						</button>
+					</Tip>
+				{/each}
 			{/if}
-			<span class="flex items-center gap-1 text-text-dim">
-				<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{C.green}"></span>
-				Optimal
-			</span>
+			<Tip text={LEGEND_META.optimal.tip}>
+				<button
+					class="flex items-center gap-1 cursor-pointer transition-opacity {hiddenSeries.has('optimal') ? 'opacity-30' : 'text-text-secondary'}"
+					onclick={() => toggleSeries('optimal')}
+				>
+					<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{LEGEND_META.optimal.color}"></span>
+					{LEGEND_META.optimal.name}
+				</button>
+			</Tip>
 		</div>
 	</div>
 	<div bind:this={chartEl} class="flex-1 min-h-[160px] w-full"></div>
