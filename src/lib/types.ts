@@ -362,6 +362,7 @@ export interface CalendarEntry {
 	title: string;
 	date: string;
 	workout_id: number | null;
+	workout_uuid: string | null;
 	course_id: number | null;
 	is_race: boolean;
 	url: string | null;
@@ -371,6 +372,9 @@ export interface CalendarEntry {
 	estimated_distance_meters: number | null;
 	estimated_duration_secs: number | null;
 	training_effect_label: string | null;
+	workout_phrase: string | null;
+	estimated_training_effect: number | null;
+	estimated_anaerobic_training_effect: number | null;
 }
 
 // --- Dashboard aggregate ---

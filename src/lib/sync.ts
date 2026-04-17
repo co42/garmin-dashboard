@@ -478,7 +478,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		}
 		const rawEventMap = new Map<number, { courseId: number | null; isRace: boolean; url: string | null }>();
 		const adaptivePlanIds = new Set<number>();
-		const adaptiveUuidMap = new Map<number, { trainingPlanId: number; workoutUuid: string; sportTypeKey: string | null }>();
+		const adaptiveUuidMap = new Map<string, { trainingPlanId: number; workoutUuid: string; sportTypeKey: string | null }>();
 		for (const ym of rawCalMonths) {
 			const [y, m] = ym.split('/');
 			const raw = await garminSafe<any>(['api', `/calendar-service/year/${y}/month/${m}`], null);
@@ -492,7 +492,9 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 						});
 					} else if (item.itemType === 'fbtAdaptiveWorkout' && item.trainingPlanId && item.workoutUuid) {
 						adaptivePlanIds.add(item.trainingPlanId);
-						adaptiveUuidMap.set(item.id, {
+						// Key by id|title — coach workouts on the same day share the same id
+						const key = `${item.id}|${item.title ?? ''}`;
+						adaptiveUuidMap.set(key, {
 							trainingPlanId: item.trainingPlanId,
 							workoutUuid: item.workoutUuid,
 							sportTypeKey: item.sportTypeKey ?? null,
@@ -523,12 +525,37 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			}
 		}
 
+		// Fetch coach workout details (workoutPhrase, predicted TE)
+		type CoachDetail = { workoutPhrase: string | null; estimatedTrainingEffect: number | null; estimatedAnaerobicTrainingEffect: number | null; steps: WorkoutStep[] };
+		const coachDetailMap = new Map<string, CoachDetail>();
+		if (adaptiveUuidMap.size > 0) {
+			const coachWorkouts = await garminSafe<any[]>(['api', '/workout-service/fbt-adaptive'], []);
+			if (Array.isArray(coachWorkouts)) {
+				for (const cw of coachWorkouts) {
+					const uuid = cw.workoutUuid;
+					if (uuid) {
+						coachDetailMap.set(uuid, {
+							workoutPhrase: cw.workoutPhrase ?? null,
+							estimatedTrainingEffect: cw.estimatedTrainingEffect ?? null,
+							estimatedAnaerobicTrainingEffect: cw.estimatedAnaerobicTrainingEffect ?? null,
+							steps: parseWorkoutSteps(cw),
+						});
+					}
+				}
+			}
+		}
+
 		for (const ci of calendarItems) {
 			if (!ci.title || !ci.date) continue;
 			const raw = ci.workout_id != null ? workoutRawMap.get(ci.workout_id) : null;
 			const eventData = rawEventMap.get(ci.id);
-			const adaptiveInfo = adaptiveUuidMap.get(ci.id);
+			const adaptiveInfo = adaptiveUuidMap.get(`${ci.id}|${ci.title ?? ''}`);
 			const adaptiveTask = adaptiveInfo ? adaptiveTaskMap.get(adaptiveInfo.workoutUuid) : null;
+			const coachDetail = adaptiveInfo ? coachDetailMap.get(adaptiveInfo.workoutUuid) : null;
+			// Coach workouts: prefer steps from fbt-adaptive API (has instruction targets), fall back to workout-service
+			const steps = coachDetail?.steps?.length
+				? coachDetail.steps
+				: ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [];
 			calendarEntries.push({
 				id: ci.id,
 				item_type: ci.item_type,
@@ -536,14 +563,18 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				title: ci.title,
 				date: ci.date,
 				workout_id: ci.workout_id,
+				workout_uuid: adaptiveInfo?.workoutUuid ?? null,
 				course_id: eventData?.courseId ?? null,
 				is_race: eventData?.isRace ?? false,
 				url: eventData?.url ?? null,
-				steps: ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [],
+				steps,
 				workout_description: adaptiveTask?.workoutDescription ?? null,
-				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? null,
-				estimated_duration_secs: adaptiveTask?.estimatedDurationInSecs ?? null,
+				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? raw?.estimatedDistanceInMeters ?? null,
+				estimated_duration_secs: adaptiveTask?.estimatedDurationInSecs ?? raw?.estimatedDurationInSecs ?? null,
 				training_effect_label: adaptiveTask?.trainingEffectLabel ?? null,
+				workout_phrase: coachDetail?.workoutPhrase ?? null,
+				estimated_training_effect: coachDetail?.estimatedTrainingEffect ?? null,
+				estimated_anaerobic_training_effect: coachDetail?.estimatedAnaerobicTrainingEffect ?? null,
 			});
 		}
 

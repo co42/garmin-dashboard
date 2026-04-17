@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { CalendarEntry, WorkoutStep, Activity, ActivitySplit, ActivityWeather, HrZone, Course } from '$lib/types.js';
 	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
-	import { computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
+	import { C, computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
 	import { formatDistance } from '$lib/format.js';
 	import ActivityRow from './ActivityRow.svelte';
+	import Tip from './Tip.svelte';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
 	import FlagCheckered from 'phosphor-svelte/lib/FlagCheckered';
@@ -134,12 +135,16 @@
 
 	// ── Expand/collapse ─────────────────────────────────────────────────────
 
-	let expanded = $state(new Set<number>());
+	let expanded = $state(new Set<string>());
 
-	function toggle(id: number) {
+	function entryKey(entry: CalendarEntry): string {
+		return entry.workout_uuid ?? String(entry.id);
+	}
+
+	function toggle(key: string) {
 		const next = new Set(expanded);
-		if (next.has(id)) next.delete(id);
-		else next.add(id);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
 		expanded = next;
 	}
 
@@ -192,12 +197,33 @@
 		return '';
 	}
 
+	const INSTRUCTION_LABELS: Record<number, string> = {
+		1: 'easy', 2: 'moderate', 3: 'hard', 4: 'very hard', 5: 'max effort',
+		6: 'warm up', 7: 'cool down', 8: 'recovery', 9: 'tempo',
+		10: 'steady', 11: 'race pace', 12: 'all out',
+	};
+
 	function stepTarget(s: WorkoutStep): string {
 		if (s.target_type === 'pace.zone' && s.target_value_one != null && s.target_value_two != null) {
-			return `${fmtPace(s.target_value_one)}–${fmtPace(s.target_value_two)}`;
+			const [fast, slow] = s.target_value_one > s.target_value_two
+				? [s.target_value_one, s.target_value_two]
+				: [s.target_value_two, s.target_value_one];
+			return `${fmtPace(fast)}–${fmtPace(slow)}`;
 		}
 		if (s.target_type === 'heart.rate.zone' && s.target_value_one != null && s.target_value_two != null) {
-			return s.target_value_one === s.target_value_two ? `${s.target_value_one} bpm` : `${s.target_value_one}–${s.target_value_two} bpm`;
+			const [lo, hi] = s.target_value_one < s.target_value_two
+				? [s.target_value_one, s.target_value_two]
+				: [s.target_value_two, s.target_value_one];
+			return lo === hi ? `${lo} bpm` : `${lo}–${hi} bpm`;
+		}
+		if (s.target_type === 'instruction' && s.target_value_one != null) {
+			return INSTRUCTION_LABELS[s.target_value_one] ?? '';
+		}
+		if (s.target_type === 'power.zone' && s.target_value_one != null && s.target_value_two != null) {
+			const [lo, hi] = s.target_value_one < s.target_value_two
+				? [s.target_value_one, s.target_value_two]
+				: [s.target_value_two, s.target_value_one];
+			return `${Math.round(lo)}–${Math.round(hi)} W`;
 		}
 		return '';
 	}
@@ -216,7 +242,28 @@
 	};
 	function stepLabel(key: string): string { return STEP_LABELS[key] ?? key; }
 
-	function workoutSummary(steps: WorkoutStep[]): string {
+	const PHRASE_BADGE: Record<string, { code: string; name: string; color: string }> = {
+		BASE: { code: 'AB', name: 'Aerobic Base', color: C.cyan },
+		LONG_WORKOUT: { code: 'LR', name: 'Long Run', color: C.cyan },
+		ANAEROBIC_SPEED: { code: 'SP', name: 'Speed', color: C.purple },
+		FORCED_REST: { code: 'RS', name: 'Rest', color: C.textDim },
+		RUNNING_HISTORY_SHORTENED_BASE: { code: 'AB', name: 'Aerobic Base', color: C.cyan },
+		UNKNOWN: { code: 'TR', name: 'Training', color: C.textDim },
+	};
+	function phraseBadge(phrase: string | null): { code: string; name: string; color: string } | null {
+		if (!phrase) return null;
+		if (phrase.startsWith('STRENGTH_')) return { code: 'ST', name: 'Strength', color: C.purple };
+		return PHRASE_BADGE[phrase] ?? { code: 'TR', name: phrase.charAt(0) + phrase.slice(1).toLowerCase().replace(/_/g, ' '), color: C.textDim };
+	}
+
+	function teValueColor(te: number): string {
+		if (te >= 4.0) return C.purple;
+		if (te >= 3.0) return C.orange;
+		if (te >= 1.0) return C.cyan;
+		return C.textDim;
+	}
+
+	function stepsEstimates(steps: WorkoutStep[]): { dist: number; time: number; count: number } {
 		let totalDist = 0;
 		let totalTime = 0;
 		let stepCount = 0;
@@ -232,11 +279,7 @@
 			}
 		}
 		walk(steps, 1);
-		const parts: string[] = [];
-		if (totalDist > 0) parts.push(fmtDist(totalDist));
-		if (totalTime > 0) parts.push(fmtTime(totalTime));
-		parts.push(`${stepCount} steps`);
-		return parts.join(' · ');
+		return { dist: totalDist, time: totalTime, count: stepCount };
 	}
 
 	function groupByDate(rows: Row[]): [string, Row[]][] {
@@ -385,35 +428,50 @@
 	{:else if row.kind === 'scheduled'}
 		{@const entry = row.entry}
 		{@const hasSteps = entry.steps.length > 0}
-		{@const isExpanded = expanded.has(entry.id)}
+		{@const key = entryKey(entry)}
+		{@const isExpanded = expanded.has(key)}
+		{@const badge = phraseBadge(entry.workout_phrase)}
+		{@const aeroTE = entry.estimated_training_effect}
+		{@const anaeroTE = entry.estimated_anaerobic_training_effect}
+		{@const est = hasSteps ? stepsEstimates(entry.steps) : null}
+		{@const distM = entry.estimated_distance_meters ?? (est && est.dist > 0 ? est.dist : null)}
+		{@const durS = entry.estimated_duration_secs ?? (est && est.time > 0 ? est.time : null)}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
 			<button
 				class="w-full text-left {hasSteps ? 'cursor-pointer' : 'cursor-default'}"
-				onclick={() => hasSteps && toggle(entry.id)}
+				onclick={() => hasSteps && toggle(key)}
 				disabled={!hasSteps}
 			>
 				<div class="flex items-center gap-2.5 leading-5">
-					<span class="shrink-0 leading-[0] text-text-dim">
+					<span class="shrink-0 leading-[0]" style="color: {badge?.color ?? C.textDim}">
 						{#if entry.item_type === 'fbtAdaptiveWorkout'}
-							<Robot size={16} />
+							<Robot size={16} weight="bold" />
 						{:else if isRunning(entry)}
-							<PersonSimpleRun size={16} />
+							<PersonSimpleRun size={16} weight="bold" />
 						{:else}
-							<Barbell size={16} />
+							<Barbell size={16} weight="bold" />
 						{/if}
 					</span>
-					<div class="font-medium text-sm text-text truncate min-w-0 flex-1">{entry.title}</div>
+					{#if badge}
+						<span class="shrink-0 num text-[10px] font-bold leading-[0] -ml-1" style="color: {badge.color}">
+							<Tip text={badge.name}>{badge.code}</Tip>
+						</span>
+					{/if}
+					<div class="min-w-0 flex-1">
+						<span class="font-medium text-sm text-text">{entry.title}</span>
+					</div>
 					<span class="shrink-0 flex items-center gap-2 text-xs num ml-auto">
-						{#if entry.estimated_distance_meters}
-							<span class="text-text font-semibold">{fmtDist(entry.estimated_distance_meters)}</span>
+						{#if distM}
+							<span class="text-text font-semibold">{fmtDist(distM)}</span>
 						{/if}
-						{#if entry.estimated_duration_secs}
-							<span class="text-text-secondary inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(entry.estimated_duration_secs)}</span>
+						{#if durS}
+							<span class="text-text-secondary inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(durS)}</span>
 						{/if}
-						{#if entry.workout_description}
+						{#if aeroTE != null || anaeroTE != null}
+							<span class="num font-semibold leading-none" style="color: {teValueColor(aeroTE ?? 0)}">{(aeroTE ?? 0).toFixed(1)}</span>
+							<span class="num font-semibold leading-none" style="color: {teValueColor(anaeroTE ?? 0)}">{(anaeroTE ?? 0).toFixed(1)}</span>
+						{:else if entry.workout_description}
 							<span class="text-text-dim">{entry.workout_description}</span>
-						{:else if hasSteps}
-							<span class="text-text-dim">{workoutSummary(entry.steps)}</span>
 						{/if}
 					</span>
 					{#if hasSteps}
