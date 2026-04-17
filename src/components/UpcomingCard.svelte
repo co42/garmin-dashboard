@@ -384,32 +384,52 @@
 		</div>
 	{:else if row.kind === 'scheduled'}
 		{@const entry = row.entry}
+		{@const hasSteps = entry.steps.length > 0}
+		{@const isExpanded = expanded.has(entry.id)}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
-			<div class="flex items-center gap-2.5 leading-5">
-				<span class="shrink-0 leading-[0] text-text-dim">
-					{#if entry.item_type === 'fbtAdaptiveWorkout'}
-						<Robot size={16} />
-					{:else if isRunning(entry)}
-						<PersonSimpleRun size={16} />
-					{:else}
-						<Barbell size={16} />
+			<button
+				class="w-full text-left {hasSteps ? 'cursor-pointer' : 'cursor-default'}"
+				onclick={() => hasSteps && toggle(entry.id)}
+				disabled={!hasSteps}
+			>
+				<div class="flex items-center gap-2.5 leading-5">
+					<span class="shrink-0 leading-[0] text-text-dim">
+						{#if entry.item_type === 'fbtAdaptiveWorkout'}
+							<Robot size={16} />
+						{:else if isRunning(entry)}
+							<PersonSimpleRun size={16} />
+						{:else}
+							<Barbell size={16} />
+						{/if}
+					</span>
+					<div class="font-medium text-sm text-text truncate min-w-0 flex-1">{entry.title}</div>
+					<span class="shrink-0 flex items-center gap-2 text-xs num ml-auto">
+						{#if entry.estimated_distance_meters}
+							<span class="text-text font-semibold">{fmtDist(entry.estimated_distance_meters)}</span>
+						{/if}
+						{#if entry.estimated_duration_secs}
+							<span class="text-text-secondary inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(entry.estimated_duration_secs)}</span>
+						{/if}
+						{#if entry.workout_description}
+							<span class="text-text-dim">{entry.workout_description}</span>
+						{:else if hasSteps}
+							<span class="text-text-dim">{workoutSummary(entry.steps)}</span>
+						{/if}
+					</span>
+					{#if hasSteps}
+						<span class="shrink-0 leading-[0] text-text-dim transition-transform {isExpanded ? 'rotate-180' : ''}">
+							<CaretDown size={12} weight="bold" />
+						</span>
 					{/if}
-				</span>
-				<div class="font-medium text-sm text-text truncate min-w-0 flex-1">{entry.title}</div>
-				<span class="shrink-0 flex items-center gap-2 text-xs num ml-auto">
-					{#if entry.estimated_distance_meters}
-						<span class="text-text font-semibold">{fmtDist(entry.estimated_distance_meters)}</span>
-					{/if}
-					{#if entry.estimated_duration_secs}
-						<span class="text-text-secondary inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(entry.estimated_duration_secs)}</span>
-					{/if}
-					{#if entry.workout_description}
-						<span class="text-text-dim">{entry.workout_description}</span>
-					{:else if entry.steps.length > 0}
-						<span class="text-text-dim">{workoutSummary(entry.steps)}</span>
-					{/if}
-				</span>
-			</div>
+				</div>
+			</button>
+			{#if isExpanded && hasSteps}
+				{#if isRunning(entry)}
+					{@render runningSteps(entry.steps)}
+				{:else}
+					{@render nonRunningSteps(entry.steps)}
+				{/if}
+			{/if}
 		</div>
 	{:else if row.kind === 'rest'}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3 opacity-40">
