@@ -10,7 +10,7 @@
 
 	let { gear }: Props = $props();
 
-	const shoes = $derived(gear.filter(g => g.gear_type === 'Shoes'));
+	const shoes = $derived(gear.filter(g => g.gear_type === 'Shoes' && g.status !== 'retired'));
 
 	function km(meters: number): number {
 		return Math.round(meters / 1000);

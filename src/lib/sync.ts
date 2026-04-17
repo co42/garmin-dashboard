@@ -192,7 +192,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		]);
 
 		// Enrich gear with usage stats
-		interface GearListItem { uuid: string; display_name: string; brand: string; gear_type: string; max_distance_meters: number; date_begin: string | null; }
+		interface GearListItem { uuid: string; display_name: string; brand: string; gear_type: string; max_distance_meters: number; date_begin: string | null; status: string | null; }
 		interface GearStats { uuid: string; total_activities: number; total_distance_meters: number; }
 		const enrichedGear: GearItem[] = await Promise.all(
 			(gear as GearListItem[]).map(async (g) => {
@@ -206,6 +206,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 					max_distance_meters: g.max_distance_meters,
 					activities: stats.total_activities,
 					date_begin: g.date_begin,
+					status: g.status ?? null,
 				};
 			})
 		);

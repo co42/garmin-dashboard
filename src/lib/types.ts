@@ -307,6 +307,7 @@ export interface GearItem {
 	max_distance_meters: number;
 	activities: number;
 	date_begin: string | null;
+	status: string | null;
 }
 
 // --- Courses ---
