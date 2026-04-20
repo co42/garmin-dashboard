@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { HillScore, DailyTrainingStatus, EnduranceScore } from '$lib/types.js';
 	import { AXES, RADAR_AXIS_ORDER, AXIS_COLORS, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
-	import { C, CHART_TOOLTIP, MONO } from '$lib/colors.js';
+	import { C, MONO } from '$lib/colors.js';
 	import ChartPolar from 'phosphor-svelte/lib/ChartPolar';
 
 	interface Props {
@@ -50,7 +50,7 @@
 		for (const key of RADAR_AXIS_ORDER) { peaks[key] = 0; rawPeaks[key] = -Infinity; }
 
 		for (const s of statusHistory) {
-			const v = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
+			const v = s.vo2max;
 			if (normalize('vo2max', v) >= peaks.vo2max) { peaks.vo2max = normalize('vo2max', v); rawPeaks.vo2max = v; }
 			const bal = rolling30dBalance(fullStatusHistory, s.date);
 			if (bal >= peaks.balance) { peaks.balance = bal; rawPeaks.balance = bal; }
@@ -76,7 +76,7 @@
 		for (const key of RADAR_AXIS_ORDER) { floors[key] = 100; rawFloors[key] = Infinity; }
 
 		for (const s of statusHistory) {
-			const v = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
+			const v = s.vo2max;
 			if (normalize('vo2max', v) <= floors.vo2max) { floors.vo2max = normalize('vo2max', v); rawFloors.vo2max = v; }
 			const bal = rolling30dBalance(fullStatusHistory, s.date);
 			if (bal <= floors.balance) { floors.balance = bal; rawFloors.balance = bal; }
@@ -129,10 +129,10 @@
 		_chart.setOption({
 			radar: {
 				triggerEvent: true,
-				indicator: rd.map((d, i) => {
-					const key = RADAR_AXIS_ORDER[i];
-					return { name: `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`, max: 100 };
-				}),
+				indicator: rd.map((d, i) => ({
+					name: `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`,
+					max: 100,
+				})),
 				shape: 'polygon',
 				radius: '72%',
 				center: ['50%', '58%'],
@@ -140,35 +140,16 @@
 					rich: {
 						val: { color: C.text, fontSize: 12, fontWeight: 'bold', fontFamily: MONO, align: 'center' },
 						name: { color: C.textSecondary, fontSize: 10, fontFamily: MONO, align: 'center' },
-						...Object.fromEntries(RADAR_AXIS_ORDER.map((key, i) => [`dot${i}`, { color: AXIS_COLORS[key], fontSize: 12, align: 'center' }])),
+						...Object.fromEntries(RADAR_AXIS_ORDER.map((key, i) => [
+							`dot${i}`, { color: AXIS_COLORS[key], fontSize: 12, align: 'center' },
+						])),
 					},
 				},
 				axisLine: { lineStyle: { color: C.hover } },
 				splitLine: { lineStyle: { color: C.cardBorder } },
 				splitArea: { show: false },
 			},
-			tooltip: {
-				...CHART_TOOLTIP,
-				trigger: 'item',
-				textStyle: { color: C.text, fontSize: 11, fontFamily: MONO },
-				formatter: () => {
-					const hasRange = floors.some((f, i) => f !== peaks[i]);
-					let html = `<table style="border-spacing:8px 1px">`;
-					for (let i = 0; i < rd.length; i++) {
-						const d = rd[i];
-						const key = RADAR_AXIS_ORDER[i];
-						const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${AXIS_COLORS[key]};margin-right:2px"></span>`;
-						const showRange = floors[i] !== peaks[i];
-						const lo = showRange ? formatRaw(key, rawFloors[i]) : '';
-						const hi = showRange ? formatRaw(key, rawPeaks[i]) : '';
-						html += `<tr><td>${dot}${d.axis}&nbsp;</td><td style="text-align:right"><b>${d.rawStr}</b>&nbsp;</td><td style="text-align:right;color:${C.textDim}">${d.value}%&nbsp;</td>`;
-						if (hasRange) html += `<td style="text-align:right;color:${C.textDim}">${lo}&nbsp;</td><td style="text-align:right;color:${C.textDim}">${hi}</td>`;
-						html += `</tr>`;
-					}
-					html += '</table>';
-					return html;
-				},
-			},
+			tooltip: { show: false },
 			series: [{
 				type: 'radar',
 				data: [

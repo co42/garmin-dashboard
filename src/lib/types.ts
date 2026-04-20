@@ -23,7 +23,6 @@ export interface DailyTrainingStatus {
 	monthly_load_anaerobic_target_max: number;
 	monthly_load_anaerobic_target_min: number;
 	vo2max: number;
-	vo2max_precise: number;
 	vo2max_date: string;
 	training_paused: boolean;
 }
@@ -402,6 +401,7 @@ export interface DashboardData {
 	hillScoreHistory: HillScore[];
 	enduranceScoreHistory: EnduranceScore[];
 	racePredictionHistory: RacePredictions[];
+	lactateThresholdHistory: LactateThreshold[];
 
 	// Activities
 	activities: Activity[];

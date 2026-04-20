@@ -2,14 +2,25 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { DailyTrainingStatus } from '$lib/types.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
+	import { weekMonday } from '$lib/dates.js';
 	import Tip from './Tip.svelte';
 	import ChartLineUp from 'phosphor-svelte/lib/ChartLineUp';
 
 	interface Props {
 		history: DailyTrainingStatus[];
+		granularity?: 'day' | 'week';
 	}
 
-	let { history }: Props = $props();
+	let { history, granularity = 'day' }: Props = $props();
+
+	// Bucket into Monday-anchored weeks, keep the week's latest day.
+	const bucketed = $derived.by(() => {
+		if (granularity === 'day') return history;
+		const asc = [...history].sort((a, b) => a.date.localeCompare(b.date));
+		const byWeek = new Map<string, DailyTrainingStatus>();
+		for (const s of asc) byWeek.set(weekMonday(s.date), s);
+		return [...byWeek.values()].sort((a, b) => a.date.localeCompare(b.date));
+	});
 	let chartEl: HTMLDivElement;
 	let mode = $state<'values' | 'ratio'>('values');
 
@@ -50,18 +61,19 @@
 
 	function renderChart() {
 		if (!_chart) return;
-		const days = history.map(d => d.date.slice(5));
+		const days = bucketed.map(d => d.date.slice(5));
 		if (mode === 'ratio') renderRatio(days);
 		else renderValues(days);
 	}
 
 	function renderRatio(days: string[]) {
-		const acwrValues = history.map(d => d.chronic_load > 0 ? +(d.acute_load / d.chronic_load).toFixed(2) : null);
-		const bandMin = history.map(() => ACWR_MIN);
-		const bandMax = history.map(() => ACWR_MAX);
+		const data = bucketed;
+		const acwrValues = data.map(d => d.chronic_load > 0 ? +(d.acute_load / d.chronic_load).toFixed(2) : null);
+		const bandMin = data.map(() => ACWR_MIN);
+		const bandMax = data.map(() => ACWR_MAX);
 		const hideAcwr = hiddenSeries.has('acute');
 		const hideOptimal = hiddenSeries.has('optimal');
-		const nil = history.map(() => null);
+		const nil = data.map(() => null);
 
 		_chart.setOption({
 			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
@@ -72,7 +84,7 @@
 				formatter: (_params: any) => {
 					if (!Array.isArray(_params) || _params.length === 0) return '';
 					const idx = _params[0].dataIndex;
-					const d = history[idx];
+					const d = data[idx];
 					const acwr = d.chronic_load > 0 ? d.acute_load / d.chronic_load : null;
 					const zone = acwr == null ? '' : acwr < 0.8 ? 'low' : acwr <= 1.3 ? 'optimal' : acwr <= 1.5 ? 'high' : 'very high';
 					let html = `<b>${_params[0].axisValueLabel}</b><br/><table style="border-spacing:8px 1px">`;
@@ -120,17 +132,18 @@
 	}
 
 	function renderValues(days: string[]) {
-		const acuteValues = history.map(d => Math.round(d.acute_load));
-		const chronicValues = history.map(d => Math.round(d.chronic_load));
+		const data = bucketed;
+		const acuteValues = data.map(d => Math.round(d.acute_load));
+		const chronicValues = data.map(d => Math.round(d.chronic_load));
 
 		// Optimal band: acute should be between chronic * 0.8 and chronic * 1.3
-		const bandMin = history.map(d => Math.round(d.chronic_load * ACWR_MIN));
-		const bandMax = history.map(d => Math.round(d.chronic_load * ACWR_MAX));
+		const bandMin = data.map(d => Math.round(d.chronic_load * ACWR_MIN));
+		const bandMax = data.map(d => Math.round(d.chronic_load * ACWR_MAX));
 
 		const hideAcute = hiddenSeries.has('acute');
 		const hideChronic = hiddenSeries.has('chronic');
 		const hideOptimal = hiddenSeries.has('optimal');
-		const nil = history.map(() => null);
+		const nil = data.map(() => null);
 
 		_chart.setOption({
 			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
@@ -141,7 +154,7 @@
 				formatter: (_params: any) => {
 					if (!Array.isArray(_params) || _params.length === 0) return '';
 					const idx = _params[0].dataIndex;
-					const d = history[idx];
+					const d = data[idx];
 					let html = `<b>${_params[0].axisValueLabel}</b><br/><table style="border-spacing:8px 1px">`;
 					html += `<tr><td>${dot(C.blue)}Acute&nbsp;</td><td style="text-align:right"><b>${Math.round(d.acute_load)}</b>&nbsp;</td><td style="color:${C.textDim}">7d</td></tr>`;
 					html += `<tr><td>${dot(C.teal, 0.4)}Chronic&nbsp;</td><td style="text-align:right">${Math.round(d.chronic_load)}&nbsp;</td><td style="color:${C.textDim}">28d</td></tr>`;
@@ -203,7 +216,7 @@
 
 	$effect(() => {
 		if (!_ready) return;
-		history; mode; hiddenSeries;
+		bucketed; mode; hiddenSeries;
 		renderChart();
 	});
 </script>

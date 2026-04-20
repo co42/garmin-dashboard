@@ -110,6 +110,8 @@ export function loadDashboard(): DashboardData | null {
 		date: '', heart_rate: 0, pace: '', speed_meters_per_second: 0,
 	});
 
+	const lactateThresholdHistory = snapshot<LactateThreshold[]>('lactate_threshold_history', []);
+
 	const stress = snapshot<StressDay>('stress', {
 		date: '', avg_stress: 0, max_stress: 0,
 	});
@@ -204,6 +206,7 @@ export function loadDashboard(): DashboardData | null {
 		hillScoreHistory,
 		enduranceScoreHistory,
 		racePredictionHistory,
+		lactateThresholdHistory,
 		activities,
 		recentSplits,
 		activityDetails,

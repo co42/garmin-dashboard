@@ -20,6 +20,7 @@ import type {
 	CourseGeoPoint,
 	RacePredictions,
 	GearItem,
+	LactateThreshold,
 } from './types.js';
 
 export interface SyncResult {
@@ -59,6 +60,13 @@ function addDays(dateStr: string, n: number): string {
 // ---------------------------------------------------------------------------
 // Paginated date-range fetching
 // ---------------------------------------------------------------------------
+
+/** Fetch a "snapshot" endpoint that now returns a single-item array — unwrap to T | null. */
+async function fetchOne<T>(args: string[]): Promise<T | null> {
+	const arr = await garminSafe<T[] | T | null>(args, null);
+	if (Array.isArray(arr)) return arr[0] ?? null;
+	return arr ?? null;
+}
 
 /** Fetch a time-series endpoint in 30-day chunks using --from/--to. */
 async function fetchDateRange<T extends { date: string }>(
@@ -146,7 +154,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			enduranceScore,
 			hillScore,
 			fitnessAge,
-			lactateThreshold,
+			lactateThresholdHistory,
 			stressSnapshot,
 			bodyBattery,
 			records,
@@ -165,15 +173,15 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			// Activities
 			activities,
 		] = await Promise.all([
-			// Snapshots
-			garminSafe(['training', 'readiness'], null),
-			garminSafe(['training', 'race-predictions'], null),
-			garminSafe(['training', 'endurance-score'], null),
-			garminSafe(['training', 'hill-score'], null),
-			garminSafe(['training', 'fitness-age'], null),
-			garminSafe(['training', 'lactate-threshold'], null),
-			garminSafe(['health', 'stress'], null),
-			garminSafe(['health', 'body-battery'], null),
+			// Snapshots (CLI returns single-item arrays — unwrap)
+			fetchOne(['training', 'readiness']),
+			fetchOne(['training', 'race-predictions']),
+			fetchOne(['training', 'endurance-score']),
+			fetchOne(['training', 'hill-score']),
+			fetchOne(['training', 'fitness-age']),
+			garminSafe<LactateThreshold[]>(['training', 'lactate-threshold', '--days', '365'], []),
+			fetchOne(['health', 'stress']),
+			fetchOne(['health', 'body-battery']),
 			garminSafe(['records'], []),
 			garminSafe(['gear', 'list'], []),
 			garminSafe<HrZone[]>(['training', 'hr-zones'], []),
@@ -222,7 +230,11 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			if (enduranceScore) upsertSnapshot.run('endurance_score', JSON.stringify(enduranceScore));
 			if (hillScore) upsertSnapshot.run('hill_score', JSON.stringify(hillScore));
 			if (fitnessAge) upsertSnapshot.run('fitness_age', JSON.stringify(fitnessAge));
-			if (lactateThreshold) upsertSnapshot.run('lactate_threshold', JSON.stringify(lactateThreshold));
+			if (lactateThresholdHistory.length > 0) {
+				upsertSnapshot.run('lactate_threshold_history', JSON.stringify(lactateThresholdHistory));
+				const latest = lactateThresholdHistory[lactateThresholdHistory.length - 1];
+				upsertSnapshot.run('lactate_threshold', JSON.stringify(latest));
+			}
 			if (stressSnapshot) upsertSnapshot.run('stress', JSON.stringify(stressSnapshot));
 			if (bodyBattery) upsertSnapshot.run('body_battery', JSON.stringify(bodyBattery));
 			upsertSnapshot.run('records', JSON.stringify(records));

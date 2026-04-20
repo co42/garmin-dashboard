@@ -165,7 +165,7 @@ export function gradColor(grade: number): string {
 export function fitnessTrend(trend: string): { label: string; arrow: string; color: string } {
 	const t = trend.toLowerCase();
 	if (t === 'improving') return { label: 'Improving', arrow: '↑', color: C.green };
-	if (t === 'stable' || t === 'steady') return { label: 'Steady', arrow: '→', color: C.amber };
+	if (t === 'stable') return { label: 'Stable', arrow: '→', color: C.textSecondary };
 	if (t === 'declining') return { label: 'Declining', arrow: '↓', color: C.red };
-	return { label: trend || 'Unknown', arrow: '→', color: C.textSecondary };
+	return { label: 'Unknown', arrow: '?', color: C.textSecondary };
 }

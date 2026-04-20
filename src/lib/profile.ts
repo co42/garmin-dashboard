@@ -157,9 +157,9 @@ export function formatRaw(axisKey: string, rawValue: number): string {
 	}
 }
 
-/** Format a raw delta value for display (with sign) */
+/** Format a raw delta value for display (with sign; always shows + for 0) */
 export function formatRawDelta(axisKey: string, delta: number): string {
-	const sign = delta > 0 ? '+' : '';
+	const sign = delta < 0 ? '' : '+';
 	switch (axisKey) {
 		case 'vo2max': return sign + delta.toFixed(1);
 		case 'endurance': return sign + Math.round(delta).toLocaleString();
@@ -193,7 +193,7 @@ const STATUS_WEIGHT: Record<string, number> = {
 export function computeProductivity(history: DailyTrainingStatus[], atDate?: string): number {
 	const endDate = atDate ?? new Date().toISOString().slice(0, 10);
 	const cutoff = new Date(new Date(endDate + 'T00:00:00Z').getTime() - 30 * 86400000).toISOString().slice(0, 10);
-	const w = history.filter(s => s.date >= cutoff && s.date <= endDate);
+	const w = history.filter(s => s.date >= cutoff && s.date <= endDate && s.status);
 	if (w.length === 0) return -1;
 	const total = w.reduce((sum, s) => {
 		const base = s.status.replace(/_\d+$/, '');

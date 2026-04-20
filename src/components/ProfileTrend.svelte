@@ -11,11 +11,11 @@
 		statusHistory: DailyTrainingStatus[];
 		hillScoreHistory: HillScore[];
 		enduranceScoreHistory: EnduranceScore[];
+		granularity?: 'day' | 'week';
 	}
 
-	let { statusHistory, hillScoreHistory, enduranceScoreHistory }: Props = $props();
+	let { statusHistory, hillScoreHistory, enduranceScoreHistory, granularity = 'day' }: Props = $props();
 	let chartEl: HTMLDivElement;
-	let mode = $state<'day' | 'week'>('day');
 
 	interface DataPoint {
 		key: string;
@@ -33,7 +33,7 @@
 	}
 
 	function buildPoint(key: string, label: string, s: DailyTrainingStatus, hill: HillScore | undefined, endur: EnduranceScore | undefined): DataPoint {
-		const vo2 = s.vo2max_precise > 0 ? s.vo2max_precise : s.vo2max;
+		const vo2 = s.vo2max;
 		const bal = computeBalance(s);
 		return {
 			key, label,
@@ -50,33 +50,36 @@
 		};
 	}
 
-	function computeData(m: 'day' | 'week'): DataPoint[] {
+	/** Bucket ascending-sorted entries by Monday, keep the last (end-of-week) value. */
+	function endOfWeek<T extends { date: string }>(items: T[]): Map<string, T> {
+		const asc = [...items].sort((a, b) => a.date.localeCompare(b.date));
+		const byWeek = new Map<string, T>();
+		for (const e of asc) byWeek.set(weekMonday(e.date), e);
+		return byWeek;
+	}
+
+	function computeData(): DataPoint[] {
+		if (granularity === 'week') {
+			const weekStatus = endOfWeek(statusHistory);
+			const weekHill = endOfWeek(hillScoreHistory);
+			const weekEndur = endOfWeek(enduranceScoreHistory);
+			return [...weekStatus.keys()].sort().map(week => {
+				const s = weekStatus.get(week)!;
+				const dt = utcDate(week);
+				const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}`;
+				return buildPoint(week, label, s, weekHill.get(week), weekEndur.get(week));
+			});
+		}
+
 		const hillByDate = new Map<string, HillScore>();
 		for (const h of hillScoreHistory) hillByDate.set(h.date, h);
 		const endurByDate = new Map<string, EnduranceScore>();
 		for (const e of enduranceScoreHistory) endurByDate.set(e.date, e);
 
-		if (m === 'day') {
-			return statusHistory.map(s => {
-				const dt = utcDate(s.date);
-				const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}`;
-				return buildPoint(s.date, label, s, hillByDate.get(s.date), endurByDate.get(s.date));
-			});
-		}
-
-		const hillByWeek = new Map<string, HillScore>();
-		for (const h of hillScoreHistory) hillByWeek.set(weekMonday(h.date), h);
-		const endurByWeek = new Map<string, EnduranceScore>();
-		for (const e of enduranceScoreHistory) endurByWeek.set(weekMonday(e.date), e);
-
-		const weekStatus = new Map<string, DailyTrainingStatus>();
-		for (const s of statusHistory) weekStatus.set(weekMonday(s.date), s);
-
-		return [...weekStatus.keys()].sort().map(week => {
-			const s = weekStatus.get(week)!;
-			const dt = utcDate(week);
+		return statusHistory.map(s => {
+			const dt = utcDate(s.date);
 			const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}`;
-			return buildPoint(week, label, s, hillByWeek.get(week), endurByWeek.get(week));
+			return buildPoint(s.date, label, s, hillByDate.get(s.date), endurByDate.get(s.date));
 		});
 	}
 
@@ -86,7 +89,7 @@
 
 	function renderChart() {
 		if (!_chart) return;
-		const data = computeData(mode);
+		const data = computeData();
 		const labels = data.map(d => d.label);
 
 		const makeSeries = (key: string, values: (number | null)[]) => {
@@ -194,32 +197,62 @@
 		hiddenSeries = next;
 	}
 
+	// Current-week delta (last Monday → today) per axis, same logic as ACWR/Profile Trend
+	// weekly bucketing: last entry of the previous Monday vs last entry of current Monday.
+	const weekDeltas = $derived.by(() => {
+		const statusByWeek = new Map<string, DailyTrainingStatus>();
+		for (const s of [...statusHistory].sort((a, b) => a.date.localeCompare(b.date))) {
+			statusByWeek.set(weekMonday(s.date), s);
+		}
+		const hillByWeek = new Map<string, HillScore>();
+		for (const h of [...hillScoreHistory].sort((a, b) => a.date.localeCompare(b.date))) {
+			hillByWeek.set(weekMonday(h.date), h);
+		}
+		const endurByWeek = new Map<string, EnduranceScore>();
+		for (const e of [...enduranceScoreHistory].sort((a, b) => a.date.localeCompare(b.date))) {
+			endurByWeek.set(weekMonday(e.date), e);
+		}
+
+		const weeks = [...statusByWeek.keys()].sort();
+		if (weeks.length < 2) {
+			return { vo2max: 0, endurance: 0, balance: 0, hillStr: 0, hillEnd: 0 };
+		}
+		const cur = weeks[weeks.length - 1];
+		const prev = weeks[weeks.length - 2];
+		const curS = statusByWeek.get(cur)!;
+		const prevS = statusByWeek.get(prev)!;
+		const curH = hillByWeek.get(cur);
+		const prevH = hillByWeek.get(prev);
+		const curE = endurByWeek.get(cur);
+		const prevE = endurByWeek.get(prev);
+
+		const curBal = computeBalance(curS);
+		const prevBal = computeBalance(prevS);
+		return {
+			vo2max: (curS.vo2max ?? 0) - (prevS.vo2max ?? 0),
+			endurance: curE && prevE ? curE.score - prevE.score : 0,
+			balance: curBal >= 0 && prevBal >= 0 ? curBal - prevBal : 0,
+			hillStr: curH && prevH ? curH.strength - prevH.strength : 0,
+			hillEnd: curH && prevH ? curH.endurance - prevH.endurance : 0,
+		};
+	});
+
 	$effect(() => {
 		if (!_ready) return;
-		mode; statusHistory; hillScoreHistory; enduranceScoreHistory; hiddenSeries;
+		statusHistory; hillScoreHistory; enduranceScoreHistory; hiddenSeries; granularity;
 		renderChart();
 	});
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
 	<div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
-		<div class="flex items-center gap-2">
-			<Tip text={`5 dimensions plotted over time.\nY-axis: normalized 0–100% (${PROFILE_LABEL}).\nTooltips show raw values + delta.`}>
-				<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
-			</Tip>
-			<div class="flex rounded-md border border-card-border text-[10px] font-medium">
-				<button
-					class="cursor-pointer px-2 py-0.5 rounded-l-md transition-colors {mode === 'day' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
-					onclick={() => mode = 'day'}
-				>Day</button>
-				<button
-					class="cursor-pointer px-2 py-0.5 rounded-r-md transition-colors {mode === 'week' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
-					onclick={() => mode = 'week'}
-				>Week</button>
-			</div>
-		</div>
+		<Tip text={`5 dimensions plotted over time.\nY-axis: normalized 0–100% (${PROFILE_LABEL}).\nTooltips show raw values + delta.`}>
+			<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><TrendUp size={14} weight="bold" /> Profile Trend</h2>
+		</Tip>
 		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
 			{#each AXIS_ORDER as key}
+				{@const dv = weekDeltas[key as keyof typeof weekDeltas]}
+				{@const dColor = dv > 0 ? 'text-status-green' : dv < 0 ? 'text-status-red' : 'text-text-dim'}
 				<Tip text={AXES[key].tip}>
 					<button
 						class="flex items-center gap-1 cursor-pointer transition-opacity {hiddenSeries.has(key) ? 'opacity-30' : 'text-text-secondary'}"
@@ -227,6 +260,7 @@
 					>
 						<span class="inline-block w-2.5 h-0.5 rounded-full" style="background:{AXIS_COLORS[key]}"></span>
 						{AXES[key].name}
+						<span class="{dColor} font-mono">{formatRawDelta(key, dv)}</span>
 					</button>
 				</Tip>
 			{/each}

@@ -14,6 +14,7 @@
 	import ProfileTrend from '../components/ProfileTrend.svelte';
 	import ProfileStats from '../components/ProfileStats.svelte';
 	import WeeklyVolume from '../components/WeeklyVolume.svelte';
+	import LactateThresholdChart from '../components/LactateThresholdChart.svelte';
 	import ActivityFeed from '../components/ActivityFeed.svelte';
 	import CourseFeed from '../components/CourseFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
@@ -53,6 +54,9 @@
 		return monday.toISOString().slice(0, 10);
 	});
 
+	// Daily points (1M) vs Monday-bucketed weekly points (3M, 1Y)
+	const granularity = $derived(windowWeeks >= 13 ? 'week' : 'day');
+
 	// Windowed slices for all time-series components
 	function filterWindow(dash: DashboardData) {
 		const start = windowStart();
@@ -68,7 +72,7 @@
 	}
 </script>
 
-<header class="sticky top-0 z-40 border-b border-card-border bg-bg/90 px-3 md:px-6 py-3 backdrop-blur">
+<header class="fixed top-0 left-0 right-0 z-40 border-b border-card-border bg-bg/90 px-3 md:px-6 py-3 backdrop-blur">
 	<div class="mx-auto flex max-w-[1400px] items-center justify-between">
 		<h1 class="flex items-center gap-2 text-lg font-semibold tracking-tight">
 			<img src={favicon} alt="" width="24" height="24" class="rounded-md" />
@@ -81,9 +85,13 @@
 					onclick={() => windowWeeks = 4}
 				>1M</button>
 				<button
-					class="cursor-pointer px-2.5 py-1 rounded-r-md transition-colors {windowWeeks === 13 ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					class="cursor-pointer px-2.5 py-1 transition-colors {windowWeeks === 13 ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
 					onclick={() => windowWeeks = 13}
 				>3M</button>
+				<button
+					class="cursor-pointer px-2.5 py-1 rounded-r-md transition-colors {windowWeeks === 52 ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => windowWeeks = 52}
+				>1Y</button>
 			</div>
 			<SyncButton lastSyncedAt={d?.lastSyncedAt ?? null} />
 		</div>
@@ -91,7 +99,7 @@
 </header>
 
 {#if !d}
-	<div class="flex flex-col items-center justify-center gap-6 py-24">
+	<div class="flex flex-col items-center justify-center gap-6 py-24 pt-[calc(3rem+24px)]">
 		<div class="text-center">
 			<h2 class="text-2xl font-bold text-text">No data yet</h2>
 			<p class="mt-2 text-text-secondary">Click sync to pull your Garmin data.</p>
@@ -99,7 +107,7 @@
 	</div>
 {:else}
 	{@const w = filterWindow(d)}
-	<main class="mx-auto max-w-[1400px] p-3 md:p-6 overflow-x-hidden">
+	<main class="mx-auto max-w-[1400px] p-3 md:p-6 pt-[calc(3rem+24px)] md:pt-[calc(3rem+24px)] overflow-x-hidden">
 	<div class="grid gap-4 min-w-0">
 
 		<!-- ═══ BANNER ═══ -->
@@ -120,7 +128,7 @@
 				hillScore={d.hillScore}
 				currentStatus={d.currentStatus}
 				enduranceScore={d.enduranceScore}
-				vo2max={d.currentStatus.vo2max_precise}
+				vo2max={d.currentStatus.vo2max}
 				statusHistory={w.status}
 				fullStatusHistory={d.statusHistory}
 				hillScoreHistory={w.hillScore}
@@ -130,6 +138,7 @@
 				statusHistory={w.status}
 				hillScoreHistory={w.hillScore}
 				enduranceScoreHistory={w.endurance}
+				granularity={granularity}
 			/>
 		</div>
 		{/key}
@@ -142,10 +151,13 @@
 		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-2">
 			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} lactateHr={d.userSettings?.lactate_threshold_hr ?? d.lactateThreshold.heart_rate ?? null} lactatePace={d.lactateThreshold.pace ?? null} />
-			<AcwrChart history={w.status} />
+			<AcwrChart history={w.status} granularity={granularity} />
 		</div>
 
-		<WeeklyVolume activities={d.activities.filter(a => a.start_time.slice(0, 10) >= volumeStart())} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} />
+		<div class="grid gap-4 md:grid-cols-2">
+			<WeeklyVolume activities={d.activities.filter(a => a.start_time.slice(0, 10) >= volumeStart())} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} />
+			<LactateThresholdChart history={d.lactateThresholdHistory} windowStart={windowStart()} />
+		</div>
 		{/key}
 
 		{#key windowWeeks}

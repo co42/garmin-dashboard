@@ -99,11 +99,9 @@
 
 		for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 7)) {
 			const key = fmtDateISO(d);
-			const dt = utcDate(key);
-			const label = `${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short' })}`;
 			const data = weeks.get(key);
 			result.push({
-				week: key, label,
+				week: key, label: key.slice(5),
 				totalKm: data?.totalKm ?? 0,
 				runs: data?.runs ?? 0,
 				zoneKm: data?.zoneKm ?? [0, 0, 0, 0, 0],
@@ -143,7 +141,7 @@
 		}));
 
 		_chart.setOption({
-			grid: { top: 30, right: 16, bottom: 30, left: 45 },
+			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
 			legend: { show: false },
 			tooltip: {
 				...CHART_TOOLTIP,
@@ -168,7 +166,7 @@
 			xAxis: {
 				type: 'category', data: labels,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel },
+				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false },
 			},
 			yAxis: {
 				type: 'value',
