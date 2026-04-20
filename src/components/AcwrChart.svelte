@@ -41,6 +41,7 @@
 	}
 
 	let _chart: any; let _ro: ResizeObserver;
+	let _ready = $state(false);
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
 	function dot(color: string, opacity = 1) {
@@ -195,12 +196,16 @@
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
-		renderChart();
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		_ready = true;
 	});
 
-	$effect(() => { mode; renderChart(); });
+	$effect(() => {
+		if (!_ready) return;
+		history; mode; hiddenSeries;
+		renderChart();
+	});
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">

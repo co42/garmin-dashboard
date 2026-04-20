@@ -24,7 +24,34 @@
 
 	const color = $derived(statusColor(status.status));
 	const acwrC = $derived(acwrColor(status.acwr_status));
-	const trend = $derived(fitnessTrend(status.fitness_trend));
+
+	// Compute VO2max trend from recent statusHistory when Garmin's value is unknown.
+	// Linear regression on vo2max_precise over the last ~28 days.
+	function computeVo2maxTrend(history: DailyTrainingStatus[]): string {
+		const recent = history
+			.filter(s => s.vo2max_precise > 0)
+			.sort((a, b) => a.date.localeCompare(b.date))
+			.slice(-28);
+		if (recent.length < 7) return 'unknown';
+		const n = recent.length;
+		let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+		for (let i = 0; i < n; i++) {
+			sumX += i; sumY += recent[i].vo2max_precise;
+			sumXY += i * recent[i].vo2max_precise; sumXX += i * i;
+		}
+		const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+		// ~0.01 VO2max/day ≈ 0.28 over 28 days — noticeable threshold
+		if (slope > 0.01) return 'improving';
+		if (slope < -0.01) return 'declining';
+		return 'stable';
+	}
+
+	const resolvedTrend = $derived(() => {
+		const t = status.fitness_trend?.toLowerCase();
+		if (t === 'improving' || t === 'stable' || t === 'declining') return status.fitness_trend;
+		return computeVo2maxTrend(statusHistory);
+	});
+	const trend = $derived(fitnessTrend(resolvedTrend()));
 	const latest = $derived(readiness.latest ?? readiness.post_activity ?? readiness.morning);
 	const latestColor = $derived(latest ? readinessColor(latest.score) : C.textDim);
 

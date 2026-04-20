@@ -32,6 +32,7 @@
 	}
 
 	let _chart: any; let _ro: ResizeObserver;
+	let _ready = $state(false);
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
 	function renderChart() {
@@ -127,9 +128,15 @@
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
-		renderChart();
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		_ready = true;
+	});
+
+	$effect(() => {
+		if (!_ready) return;
+		hrv; hiddenSeries;
+		renderChart();
 	});
 </script>
 

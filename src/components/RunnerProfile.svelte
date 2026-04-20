@@ -112,11 +112,12 @@
 
 	let _chart: any;
 	let _ro: ResizeObserver;
+	let _ready = $state(false);
+	let _indicatorNames: string[] = [];
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
 
-	onMount(async () => {
-		const echarts = await import('echarts');
-		_chart = echarts.init(radarEl, undefined, { renderer: 'svg' });
+	function renderChart() {
+		if (!_chart) return;
 		const rd = radarData();
 		const peakData = peakValues();
 		const floorData = floorValues();
@@ -203,16 +204,22 @@
 					},
 				],
 			}],
-		});
+		}, true);
+
+		// Keep indicator names fresh for axis-name hover lookup
+		_indicatorNames = rd.map((d, i) => `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`);
+	}
+
+	onMount(async () => {
+		const echarts = await import('echarts');
+		_chart = echarts.init(radarEl, undefined, { renderer: 'svg' });
 
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(radarEl);
 
-		// Axis name hover tooltips
-		const indicatorNames = rd.map((d, i) => `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`);
 		_chart.on('mouseover', (params: any) => {
 			if (params.targetType === 'axisName') {
-				const idx = indicatorNames.indexOf(params.name);
+				const idx = _indicatorNames.indexOf(params.name);
 				if (idx >= 0) {
 					const key = RADAR_AXIS_ORDER[idx];
 					const e = (params.event?.event ?? params.event) as MouseEvent;
@@ -225,6 +232,14 @@
 				axisTip = { ...axisTip, visible: false };
 			}
 		});
+
+		_ready = true;
+	});
+
+	$effect(() => {
+		if (!_ready) return;
+		hillScore; currentStatus; enduranceScore; vo2max; statusHistory; fullStatusHistory; hillScoreHistory; enduranceScoreHistory;
+		renderChart();
 	});
 </script>
 

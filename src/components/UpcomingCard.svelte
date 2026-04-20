@@ -242,18 +242,26 @@
 	};
 	function stepLabel(key: string): string { return STEP_LABELS[key] ?? key; }
 
-	const PHRASE_BADGE: Record<string, { code: string; name: string; color: string }> = {
-		BASE: { code: 'AB', name: 'Aerobic Base', color: C.cyan },
-		LONG_WORKOUT: { code: 'LR', name: 'Long Run', color: C.cyan },
-		ANAEROBIC_SPEED: { code: 'SP', name: 'Speed', color: C.purple },
-		FORCED_REST: { code: 'RS', name: 'Rest', color: C.textDim },
-		RUNNING_HISTORY_SHORTENED_BASE: { code: 'AB', name: 'Aerobic Base', color: C.cyan },
-		UNKNOWN: { code: 'TR', name: 'Training', color: C.textDim },
+	// Short code + color by phrase category. Tooltip name uses the phrase's
+	// prettified detail so Base variants show their specific flavor.
+	const PHRASE_BADGE: Record<string, { code: string; color: string }> = {
+		BASE: { code: 'AB', color: C.cyan },
+		AEROBIC_LOW_SHORTAGE_BASE: { code: 'AB', color: C.cyan },
+		RUNNING_HISTORY_SHORTENED_BASE: { code: 'AB', color: C.cyan },
+		LONG_WORKOUT: { code: 'LR', color: C.cyan },
+		TEMPO: { code: 'TP', color: C.orange },
+		ANAEROBIC_SPEED: { code: 'SP', color: C.purple },
+		FORCED_REST: { code: 'RS', color: C.textDim },
 	};
+	function prettyPhrase(phrase: string): string {
+		return phrase.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+	}
 	function phraseBadge(phrase: string | null): { code: string; name: string; color: string } | null {
 		if (!phrase) return null;
 		if (phrase.startsWith('STRENGTH_')) return { code: 'ST', name: 'Strength', color: C.purple };
-		return PHRASE_BADGE[phrase] ?? { code: 'TR', name: phrase.charAt(0) + phrase.slice(1).toLowerCase().replace(/_/g, ' '), color: C.textDim };
+		const meta = PHRASE_BADGE[phrase];
+		if (meta) return { code: meta.code, name: prettyPhrase(phrase), color: meta.color };
+		return { code: 'TR', name: 'Training', color: C.textDim };
 	}
 
 	function teValueColor(te: number): string {
@@ -305,13 +313,26 @@
 
 <!-- ── Snippets ─────────────────────────────────────────────────────────── -->
 
-{#snippet runStep(step: WorkoutStep, indent: boolean)}
+{#snippet runStep(step: WorkoutStep, depth: number)}
 	<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-		<td class="py-1 pr-4 font-medium text-text-secondary whitespace-nowrap {indent ? 'pl-4' : ''}">{stepLabel(step.step_type)}</td>
+		<td class="py-1 pr-4 font-medium text-text-secondary whitespace-nowrap" style="padding-left: {depth * 16}px">{stepLabel(step.step_type)}</td>
 		<td class="py-1 pr-4 num text-text whitespace-nowrap">{stepDuration(step)}</td>
 		<td class="py-1 pr-4 num text-text-secondary whitespace-nowrap">{stepTarget(step)}</td>
 		<td class="py-1 text-text-dim text-[11px]">{step.description ?? ''}</td>
 	</tr>
+{/snippet}
+
+{#snippet runSteps(steps: WorkoutStep[], depth: number)}
+	{#each steps as step}
+		{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
+			<tr class="border-b border-card-border/20 bg-card-border/5">
+				<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="4" style="padding-left: {depth * 16}px">{step.number_of_iterations}×</td>
+			</tr>
+			{@render runSteps(step.steps ?? [], depth + 1)}
+		{:else}
+			{@render runStep(step, depth)}
+		{/if}
+	{/each}
 {/snippet}
 
 {#snippet runningSteps(steps: WorkoutStep[])}
@@ -323,28 +344,30 @@
 		<th class="pb-1 text-left font-medium">Note</th>
 	</tr></thead>
 	<tbody>
-		{#each steps as step}
-			{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
-				<tr class="border-b border-card-border/20 bg-card-border/5">
-					<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="4">{step.number_of_iterations}×</td>
-				</tr>
-				{#each step.steps ?? [] as sub}
-					{@render runStep(sub, true)}
-				{/each}
-			{:else}
-				{@render runStep(step, false)}
-			{/if}
-		{/each}
+		{@render runSteps(steps, 0)}
 	</tbody></table>
 {/snippet}
 
-{#snippet nonRunStep(step: WorkoutStep, indent: boolean)}
+{#snippet nonRunStep(step: WorkoutStep, depth: number)}
 	{@const name = stepExerciseName(step)}
 	{@const vals = stepValues(step)}
 	<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-		<td class="py-1 pr-4 text-text-secondary whitespace-nowrap {indent ? 'pl-4' : ''}">{name ?? stepLabel(step.step_type)}</td>
+		<td class="py-1 pr-4 text-text-secondary whitespace-nowrap" style="padding-left: {depth * 16}px">{name ?? stepLabel(step.step_type)}</td>
 		<td class="py-1 num text-text whitespace-nowrap">{vals}</td>
 	</tr>
+{/snippet}
+
+{#snippet nonRunSteps(steps: WorkoutStep[], depth: number)}
+	{#each steps as step}
+		{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
+			<tr class="border-b border-card-border/20 bg-card-border/5">
+				<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="2" style="padding-left: {depth * 16}px">{step.number_of_iterations}×</td>
+			</tr>
+			{@render nonRunSteps(step.steps ?? [], depth + 1)}
+		{:else}
+			{@render nonRunStep(step, depth)}
+		{/if}
+	{/each}
 {/snippet}
 
 {#snippet nonRunningSteps(steps: WorkoutStep[])}
@@ -354,18 +377,7 @@
 		<th class="pb-1 text-left font-medium">Reps/Time</th>
 	</tr></thead>
 	<tbody>
-		{#each steps as step}
-			{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
-				<tr class="border-b border-card-border/20 bg-card-border/5">
-					<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="2">{step.number_of_iterations}×</td>
-				</tr>
-				{#each step.steps ?? [] as sub}
-					{@render nonRunStep(sub, true)}
-				{/each}
-			{:else}
-				{@render nonRunStep(step, false)}
-			{/if}
-		{/each}
+		{@render nonRunSteps(steps, 0)}
 	</tbody></table>
 {/snippet}
 
