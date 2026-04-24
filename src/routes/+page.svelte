@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DashboardData } from '$lib/types.js';
-	import { PROFILE_LABEL } from '$lib/profile.js';
+	import { computeAge, computeTrendSeries, AXIS_COLORS } from '$lib/profile.js';
 	import Tip from '../components/Tip.svelte';
 	import SyncButton from '../components/SyncButton.svelte';
 	import StatusBanner from '../components/StatusBanner.svelte';
@@ -11,7 +11,7 @@
 	import HrvChart from '../components/HrvChart.svelte';
 	import RunnerProfile from '../components/RunnerProfile.svelte';
 
-	import ProfileTrend from '../components/ProfileTrend.svelte';
+	import TrendCard from '../components/TrendCard.svelte';
 	import ProfileStats from '../components/ProfileStats.svelte';
 	import WeeklyVolume from '../components/WeeklyVolume.svelte';
 	import LactateThresholdChart from '../components/LactateThresholdChart.svelte';
@@ -19,12 +19,15 @@
 	import CourseFeed from '../components/CourseFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
 	import UpcomingCard from '../components/UpcomingCard.svelte';
+	import PlanSummaryCard from '../components/PlanSummaryCard.svelte';
+	import ProjectionChart from '../components/ProjectionChart.svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import Lightning from 'phosphor-svelte/lib/Lightning';
 	import ListBullets from 'phosphor-svelte/lib/ListBullets';
 	import Path from 'phosphor-svelte/lib/Path';
+	import Strategy from 'phosphor-svelte/lib/Strategy';
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
@@ -57,6 +60,23 @@
 	// Daily points (1M) vs Monday-bucketed weekly points (3M, 1Y)
 	const granularity = $derived(windowWeeks >= 13 ? 'week' : 'day');
 
+	// An active plan is one that is not finished/paused/cancelled. Whitelist
+	// of known dead statuses — more forgiving than matching the single
+	// observed active value ("Scheduled").
+	const DEAD_STATUSES = new Set(['Completed', 'Paused', 'Cancelled']);
+	function planIsActive(dash: DashboardData): boolean {
+		if (!dash.coachPlan || !dash.coachEvent) return false;
+		return !DEAD_STATUSES.has(dash.coachPlan.training_status ?? '');
+	}
+
+	// Lactate threshold pace string formatted from speed_mps
+	function ltPaceStr(dash: DashboardData): string | null {
+		const speed = dash.userSettings?.lactate_threshold_speed_mps ?? dash.lactateThreshold.speed_mps ?? null;
+		if (!speed) return null;
+		const spk = Math.round(1000 / speed);
+		return `${Math.floor(spk / 60)}:${String(spk % 60).padStart(2, '0')}`;
+	}
+
 	// Windowed slices for all time-series components
 	function filterWindow(dash: DashboardData) {
 		const start = windowStart();
@@ -67,7 +87,7 @@
 			sleep: dash.sleepScoreHistory.filter(s => s.date >= start),
 			hillScore: dash.hillScoreHistory.filter(h => h.date >= start),
 			endurance: dash.enduranceScoreHistory.filter(e => e.date >= start),
-			activities: dash.activities.filter(a => a.start_time.slice(0, 10) >= start),
+			activities: dash.activities.filter(a => a.start_time_local.slice(0, 10) >= start),
 		};
 	}
 </script>
@@ -79,7 +99,7 @@
 			<span class="font-mono font-bold bg-gradient-to-r from-status-green to-load-aero-high bg-clip-text text-transparent">Training</span>
 		</h1>
 		<div class="flex items-center gap-3">
-			<div class="flex rounded-md border border-card-border text-xs font-mono font-medium">
+			<div class="flex rounded-md border border-card-border text-xs font-mono font-medium divide-x divide-card-border">
 				<button
 					class="cursor-pointer px-2.5 py-1 rounded-l-md transition-colors {windowWeeks === 4 ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
 					onclick={() => windowWeeks = 4}
@@ -113,17 +133,40 @@
 		<!-- ═══ BANNER ═══ -->
 		<StatusBanner status={d.currentStatus} statusHistory={w.status} readiness={d.readiness} daysSinceLastRun={d.daysSinceLastRun} />
 
-		<!-- ═══ UPCOMING ═══ -->
+		<!-- ═══ CALENDAR: upcoming workouts and events ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
 			<UpcomingCard calendar={d.calendar} activities={d.activities} splits={d.recentSplits} courses={d.courses} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
 		{/if}
 
+		<!-- ═══ COACH: active adaptive training plan & race projection ═══ -->
+		{#if planIsActive(d)}
+			<Tip text={"Your active Garmin adaptive plan and race-time projection.\nAnswers: am I on track for my target event?"}>
+				<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Strategy size={14} weight="bold" /> Coach</h2>
+			</Tip>
+
+			{#key windowWeeks}
+			<div class="grid gap-4 md:grid-cols-2">
+				<PlanSummaryCard
+					plan={d.coachPlan!}
+					event={d.coachEvent!}
+					today={d.projectionHistory.at(-1) ?? null}
+				/>
+				<ProjectionChart
+					history={d.projectionHistory}
+					event={d.coachEvent!}
+					planStartDate={d.coachPlan?.start_date ?? null}
+				/>
+			</div>
+			{/key}
+		{/if}
+
 		<!-- ═══ PROFILE: What kind of runner am I? ═══ -->
-		<Tip text={`Calibrated for a ${PROFILE_LABEL}.\nAll axes: 0 = average untrained, 100 = elite (top 0.1%).\nDashed blue = 3-month peak · Dashed red = 3-month low.`}>
+		<Tip text={`Calibrated for a ${computeAge(d.userSettings?.birth_date)}yo ${d.userSettings?.gender ?? 'male'}.\nAll axes: 0 = untrained, 100 = elite.`}>
 			<h2 class="mt-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><PersonSimpleRun size={14} weight="bold" /> Runner Profile</h2>
 		</Tip>
 		{#key windowWeeks}
-		<div class="grid gap-4 md:grid-cols-[1fr_2fr]">
+		{@const trend = computeTrendSeries(w.status, w.hillScore, w.endurance, granularity)}
+		<div class="grid gap-4 md:grid-cols-2">
 			<RunnerProfile
 				hillScore={d.hillScore}
 				currentStatus={d.currentStatus}
@@ -133,12 +176,34 @@
 				fullStatusHistory={d.statusHistory}
 				hillScoreHistory={w.hillScore}
 				enduranceScoreHistory={w.endurance}
+				userSettings={d.userSettings}
 			/>
-			<ProfileTrend
-				statusHistory={w.status}
-				hillScoreHistory={w.hillScore}
-				enduranceScoreHistory={w.endurance}
-				granularity={granularity}
+			<TrendCard
+				title="VO2max"
+				tip="Raw VO2max over time. Y-axis auto-scales to the data range."
+				rawKey="vo2max"
+				interval={1}
+				labels={trend.labels}
+				series={[{ name: 'VO2max', color: AXIS_COLORS.vo2max, values: trend.vo2max }]}
+			/>
+			<TrendCard
+				title="Endurance"
+				tip="Raw endurance score over time. Y-axis auto-scales to the data range."
+				rawKey="endurance"
+				interval={100}
+				labels={trend.labels}
+				series={[{ name: 'Endurance', color: AXIS_COLORS.endurance, values: trend.endurance }]}
+			/>
+			<TrendCard
+				title="Hill"
+				tip="Hill strength & endurance sub-scores over time (0–100 each)."
+				rawKey="hillStr"
+				interval={5}
+				labels={trend.labels}
+				series={[
+					{ name: 'Str', color: AXIS_COLORS.hillStr, values: trend.hillStr },
+					{ name: 'End', color: AXIS_COLORS.hillEnd, values: trend.hillEnd },
+				]}
 			/>
 		</div>
 		{/key}
@@ -150,12 +215,12 @@
 
 		{#key windowWeeks}
 		<div class="grid gap-4 md:grid-cols-2">
-			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} lactateHr={d.userSettings?.lactate_threshold_hr ?? d.lactateThreshold.heart_rate ?? null} lactatePace={d.lactateThreshold.pace ?? null} />
+			<LoadBalanceChart status={d.currentStatus} statusHistory={d.statusHistory} activities={d.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr_bpm ?? null} lactateHr={d.userSettings?.lactate_threshold_hr_bpm ?? d.lactateThreshold.heart_rate ?? null} lactatePace={ltPaceStr(d)} />
 			<AcwrChart history={w.status} granularity={granularity} />
 		</div>
 
 		<div class="grid gap-4 md:grid-cols-2">
-			<WeeklyVolume activities={d.activities.filter(a => a.start_time.slice(0, 10) >= volumeStart())} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr ?? null} />
+			<WeeklyVolume activities={d.activities.filter(a => a.start_time_local.slice(0, 10) >= volumeStart())} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr_bpm ?? null} />
 			<LactateThresholdChart history={d.lactateThresholdHistory} windowStart={windowStart()} />
 		</div>
 		{/key}

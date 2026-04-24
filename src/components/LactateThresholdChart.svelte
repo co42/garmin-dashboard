@@ -32,10 +32,9 @@
 		renderChart();
 	}
 
-	// Parse "4:48" → 288 seconds/km
-	function paceToSec(p: string): number {
-		const [m, s] = p.split(':').map(Number);
-		return (m ?? 0) * 60 + (s ?? 0);
+	// Convert speed (m/s) to pace (seconds per km)
+	function speedToPaceSec(speedMps: number): number {
+		return speedMps > 0 ? Math.round(1000 / speedMps) : 0;
 	}
 
 	// Format sec/km → "4:48"
@@ -61,7 +60,7 @@
 		const result: DayPoint[] = inWindow.map(p => ({
 			date: p.date,
 			bpm: p.heart_rate,
-			paceSec: paceToSec(p.pace),
+			paceSec: speedToPaceSec(p.speed_mps),
 			isChange: true,
 		}));
 
@@ -69,7 +68,7 @@
 			result.push({
 				date: todayStr,
 				bpm: lastSeen.heart_rate,
-				paceSec: paceToSec(lastSeen.pace),
+				paceSec: speedToPaceSec(lastSeen.speed_mps),
 				isChange: false,
 			});
 		}
@@ -89,6 +88,34 @@
 		};
 	});
 
+	/** Pick a "nice" step ≥ minStep so the axis shows at most `targetTicks` labels. */
+	function niceStep(range: number, minStep: number, targetTicks = 5): number {
+		const mults = [1, 2, 5];
+		let mag = 1;
+		while (mag < 1e9) {
+			for (const m of mults) {
+				const step = minStep * m * mag;
+				if (range / step <= targetTicks) return step;
+			}
+			mag *= 10;
+		}
+		return minStep;
+	}
+
+	function yScale(values: number[], minStep: number): { min: number; max: number; step: number } {
+		if (values.length === 0) return { min: 0, max: minStep, step: minStep };
+		const mn = Math.min(...values);
+		const mx = Math.max(...values);
+		const range = Math.max(mx - mn, minStep);
+		const step = niceStep(range, minStep);
+		const eps = 1e-9;
+		let lo = Math.floor(mn / step) * step;
+		let hi = Math.ceil(mx / step) * step;
+		if (mn - lo < eps) lo -= step;
+		if (hi - mx < eps) hi += step;
+		return { min: lo, max: hi, step };
+	}
+
 	let _chart: any; let _ro: ResizeObserver;
 	let _ready = $state(false);
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
@@ -105,7 +132,7 @@
 		const nil = data.map(() => null);
 
 		_chart.setOption({
-			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
+			grid: { top: 8, right: 8, bottom: 30, left: 36, containLabel: false },
 			legend: { show: false },
 			tooltip: {
 				...CHART_TOOLTIP,
@@ -124,48 +151,51 @@
 			xAxis: {
 				type: 'category', data: dates, boundaryGap: false,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false },
+				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true },
 			},
-			yAxis: [
-				{
-					type: 'value',
-					position: 'left',
-					min: (v: { min: number }) => Math.floor(v.min - 2),
-					max: (v: { max: number }) => Math.ceil(v.max + 2),
-					axisLine: { show: false },
-					axisLabel: CHART_AXIS.axisLabel,
-					splitLine: CHART_AXIS.splitLine,
-				},
-				{
-					type: 'value',
-					position: 'right',
-					// Invert pace axis — faster (lower sec) appears higher
-					inverse: true,
-					min: (v: { min: number }) => Math.floor(v.min - 5),
-					max: (v: { max: number }) => Math.ceil(v.max + 5),
-					axisLine: { show: false },
-					axisLabel: {
-						...CHART_AXIS.axisLabel,
-						formatter: (v: number) => secToPace(v),
+			yAxis: (() => {
+				const hrScale = yScale(bpmValues, 1);
+				const paceScale = yScale(paceValues, 5);
+				return [
+					{
+						// Pace — the only visible axis, now on the left (inverted so faster = higher)
+						type: 'value',
+						position: 'left',
+						inverse: true,
+						min: paceScale.min, max: paceScale.max, interval: paceScale.step,
+						axisLine: { show: false },
+						axisLabel: {
+							...CHART_AXIS.axisLabel,
+							formatter: (v: number) => secToPace(v),
+						},
+						splitLine: CHART_AXIS.splitLine,
 					},
-					splitLine: { show: false },
-				},
-			],
+					{
+						// HR — keep the axis internally to plot the line, but hide its labels
+						type: 'value',
+						position: 'right',
+						min: hrScale.min, max: hrScale.max, interval: hrScale.step,
+						axisLine: { show: false },
+						axisLabel: { show: false },
+						splitLine: { show: false },
+					},
+				];
+			})(),
 			series: [
 				{
-					type: 'line', name: 'HR', yAxisIndex: 0,
-					data: hideHr ? nil : bpmValues,
-					smooth: true, symbol: 'none',
-					lineStyle: { width: 2, color: C.amber },
-					itemStyle: { color: C.amber },
-					z: 3,
-				},
-				{
-					type: 'line', name: 'Pace', yAxisIndex: 1,
+					type: 'line', name: 'Pace', yAxisIndex: 0,
 					data: hidePace ? nil : paceValues,
 					smooth: true, symbol: 'none',
 					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
+					z: 3,
+				},
+				{
+					type: 'line', name: 'HR', yAxisIndex: 1,
+					data: hideHr ? nil : bpmValues,
+					smooth: true, symbol: 'none',
+					lineStyle: { width: 2, color: C.amber },
+					itemStyle: { color: C.amber },
 					z: 2,
 				},
 			],
@@ -210,7 +240,7 @@
 		{#if stats().current}
 			<div class="flex items-center gap-3 text-[10px] num mt-1">
 				<span class="text-text-secondary"><b class="text-text">{stats().current!.heart_rate}</b> bpm</span>
-				<span class="text-text-secondary"><b class="text-text">{stats().current!.pace}</b> /km</span>
+				<span class="text-text-secondary"><b class="text-text">{secToPace(speedToPaceSec(stats().current!.speed_mps))}</b> /km</span>
 			</div>
 		{/if}
 	</div>

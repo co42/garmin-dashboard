@@ -31,6 +31,33 @@
 		renderChart();
 	}
 
+	function niceStep(range: number, minStep: number, targetTicks = 5): number {
+		const mults = [1, 2, 5];
+		let mag = 1;
+		while (mag < 1e9) {
+			for (const m of mults) {
+				const step = minStep * m * mag;
+				if (range / step <= targetTicks) return step;
+			}
+			mag *= 10;
+		}
+		return minStep;
+	}
+
+	function yScale(values: number[], minStep: number): { min: number; max: number; step: number } {
+		if (values.length === 0) return { min: 0, max: minStep, step: minStep };
+		const mn = Math.min(...values);
+		const mx = Math.max(...values);
+		const range = Math.max(mx - mn, minStep);
+		const step = niceStep(range, minStep);
+		const eps = 1e-9;
+		let lo = Math.floor(mn / step) * step;
+		let hi = Math.ceil(mx / step) * step;
+		if (mn - lo < eps) lo -= step;
+		if (hi - mx < eps) hi += step;
+		return { min: lo, max: hi, step };
+	}
+
 	let _chart: any; let _ro: ResizeObserver;
 	let _ready = $state(false);
 	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
@@ -59,8 +86,16 @@
 		const hideBaseline = hiddenSeries.has('baseline');
 		const nil = hrv.map(() => null);
 
+		const flatValues = [
+			...(hideNight ? [] : lastNightValues),
+			...(hideWeekly ? [] : weeklyValues),
+			...(hideBaseline ? [] : corridorLow),
+			...(hideBaseline ? [] : corridorHigh),
+		].filter((v): v is number => v != null);
+		const scale = yScale(flatValues, 1);
+
 		_chart.setOption({
-			grid: { top: 8, right: 0, bottom: 30, left: 0 },
+			grid: { top: 8, right: 0, bottom: 30, left: 32 },
 			legend: { show: false },
 			tooltip: {
 				...CHART_TOOLTIP,
@@ -83,13 +118,13 @@
 			xAxis: {
 				type: 'category', data: dates, boundaryGap: false,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false },
+				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true },
 			},
 			yAxis: {
 				type: 'value',
-				min: (v: { min: number }) => Math.floor(v.min - 3),
+				min: scale.min, max: scale.max, interval: scale.step,
 				axisLine: { show: false },
-				axisLabel: { show: false },
+				axisLabel: CHART_AXIS.axisLabel,
 				splitLine: CHART_AXIS.splitLine,
 			},
 			series: [

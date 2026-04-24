@@ -36,11 +36,11 @@
 	}
 
 	/** Compute remaining recovery from the snapshot value + its timestamp */
-	function remainingRecovery(entry: { recovery_time_minutes: number; timestamp_local?: string } | null): number {
-		if (!entry || entry.recovery_time_minutes <= 0) return 0;
-		if (!entry.timestamp_local) return entry.recovery_time_minutes;
+	function remainingRecovery(entry: { recovery_time: number; timestamp_local?: string } | null): number {
+		if (!entry || entry.recovery_time <= 0) return 0;
+		if (!entry.timestamp_local) return entry.recovery_time;
 		const elapsed = (Date.now() - new Date(entry.timestamp_local.replace(/\.0$/, '')).getTime()) / 60000;
-		return Math.max(0, Math.round(entry.recovery_time_minutes - elapsed));
+		return Math.max(0, Math.round(entry.recovery_time - elapsed));
 	}
 
 	function recoveryTime(minutes: number): string {
@@ -90,7 +90,7 @@
 				<p class="num text-xl font-bold" style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</p>
 			</div>
 		</Tip>
-		<Tip text={"Time until Garmin estimates full recovery from recent training.\nCounts down from the last readiness snapshot." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time_minutes) : "")}>
+		<Tip text={"Time until Garmin estimates full recovery from recent training.\nCounts down from the last readiness snapshot." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time) : "")}>
 			<div class="text-center ">
 				<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Recovery</span>
 				<p class="num text-xl font-bold text-text">{recoveryTime(remainingRecovery(latest))}</p>
@@ -117,29 +117,29 @@
 			</Tip>
 			<div class="h-8 w-px bg-card-border"></div>
 			<Tip text={"Acute:Chronic Workload Ratio\n7-day load ÷ 28-day average.\n\n< 0.8 = undertraining\n0.8–1.3 = optimal\n> 1.3 = overreaching risk\n\nCurrently " + status.acute_load + " acute / " + status.chronic_load + " chronic."}>
-				<div>
+				<div class="text-center">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">ACWR</span>
-					<p class="num text-xl font-bold text-text flex items-center gap-1">{status.acwr.toFixed(1)} <span style="color: {acwrC}">{#if status.acwr_status === 'OPTIMAL'}<CheckCircle size={16} weight="bold" />{:else if status.acwr_status === 'HIGH' || status.acwr_status === 'LOW'}<WarningCircle size={16} weight="bold" />{:else}<XCircle size={16} weight="bold" />{/if}</span></p>
+					<p class="num text-xl font-bold text-text flex items-center justify-center gap-1">{status.acwr.toFixed(1)} <span style="color: {acwrC}">{#if status.acwr_status === 'OPTIMAL'}<CheckCircle size={16} weight="bold" />{:else if status.acwr_status === 'HIGH' || status.acwr_status === 'LOW'}<WarningCircle size={16} weight="bold" />{:else}<XCircle size={16} weight="bold" />{/if}</span></p>
 				</div>
 			</Tip>
 			<div class="h-8 w-px bg-card-border"></div>
 			<Tip text={"Garmin's VO2max trend.\nImproving = getting fitter\nStable = plateauing\nDeclining = losing fitness\nUnknown = Garmin hasn't assigned a trend yet"}>
-				<div>
+				<div class="text-center">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">VO2max</span>
-					<p class="num text-xl font-bold text-text flex items-center gap-1">{status.vo2max.toFixed(1)} <span style="color: {trend.color}">{#if trend.arrow === '↑'}<TrendUp size={16} weight="bold" />{:else if trend.arrow === '↓'}<TrendDown size={16} weight="bold" />{:else if trend.arrow === '?'}<Question size={16} weight="bold" />{:else}<ArrowRight size={16} weight="bold" />{/if}</span></p>
+					<p class="num text-xl font-bold text-text flex items-center justify-center gap-1">{status.vo2max.toFixed(1)} <span style="color: {trend.color}">{#if trend.arrow === '↑'}<TrendUp size={16} weight="bold" />{:else if trend.arrow === '↓'}<TrendDown size={16} weight="bold" />{:else if trend.arrow === '?'}<Question size={16} weight="bold" />{:else}<ArrowRight size={16} weight="bold" />{/if}</span></p>
 				</div>
 			</Tip>
 		</div>
 		<div class="ml-auto flex items-center gap-4">
 			<Tip text={"How ready is your body to train today?\n\n95–100% = Prime\n75–94% = High\n50–74% = Moderate\n25–49% = Low\n0–24% = Poor" + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + readiness.morning.score + "%" : "")}>
-				<div class="text-right">
+				<div class="text-center">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Readiness</span>
 					<p class="num text-xl font-bold" style="color: {latestColor}">{latest ? latest.score + '%' : '—'}</p>
 				</div>
 			</Tip>
 			<div class="h-8 w-px bg-card-border"></div>
-			<Tip text={"Time until Garmin estimates full recovery from recent training.\nCounts down from the last readiness snapshot." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time_minutes) : "")}>
-				<div class="text-right">
+			<Tip text={"Time until Garmin estimates full recovery from recent training.\nCounts down from the last readiness snapshot." + (readiness.morning && readiness.post_activity ? "\n\nMorning: " + recoveryTime(readiness.morning.recovery_time) : "")}>
+				<div class="text-center">
 					<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Recovery</span>
 					<p class="num text-xl font-bold text-text">{recoveryTime(remainingRecovery(latest))}</p>
 				</div>
@@ -147,7 +147,7 @@
 			{#if daysSinceLastRun != null}
 				<div class="h-8 w-px bg-card-border"></div>
 				<Tip text="Gaps longer than 7–10 days start causing measurable fitness loss.">
-					<div class="text-right">
+					<div class="text-center">
 						<span class="text-xs font-medium uppercase tracking-wider text-text-secondary">Last run</span>
 						<p class="num text-xl font-bold text-text">{daysSinceLastRun}d</p>
 					</div>

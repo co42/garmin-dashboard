@@ -35,7 +35,7 @@
 	$effect(() => {
 		if (!descLoaded) {
 			descLoaded = true;
-			fetch(`/api/activity/${activity.id}`)
+			fetch(`/api/activity/${activity.activity_id}`)
 				.then(r => r.ok ? r.json() : null)
 				.then(data => { if (data) description = data.description ?? ''; })
 				.catch(() => {});
@@ -44,7 +44,7 @@
 
 	async function saveDescription() {
 		editingDesc = false;
-		await fetch(`/api/activity/${activity.id}`, {
+		await fetch(`/api/activity/${activity.activity_id}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ description }),
@@ -65,14 +65,14 @@
 	}
 
 	function isTrail(a: Activity): boolean {
-		if (!a.elevation_gain || !a.distance_meters || a.distance_meters < 1000) return false;
-		return a.elevation_gain / (a.distance_meters / 1000) > 15;
+		if (!a.elevation_gain_meters || !a.distance_meters || a.distance_meters < 1000) return false;
+		return a.elevation_gain_meters / (a.distance_meters / 1000) > 15;
 	}
 
 
 	const trail = $derived(isTrail(activity));
 
-	const zoneTimes = $derived([activity.hr_time_in_zone_1 ?? 0, activity.hr_time_in_zone_2 ?? 0, activity.hr_time_in_zone_3 ?? 0, activity.hr_time_in_zone_4 ?? 0, activity.hr_time_in_zone_5 ?? 0]);
+	const zoneTimes = $derived([activity.hr_time_in_zone_1_seconds ?? 0, activity.hr_time_in_zone_2_seconds ?? 0, activity.hr_time_in_zone_3_seconds ?? 0, activity.hr_time_in_zone_4_seconds ?? 0, activity.hr_time_in_zone_5_seconds ?? 0]);
 	const zoneTotal = $derived(zoneTimes.reduce((s, v) => s + v, 0));
 
 	// Compute per-km GAP from timeseries
@@ -96,23 +96,22 @@
 	});
 	const hasMap = $derived(details != null && details.polyline.length > 1);
 	const hasTimeseries = $derived(details != null && details.timeseries.length > 5);
-	const hasElev = $derived(splits.some(s => s.elevation_gain > 0));
-	const hasPower = $derived(splits.some(s => s.avg_power > 0));
-	const hasCadence = $derived(splits.some(s => s.avg_cadence > 0));
+	const hasElev = $derived(splits.some(s => s.elevation_gain_meters > 0));
+	const hasPower = $derived(splits.some(s => (s.average_power ?? 0) > 0));
+	const hasCadence = $derived(splits.some(s => (s.average_run_cadence ?? 0) > 0));
 	const hasElevTimeseries = $derived(details != null && details.timeseries.some(p => p.elev != null));
 
 	const advancedMetrics = $derived(([
-		activity.fastest_split_1000 ? { label: 'Best 1km', value: formatSplitSeconds(activity.fastest_split_1000), tip: 'Fastest 1km split in this activity.' } : null,
-		activity.fastest_split_5000 ? { label: 'Best 5km', value: formatSplitSeconds(activity.fastest_split_5000), tip: 'Fastest 5km split in this activity.\nOnly meaningful for runs longer than 5km.' } : null,
-		(() => { const cs = splits.filter(s => s.avg_cadence > 0 && s.duration_seconds > 0); if (cs.length === 0) return null; const totalDur = cs.reduce((s, x) => s + x.duration_seconds, 0); const avg = cs.reduce((s, x) => s + x.avg_cadence * x.duration_seconds, 0) / totalDur; return { label: 'Cadence', value: Math.round(avg) + ' spm', tip: 'Average cadence (steps per minute), weighted by split duration.' }; })(),
-		activity.avg_stride_length ? { label: 'Stride', value: activity.avg_stride_length.toFixed(2) + 'm', tip: 'Average stride length.\nLonger strides at the same cadence = faster pace.' } : null,
-		activity.avg_ground_contact_time ? { label: 'GCT', value: Math.round(activity.avg_ground_contact_time) + 'ms', tip: 'Ground Contact Time — how long your foot stays on the ground per step.\nLower is generally better (elite ~200ms, recreational ~280ms+).' } : null,
-		activity.avg_vertical_oscillation ? { label: 'Vert Osc', value: activity.avg_vertical_oscillation.toFixed(1) + 'cm', tip: 'Vertical Oscillation — how much you bounce per step.\nLess bounce = more efficient running.' } : null,
-		activity.avg_vertical_ratio ? { label: 'Vert Ratio', value: activity.avg_vertical_ratio.toFixed(1) + '%', tip: 'Vertical Ratio — vertical oscillation divided by stride length.\nLower = more horizontal movement per step = better economy.' } : null,
-		activity.avg_power ? { label: 'Avg Power', value: Math.round(activity.avg_power) + 'W', tip: 'Average running power.\nMeasures total effort including hills and wind.\nUseful for pacing on variable terrain.' } : null,
+		activity.fastest_split_1000_seconds ? { label: 'Best 1km', value: formatSplitSeconds(activity.fastest_split_1000_seconds), tip: 'Fastest 1km split in this activity.' } : null,
+		activity.fastest_split_5000_seconds ? { label: 'Best 5km', value: formatSplitSeconds(activity.fastest_split_5000_seconds), tip: 'Fastest 5km split in this activity.\nOnly meaningful for runs longer than 5km.' } : null,
+		(() => { const cs = splits.filter(s => (s.average_run_cadence ?? 0) > 0 && s.duration_seconds > 0); if (cs.length === 0) return null; const totalDur = cs.reduce((s, x) => s + x.duration_seconds, 0); const avg = cs.reduce((s, x) => s + (x.average_run_cadence ?? 0) * x.duration_seconds, 0) / totalDur; return { label: 'Cadence', value: Math.round(avg) + ' spm', tip: 'Average cadence (steps per minute), weighted by split duration.' }; })(),
+		activity.avg_stride_length_cm ? { label: 'Stride', value: (activity.avg_stride_length_cm / 100).toFixed(2) + 'm', tip: 'Average stride length.\nLonger strides at the same cadence = faster pace.' } : null,
+		activity.avg_ground_contact_time_ms ? { label: 'GCT', value: Math.round(activity.avg_ground_contact_time_ms) + 'ms', tip: 'Ground Contact Time — how long your foot stays on the ground per step.\nLower is generally better (elite ~200ms, recreational ~280ms+).' } : null,
+		activity.avg_vertical_oscillation_cm ? { label: 'Vert Osc', value: activity.avg_vertical_oscillation_cm.toFixed(1) + 'cm', tip: 'Vertical Oscillation — how much you bounce per step.\nLess bounce = more efficient running.' } : null,
+		activity.avg_vertical_ratio_percent ? { label: 'Vert Ratio', value: activity.avg_vertical_ratio_percent.toFixed(1) + '%', tip: 'Vertical Ratio — vertical oscillation divided by stride length.\nLower = more horizontal movement per step = better economy.' } : null,
 		activity.calories ? { label: 'Calories', value: String(activity.calories), tip: 'Estimated energy expenditure.\nBased on HR, weight, and duration. Approximate.' } : null,
 		activity.difference_body_battery != null ? { label: 'BB delta', value: (activity.difference_body_battery > 0 ? '+' : '') + activity.difference_body_battery, tip: 'Body Battery drained by this session.\nShows the physiological cost of the workout.' } : null,
-		activity.elevation_loss ? { label: 'D-', value: activity.elevation_loss + 'm', tip: 'Total descent during this activity.' } : null,
+		activity.elevation_loss_meters ? { label: 'D-', value: activity.elevation_loss_meters + 'm', tip: 'Total descent during this activity.' } : null,
 	]).filter(Boolean) as { label: string; value: string; tip: string }[]);
 </script>
 
@@ -146,9 +145,9 @@
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><CloudSun size={12} weight="bold" /> Weather</h3>
 			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-dim">
-				<span class="flex items-center gap-1"><Thermometer size={12} weight="bold" /> <span class="num">{Math.round(weather.temperature_celsius)}°C</span> <span class="text-text-dim">feels {Math.round(weather.feels_like_celsius)}°</span></span>
-				<span class="flex items-center gap-1"><Wind size={12} weight="bold" /> <span class="num">{Math.round(weather.wind_speed_kmh)} km/h {weather.wind_direction_compass}</span></span>
-				<span class="flex items-center gap-1"><Drop size={12} weight="bold" /> <span class="num">{Math.round(weather.humidity_percent)}%</span></span>
+				<span class="flex items-center gap-1"><Thermometer size={12} weight="bold" /> <span class="num">{Math.round(weather.temperature_celsius ?? 0)}°C</span> <span class="text-text-dim">feels {Math.round(weather.feels_like_celsius ?? 0)}°</span></span>
+				<span class="flex items-center gap-1"><Wind size={12} weight="bold" /> <span class="num">{Math.round(weather.wind_speed_kmh ?? 0)} km/h {weather.wind_direction_compass_point}</span></span>
+				<span class="flex items-center gap-1"><Drop size={12} weight="bold" /> <span class="num">{Math.round(weather.relative_humidity ?? 0)}%</span></span>
 				<span class="text-text-secondary">{weather.weather_description}</span>
 			</div>
 		</div>
@@ -216,23 +215,24 @@
 							<tbody>
 								{#each splits as split, i}
 									{@const cumDist = splits.slice(0, i).reduce((s, x) => s + x.distance_meters, 0)}
+									{@const paceSec = split.distance_meters > 0 && split.duration_seconds > 0 ? Math.round(split.duration_seconds / (split.distance_meters / 1000)) : null}
 									<tr class="border-b border-card-border/20 hover:bg-card-border/10">
 										<td class="py-0.5 pr-3 md:pr-4 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
-										<td class="py-0.5 pr-3 md:pr-4 num text-right text-text">{split.pace?.replace(' /km', '') ?? '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-4 num text-right text-text">{paceSec ? `${Math.floor(paceSec / 60)}:${String(paceSec % 60).padStart(2, '0')}` : '-'}</td>
 										{#if trail}
 											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
 										{/if}
-										<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {hrZoneColor(split.avg_hr, hrZones)}">{split.avg_hr || '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {hrZoneColor(split.average_hr, hrZones)}">{split.average_hr || '-'}</td>
 										{#if hasElev}
-										{@const avgGrade = split.distance_meters > 0 ? (split.elevation_gain - split.elevation_loss) / split.distance_meters * 100 : 0}
-											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain)}</td>
-											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss)}</td>
+										{@const avgGrade = split.distance_meters > 0 ? (split.elevation_gain_meters - split.elevation_loss_meters) / split.distance_meters * 100 : 0}
+											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">+</span>{Math.round(split.elevation_gain_meters)}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss_meters)}</td>
 										{/if}
 										{#if hasPower}
-											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{Math.round(split.avg_power) || '-'}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{Math.round(split.average_power ?? 0) || '-'}</td>
 										{/if}
 										{#if hasCadence}
-											<td class="py-0.5 num text-right text-text-secondary">{Math.round(split.avg_cadence) || '-'}</td>
+											<td class="py-0.5 num text-right text-text-secondary">{Math.round(split.average_run_cadence ?? 0) || '-'}</td>
 										{/if}
 									</tr>
 								{/each}

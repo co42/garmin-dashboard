@@ -29,12 +29,12 @@
 	}
 
 	const factors = $derived([
-		{ label: 'Recovery', feedback: entry.recovery_feedback },
-		{ label: 'HRV', feedback: entry.hrv_feedback },
-		{ label: 'Sleep', feedback: entry.sleep_feedback },
-		{ label: 'Sleep history', feedback: entry.sleep_history_feedback },
-		{ label: 'Stress', feedback: entry.stress_feedback },
-		{ label: 'ACWR', feedback: entry.acwr_feedback },
+		{ label: 'Recovery', feedback: entry.recovery_time_factor_feedback },
+		{ label: 'HRV', feedback: entry.hrv_factor_feedback },
+		{ label: 'Sleep', feedback: entry.sleep_score_factor_feedback },
+		{ label: 'Sleep history', feedback: entry.sleep_history_factor_feedback },
+		{ label: 'Stress', feedback: entry.stress_history_factor_feedback },
+		{ label: 'ACWR', feedback: entry.acwr_factor_feedback },
 	]);
 
 	function feedbackColor(fb: string): string {
@@ -58,9 +58,9 @@
 		<span class="num text-2xl font-bold" style="color: {color}">{entry.score}</span>
 		<div>
 			<span class="num text-sm font-semibold text-text">{entry.level}</span>
-			<span class="text-sm text-text-secondary"> · {fmt(entry.feedback)}</span>
+			<span class="text-sm text-text-secondary"> · {fmt(entry.feedback_short)}</span>
 		</div>
-		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(entry.recovery_time_minutes)}</span>
+		<span class="num ml-auto text-xs text-text-dim">recovery {recoveryTime(entry.recovery_time)}</span>
 	</div>
 
 	<!-- Status + load feedback -->

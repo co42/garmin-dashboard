@@ -25,14 +25,14 @@
 </script>
 
 <div class="space-y-2">
-	{#each courses as course (course.id)}
-		<div id="course-{course.id}" class="rounded-lg bg-card">
+	{#each courses as course (course.course_id)}
+		<div id="course-{course.course_id}" class="rounded-lg bg-card">
 			<CourseRow
 				{course}
-				expanded={expandedId === course.id}
-				ontoggle={() => toggleExpand(course.id)}
+				expanded={expandedId === course.course_id}
+				ontoggle={() => toggleExpand(course.course_id)}
 			/>
-			{#if expandedId === course.id}
+			{#if expandedId === course.course_id}
 				<CourseDetails {course} />
 			{/if}
 		</div>

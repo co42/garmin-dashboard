@@ -95,7 +95,7 @@
 				},
 			},
 			legend: { show: false },
-			xAxis: { type: 'category', data: days, boundaryGap: false, ...CHART_AXIS, axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false } },
+			xAxis: { type: 'category', data: days, boundaryGap: false, ...CHART_AXIS, axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true } },
 			yAxis: {
 				type: 'value',
 				min: (v: { min: number }) => Math.max(0, Math.floor((v.min - 0.1) * 10) / 10),
@@ -164,7 +164,7 @@
 				},
 			},
 			legend: { show: false },
-			xAxis: { type: 'category', data: days, boundaryGap: false, ...CHART_AXIS, axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false } },
+			xAxis: { type: 'category', data: days, boundaryGap: false, ...CHART_AXIS, axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true } },
 			yAxis: {
 				type: 'value',
 				axisLine: { show: false },
@@ -227,7 +227,7 @@
 			<Tip text={"Blue = 7-day acute load\nTeal = 28-day chronic load\nGreen band = optimal acute range (ACWR 0.8–1.3)\n\nACWR = acute / chronic"}>
 				<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartLineUp size={14} weight="bold" /> ACWR Trend</h2>
 			</Tip>
-			<div class="flex rounded-md border border-card-border text-[10px] font-medium">
+			<div class="flex rounded-md border border-card-border divide-x divide-card-border text-[10px] font-medium">
 				<button
 					class="cursor-pointer px-2 py-0.5 rounded-l-md transition-colors {mode === 'values' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
 					onclick={() => mode = 'values'}

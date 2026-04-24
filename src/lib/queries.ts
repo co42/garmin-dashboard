@@ -24,6 +24,9 @@ import type {
 	UserSettings,
 	Course,
 	CourseGeoPoint,
+	CoachPlan,
+	CoachEvent,
+	EventProjection,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -88,26 +91,25 @@ export function loadDashboard(): DashboardData | null {
 	});
 
 	const racePredictions = snapshot<RacePredictions>('race_predictions', {
-		date: '', time_5k_seconds: 0, time_10k_seconds: 0, time_half_marathon_seconds: 0,
-		time_marathon_seconds: 0, time_5k: '', time_10k: '', time_half_marathon: '', time_marathon: '',
-		pace_5k: '', pace_10k: '', pace_half_marathon: '', pace_marathon: '',
+		date: '', time_5k_seconds: null, time_10k_seconds: null,
+		time_half_marathon_seconds: null, time_marathon_seconds: null,
 	});
 
 	const enduranceScore = snapshot<EnduranceScore>('endurance_score', {
-		score: 0, classification: 'Unknown', date: '',
+		score: 0, classification: 'Unknown', feedback: null, date: '',
 	});
 
 	const hillScore = snapshot<HillScore>('hill_score', {
-		date: '', overall: 0, strength: 0, endurance: 0, vo2max: 0,
+		date: '', overall_score: 0, strength_score: 0, endurance_score: 0, vo2_max: 0,
 	});
 
 	const fitnessAge = snapshot<FitnessAge>('fitness_age', {
-		fitness_age: 0, chronological_age: 0, achievable_fitness_age: 0,
+		date: '', fitness_age: 0, chronological_age: 0, achievable_fitness_age: 0,
 		bmi: 0, resting_heart_rate: 0, vigorous_days_avg: 0, vigorous_minutes_avg: 0,
 	});
 
 	const lactateThreshold = snapshot<LactateThreshold>('lactate_threshold', {
-		date: '', heart_rate: 0, pace: '', speed_meters_per_second: 0,
+		date: '', heart_rate: 0, speed_mps: 0,
 	});
 
 	const lactateThresholdHistory = snapshot<LactateThreshold[]>('lactate_threshold_history', []);
@@ -125,10 +127,13 @@ export function loadDashboard(): DashboardData | null {
 	const calendar = snapshot<CalendarEntry[]>('calendar', []);
 	const hrZones = snapshot<HrZone[]>('hr_zones', []);
 	const userSettings = snapshot<UserSettings | null>('user_settings', null);
+	const coachPlan = snapshot<CoachPlan | null>('coach_plan', null);
+	const coachEvent = snapshot<CoachEvent | null>('coach_event', null);
+	const projectionHistory = loadDaily<EventProjection>('daily_event_projections');
 
 	// Activities
 	const activityRows = db.prepare(
-		'SELECT data FROM activities ORDER BY json_extract(data, \'$.start_time\') DESC'
+		'SELECT data FROM activities ORDER BY json_extract(data, \'$.start_time_local\') DESC'
 	).all() as { data: string }[];
 	const activities = activityRows.map(r => JSON.parse(r.data) as Activity);
 
@@ -137,9 +142,9 @@ export function loadDashboard(): DashboardData | null {
 	for (const a of activities) {
 		const splitRows = db.prepare(
 			'SELECT data FROM activity_splits WHERE activity_id = ? ORDER BY split ASC'
-		).all(a.id) as { data: string }[];
+		).all(a.activity_id) as { data: string }[];
 		if (splitRows.length > 0) {
-			recentSplits[a.id] = splitRows.map(r => JSON.parse(r.data) as ActivitySplit);
+			recentSplits[a.activity_id] = splitRows.map(r => JSON.parse(r.data) as ActivitySplit);
 		}
 	}
 
@@ -177,7 +182,7 @@ export function loadDashboard(): DashboardData | null {
 	});
 
 	// Computed
-	const lastRunDate = activities.length > 0 ? activities[0].start_time.slice(0, 10) : null;
+	const lastRunDate = activities.length > 0 ? activities[0].start_time_local.slice(0, 10) : null;
 	const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
 	const daysSinceLastRun = lastRunDate
 		? Math.max(0, daysBetween(lastRunDate, todayStr))
@@ -215,6 +220,9 @@ export function loadDashboard(): DashboardData | null {
 		gear,
 		courses,
 		calendar,
+		coachPlan,
+		coachEvent,
+		projectionHistory,
 		hrZones,
 		userSettings,
 		lastRunDate,

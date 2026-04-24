@@ -31,11 +31,11 @@
 	const zoneTotals = $derived(() => {
 		const zones = [0, 0, 0, 0, 0];
 		for (const a of activities) {
-			zones[0] += a.hr_time_in_zone_1 ?? 0;
-			zones[1] += a.hr_time_in_zone_2 ?? 0;
-			zones[2] += a.hr_time_in_zone_3 ?? 0;
-			zones[3] += a.hr_time_in_zone_4 ?? 0;
-			zones[4] += a.hr_time_in_zone_5 ?? 0;
+			zones[0] += a.hr_time_in_zone_1_seconds ?? 0;
+			zones[1] += a.hr_time_in_zone_2_seconds ?? 0;
+			zones[2] += a.hr_time_in_zone_3_seconds ?? 0;
+			zones[3] += a.hr_time_in_zone_4_seconds ?? 0;
+			zones[4] += a.hr_time_in_zone_5_seconds ?? 0;
 		}
 		const total = zones.reduce((s, v) => s + v, 0);
 		const pcts = zones.map(z => total > 0 ? z / total : 0);

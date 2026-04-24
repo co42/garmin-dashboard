@@ -17,15 +17,29 @@
 	}
 
 	let { predictions, records, activities = [], history = [], onNavigate }: Props = $props();
-	const activityMap = $derived(new Map(activities.map(a => [a.id, a])));
+	const activityMap = $derived(new Map(activities.map(a => [a.activity_id, a])));
 
 	type TimeKey = 'time_5k_seconds' | 'time_10k_seconds' | 'time_half_marathon_seconds' | 'time_marathon_seconds';
 
-	const DISTANCES: { label: string; km: number; recordType: string; predTime: number; predTimeStr: string; predPace: string; timeKey: TimeKey }[] = $derived([
-		{ label: '5K', km: 5, recordType: '5K Run', predTime: predictions.time_5k_seconds, predTimeStr: predictions.time_5k, predPace: predictions.pace_5k, timeKey: 'time_5k_seconds' },
-		{ label: '10K', km: 10, recordType: '10K Run', predTime: predictions.time_10k_seconds, predTimeStr: predictions.time_10k, predPace: predictions.pace_10k, timeKey: 'time_10k_seconds' },
-		{ label: 'Semi', km: 21.0975, recordType: 'Half Marathon', predTime: predictions.time_half_marathon_seconds, predTimeStr: predictions.time_half_marathon, predPace: predictions.pace_half_marathon, timeKey: 'time_half_marathon_seconds' },
-		{ label: 'Marathon', km: 42.195, recordType: 'Full Marathon', predTime: predictions.time_marathon_seconds, predTimeStr: predictions.time_marathon, predPace: predictions.pace_marathon, timeKey: 'time_marathon_seconds' },
+	function fmtTimeHMS(secs: number | null): string {
+		if (!secs) return '—';
+		const h = Math.floor(secs / 3600);
+		const m = Math.floor((secs % 3600) / 60);
+		const s = Math.round(secs % 60);
+		return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+	}
+
+	function paceMSS(seconds: number | null, km: number): string {
+		if (!seconds) return '—';
+		const p = seconds / km;
+		return `${Math.floor(p / 60)}:${Math.floor(p % 60).toString().padStart(2, '0')}`;
+	}
+
+	const DISTANCES: { label: string; km: number; recordType: string; predTime: number | null; predTimeStr: string; predPace: string; timeKey: TimeKey }[] = $derived([
+		{ label: '5K', km: 5, recordType: '5K Run', predTime: predictions.time_5k_seconds, predTimeStr: fmtTimeHMS(predictions.time_5k_seconds), predPace: paceMSS(predictions.time_5k_seconds, 5), timeKey: 'time_5k_seconds' },
+		{ label: '10K', km: 10, recordType: '10K Run', predTime: predictions.time_10k_seconds, predTimeStr: fmtTimeHMS(predictions.time_10k_seconds), predPace: paceMSS(predictions.time_10k_seconds, 10), timeKey: 'time_10k_seconds' },
+		{ label: 'Semi', km: 21.0975, recordType: 'Half Marathon', predTime: predictions.time_half_marathon_seconds, predTimeStr: fmtTimeHMS(predictions.time_half_marathon_seconds), predPace: paceMSS(predictions.time_half_marathon_seconds, 21.0975), timeKey: 'time_half_marathon_seconds' },
+		{ label: 'Marathon', km: 42.195, recordType: 'Full Marathon', predTime: predictions.time_marathon_seconds, predTimeStr: fmtTimeHMS(predictions.time_marathon_seconds), predPace: paceMSS(predictions.time_marathon_seconds, 42.195), timeKey: 'time_marathon_seconds' },
 	]);
 
 	const recordMap = $derived(new Map(records.map(r => [r.record_type, r])));
@@ -65,7 +79,7 @@
 		const dist = DISTANCES[idx];
 		const key = dist.timeKey;
 
-		const filtered = history.filter(h => h[key] > 0);
+		const filtered = history.filter(h => (h[key] ?? 0) > 0);
 		if (filtered.length < 2) { chart.clear(); return; }
 
 		const dates = filtered.map(h => {
@@ -157,7 +171,7 @@
 					<div class="flex items-center gap-2">
 						<Trophy size={16} weight="bold" class="text-text-dim shrink-0" />
 						<span class="num text-lg font-bold text-text">{pr.formatted_value}</span>
-						<span class="num text-sm text-text-secondary ml-auto">{(pr.pace_min_km ?? pace(pr.value, dist.km)).replace(' /km', '/km')}</span>
+						<span class="num text-sm text-text-secondary ml-auto">{paceFmt(pr.value, dist.km)}</span>
 					</div>
 				{:else}
 					<div class="flex items-center gap-2 text-sm text-text-dim"><Trophy size={16} weight="bold" class="shrink-0" /> no PR</div>

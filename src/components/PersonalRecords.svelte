@@ -15,6 +15,22 @@
 		records.filter(r => r.sport === 'running')
 	);
 
+	const RECORD_DISTANCE_KM: Record<string, number> = {
+		'1K Run': 1,
+		'1 Mile Run': 1.609344,
+		'5K Run': 5,
+		'10K Run': 10,
+		'Half Marathon': 21.0975,
+		'Full Marathon': 42.195,
+	};
+
+	function paceFor(record: PersonalRecord): string | null {
+		const km = RECORD_DISTANCE_KM[record.record_type];
+		if (!km || !record.value) return null;
+		const secsPerKm = Math.round(record.value / km);
+		return `${Math.floor(secsPerKm / 60)}:${String(secsPerKm % 60).padStart(2, '0')} /km`;
+	}
+
 	function isRecent(date?: string): boolean {
 		if (!date) return false;
 		return Date.now() - new Date(date.slice(0, 10) + 'T12:00:00Z').getTime() < 30 * 86400000;
@@ -32,11 +48,12 @@
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
 			{#each displayRecords as record}
 				{@const recent = isRecent(record.date)}
+				{@const pace = paceFor(record)}
 				<div class="rounded bg-card-border/50 px-3 py-2" style={recent ? 'box-shadow: 0 0 0 1px rgba(34,197,94,0.3);' : ''}>
 					<span class="text-[10px] font-semibold uppercase text-text-dim">{record.record_type}</span>
 					<p class="num text-sm font-bold text-text">{record.formatted_value}</p>
-					{#if record.pace_min_km}
-						<p class="num text-[10px] text-text-dim">{record.pace_min_km}</p>
+					{#if pace}
+						<p class="num text-[10px] text-text-dim">{pace}</p>
 					{/if}
 					<p class="text-[10px] text-text-secondary">
 						{record.date ? formatDate(record.date) : ''}

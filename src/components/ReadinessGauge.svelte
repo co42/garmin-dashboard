@@ -24,11 +24,11 @@
 	};
 
 	const factors = $derived([
-		{ label: 'HRV', value: entry.hrv_score },
-		{ label: 'Sleep', value: entry.sleep_history_score },
-		{ label: 'Recovery', value: entry.recovery_score },
-		{ label: 'Stress', value: entry.stress_score },
-		{ label: 'ACWR', value: entry.acwr_score },
+		{ label: 'HRV', value: entry.hrv_factor_percent },
+		{ label: 'Sleep', value: entry.sleep_history_factor_percent },
+		{ label: 'Recovery', value: entry.recovery_time_factor_percent },
+		{ label: 'Stress', value: entry.stress_history_factor_percent },
+		{ label: 'ACWR', value: entry.acwr_factor_percent },
 	]);
 
 	const color = $derived(readinessColor(entry.score));

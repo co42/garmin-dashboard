@@ -48,13 +48,13 @@
 	let editingTitle = $state(false);
 	let editTitle = $state('');
 	let nameOverride = $state<string | null>(null);
-	const displayName = $derived(nameOverride ?? activity.name);
+	const displayName = $derived(nameOverride ?? activity.activity_name);
 
 	async function saveTitle() {
 		editingTitle = false;
 		if (editTitle === displayName) return;
 		nameOverride = editTitle;
-		fetch(`/api/activity/${activity.id}`, {
+		fetch(`/api/activity/${activity.activity_id}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ name: nameOverride }),
@@ -112,14 +112,14 @@
 	}
 
 	function isTrail(a: Activity): boolean {
-		if (!a.elevation_gain || !a.distance_meters || a.distance_meters < 1000) return false;
-		return a.elevation_gain / (a.distance_meters / 1000) > 15;
+		if (!a.elevation_gain_meters || !a.distance_meters || a.distance_meters < 1000) return false;
+		return a.elevation_gain_meters / (a.distance_meters / 1000) > 15;
 	}
 
 	function zoneData(a: Activity): { pcts: number[]; times: number[]; total: number } {
 		const times = [
-			a.hr_time_in_zone_1 ?? 0, a.hr_time_in_zone_2 ?? 0,
-			a.hr_time_in_zone_3 ?? 0, a.hr_time_in_zone_4 ?? 0, a.hr_time_in_zone_5 ?? 0,
+			a.hr_time_in_zone_1_seconds ?? 0, a.hr_time_in_zone_2_seconds ?? 0,
+			a.hr_time_in_zone_3_seconds ?? 0, a.hr_time_in_zone_4_seconds ?? 0, a.hr_time_in_zone_5_seconds ?? 0,
 		];
 		const total = times.reduce((s, v) => s + v, 0);
 		return { pcts: times.map(z => total > 0 ? z / total * 100 : 0), times, total };
@@ -155,7 +155,7 @@
 	const te = $derived(teShort(activity.training_effect_label));
 	const zones = $derived(zoneData(activity));
 	const trail = $derived(isTrail(activity));
-	const hasElevation = $derived(activity.elevation_gain != null && activity.elevation_gain > 0);
+	const hasElevation = $derived(activity.elevation_gain_meters != null && activity.elevation_gain_meters > 0);
 
 	// Mini pace sparkline from splits
 	function parsePace(s: ActivitySplit): number {
@@ -166,7 +166,7 @@
 	}
 	const sparkBars = $derived(
 		(splits && splits.length >= 2)
-			? splits.map(s => ({ pace: parsePace(s), dist: s.distance_meters, hr: s.avg_hr })).filter(b => b.pace > 0 && b.dist > 0)
+			? splits.map(s => ({ pace: parsePace(s), dist: s.distance_meters, hr: s.average_hr })).filter(b => b.pace > 0 && b.dist > 0)
 			: []
 	);
 	const paceMin = $derived(sparkBars.length > 0 ? arrMin(sparkBars.map(b => b.pace)) : 0);
@@ -182,7 +182,7 @@
 	}
 
 	function scrollToActivity() {
-		const el = document.getElementById(`activity-${activity.id}`);
+		const el = document.getElementById(`activity-${activity.activity_id}`);
 		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
 </script>
@@ -190,7 +190,7 @@
 <button
 	type="button"
 	class="w-full text-left px-3 md:px-4 py-3 cursor-pointer hover:bg-card-border/20 transition-colors rounded-lg"
-	onclick={() => { if (context === 'feed') ontoggle?.(); else if (onNavigate) onNavigate(activity.id); else scrollToActivity(); }}
+	onclick={() => { if (context === 'feed') ontoggle?.(); else if (onNavigate) onNavigate(activity.activity_id); else scrollToActivity(); }}
 >
 	<!-- Row 1: Name + badge + weather + date -->
 	<div class="flex items-center gap-2.5 mb-1.5 leading-5">
@@ -246,14 +246,14 @@
 			{/if}
 		</div>
 		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">
-			{fmtDate(activity.start_time)} {fmtTime(activity.start_time)}
+			{fmtDate(activity.start_time_local)} {fmtTime(activity.start_time_local)}
 			{#if activity.location_name}
 				<span class="hidden md:inline text-[10px] text-text-dim">· {activity.location_name}</span>
 			{/if}
 			{#if weather?.weather_description}
 				{@const wt = weatherType(weather.weather_description)}
 				<span class="text-text-dim">·</span>
-				<Tip text={`${weather.weather_description}\n${Math.round(weather.temperature_celsius ?? 0)}°C (feels ${Math.round(weather.feels_like_celsius ?? 0)}°C)\nWind ${Math.round(weather.wind_speed_kmh ?? 0)} km/h ${weather.wind_direction_compass ?? ''}\nHumidity ${Math.round(weather.humidity_percent ?? 0)}%`}>
+				<Tip text={`${weather.weather_description}\n${Math.round(weather.temperature_celsius ?? 0)}°C (feels ${Math.round(weather.feels_like_celsius ?? 0)}°C)\nWind ${Math.round(weather.wind_speed_kmh ?? 0)} km/h ${weather.wind_direction_compass_point ?? ''}\nHumidity ${Math.round(weather.relative_humidity ?? 0)}%`}>
 					<span class="flex items-center gap-1 text-text-dim">
 						{#if wt === 'sun'}<Sun size={14} weight="bold" />
 						{:else if wt === 'cloud-sun'}<CloudSun size={14} weight="bold" />
@@ -264,7 +264,7 @@
 						{:else if wt === 'storm'}<CloudLightning size={14} weight="bold" />
 						{:else}<Moon size={14} weight="bold" />
 						{/if}
-						<span class="num">{Math.round(weather.temperature_celsius)}°</span>
+						<span class="num">{Math.round(weather.temperature_celsius ?? 0)}°</span>
 					</span>
 				</Tip>
 			{/if}
@@ -284,16 +284,16 @@
 	<div class="flex flex-wrap items-end gap-x-3 gap-y-1.5 text-xs leading-none">
 		<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
 		<span class="num text-text-secondary shrink-0">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
-		{#if trail && activity.avg_grade_adjusted_speed}
-			<span class="num shrink-0 inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground"><Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed)}</span>
-		{:else if activity.pace_min_km}
-			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{activity.pace_min_km.replace(' /km', '')}</span>
+		{#if trail && activity.avg_grade_adjusted_speed_mps}
+			<span class="num shrink-0 inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground"><Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed_mps)}</span>
+		{:else if activity.average_speed_mps}
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{speedToPace(activity.average_speed_mps)}</span>
 		{/if}
 		{#if trail}
-			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{activity.elevation_gain}m</span>
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{activity.elevation_gain_meters}m</span>
 		{/if}
-		{#if activity.avg_hr}
-			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-px"><Heartbeat size={12} weight="bold" />{activity.avg_hr}{#if activity.max_hr}<span class="hidden sm:inline text-text-dim">/{activity.max_hr}</span>{/if}</span>
+		{#if activity.average_hr}
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-px"><Heartbeat size={12} weight="bold" />{activity.average_hr}{#if activity.max_hr}<span class="hidden sm:inline text-text-dim">/{activity.max_hr}</span>{/if}</span>
 		{/if}
 
 		<!-- Right group: sparkline + load + zones -->

@@ -10,15 +10,15 @@
 
 	let { gear }: Props = $props();
 
-	const shoes = $derived(gear.filter(g => g.gear_type === 'Shoes' && g.status !== 'retired'));
+	const shoes = $derived(gear.filter(g => g.gear_type_name === 'Shoes' && g.gear_status_name !== 'retired'));
 
 	function km(meters: number): number {
 		return Math.round(meters / 1000);
 	}
 
 	function pct(shoe: GearItem): number {
-		if (shoe.max_distance_meters <= 0) return 0;
-		return Math.min((shoe.distance_meters / shoe.max_distance_meters) * 100, 100);
+		if (shoe.maximum_meters <= 0) return 0;
+		return Math.min((shoe.distance_meters / shoe.maximum_meters) * 100, 100);
 	}
 
 	function healthColor(shoe: GearItem): string {
@@ -49,12 +49,12 @@
 		{#each shoes as shoe}
 			{@const color = healthColor(shoe)}
 			{@const p = pct(shoe)}
-			<Tip text={`${shoe.brand}\n${km(shoe.distance_meters)} / ${km(shoe.max_distance_meters)} km (${Math.round(p)}%)\n${shoe.activities} runs${shoe.date_begin ? ` · since ${since(shoe.date_begin)}` : ''}`}>
+			<Tip text={`${shoe.brand}\n${km(shoe.distance_meters)} / ${km(shoe.maximum_meters)} km (${Math.round(p)}%)\n${shoe.activities} runs${shoe.date_begin ? ` · since ${since(shoe.date_begin)}` : ''}`}>
 				<div class="rounded-lg bg-card px-3 md:px-4 py-3">
 					<div class="flex items-baseline justify-between gap-2">
 						<span class="text-sm font-medium text-text truncate">{shoe.display_name}</span>
 						<span class="num text-xs shrink-0" style="color: {color}">
-							<span class="font-bold">{km(shoe.distance_meters)}</span><span class="text-text-dim">/{km(shoe.max_distance_meters)}km</span>
+							<span class="font-bold">{km(shoe.distance_meters)}</span><span class="text-text-dim">/{km(shoe.maximum_meters)}km</span>
 						</span>
 					</div>
 					<div class="mt-2 h-1.5 rounded-full bg-card-border overflow-hidden">

@@ -25,7 +25,7 @@
 	}
 
 	const isTrail = $derived(
-		course.activity_type === 'trail_running' ||
+		course.activity_type?.type_key === 'trail_running' ||
 		(course.elevation_gain_meters > 0 && course.distance_meters > 0 &&
 		 course.elevation_gain_meters / (course.distance_meters / 1000) > 15)
 	);
@@ -41,18 +41,18 @@
 	<!-- Row 1: Name + date -->
 	<div class="flex items-center gap-2.5 mb-1.5 leading-5">
 		<span class="shrink-0 leading-[0]" style="color: {iconColor};">
-			{#if course.activity_type === 'trail_running'}
+			{#if course.activity_type?.type_key === 'trail_running'}
 				<Mountains size={16} weight="bold" />
-			{:else if course.activity_type === 'cycling'}
+			{:else if course.activity_type?.type_key === 'cycling'}
 				<PersonSimpleBike size={16} weight="bold" />
-			{:else if course.activity_type === 'hiking'}
+			{:else if course.activity_type?.type_key === 'hiking'}
 				<PersonSimpleHike size={16} weight="bold" />
 			{:else}
 				<PersonSimpleRun size={16} weight="bold" />
 			{/if}
 		</span>
 		<div class="min-w-0 flex-1">
-			<div class="font-medium text-text text-sm truncate">{course.name}</div>
+			<div class="font-medium text-text text-sm truncate">{course.course_name}</div>
 		</div>
 		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">
 			{fmtDate(course.created_date)}

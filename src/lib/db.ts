@@ -63,6 +63,11 @@ CREATE TABLE IF NOT EXISTS daily_race_predictions (
 	data TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS daily_event_projections (
+	date TEXT PRIMARY KEY,
+	data TEXT NOT NULL
+);
+
 -- Activities
 CREATE TABLE IF NOT EXISTS activities (
 	id INTEGER PRIMARY KEY,

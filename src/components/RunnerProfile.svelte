@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import type { HillScore, DailyTrainingStatus, EnduranceScore } from '$lib/types.js';
-	import { AXES, RADAR_AXIS_ORDER, AXIS_COLORS, normalize, formatRaw, computeBalance, computeProductivity } from '$lib/profile.js';
-	import { C, MONO } from '$lib/colors.js';
+	import type { HillScore, DailyTrainingStatus, EnduranceScore, UserSettings } from '$lib/types.js';
+	import { AXES, RADAR_AXIS_ORDER, AXIS_COLORS, normalize, formatRawDelta, computeProductivity, computeAge, axisZones, hillSubColor, type Zone } from '$lib/profile.js';
+	import { weekMonday } from '$lib/dates.js';
+	import { C } from '$lib/colors.js';
+	import Tip from './Tip.svelte';
 	import ChartPolar from 'phosphor-svelte/lib/ChartPolar';
 
 	interface Props {
@@ -14,245 +15,237 @@
 		fullStatusHistory: DailyTrainingStatus[];
 		hillScoreHistory: HillScore[];
 		enduranceScoreHistory: EnduranceScore[];
+		userSettings: UserSettings | null;
 	}
 
-	let { hillScore, currentStatus, enduranceScore, vo2max, statusHistory, fullStatusHistory, hillScoreHistory, enduranceScoreHistory }: Props = $props();
+	let { hillScore, currentStatus: _currentStatus, enduranceScore, vo2max, fullStatusHistory, hillScoreHistory, enduranceScoreHistory, userSettings }: Props = $props();
 
-	let radarEl: HTMLDivElement;
-	let axisTip = $state({ visible: false, text: '', x: 0, y: 0 });
-
-	// Rolling 30-day average of balance scores
-	function rolling30dBalance(history: DailyTrainingStatus[], atDate?: string): number {
-		const cutoff = atDate
-			? new Date(new Date(atDate + 'T00:00:00Z').getTime() - 30 * 86400000).toISOString().slice(0, 10)
-			: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-		const endDate = atDate ?? new Date().toISOString().slice(0, 10);
-		const window = history.filter(s => s.date >= cutoff && s.date <= endDate);
-		const scores = window.map(s => computeBalance(s)).filter(b => b >= 0);
-		if (scores.length === 0) return 0;
-		return Math.round(scores.reduce((s, v) => s + v, 0) / scores.length);
-	}
+	const ctx = $derived.by(() => {
+		const sex: 'male' | 'female' = userSettings?.gender === 'female' ? 'female' : 'male';
+		return { age: computeAge(userSettings?.birth_date), sex };
+	});
 
 	function rawValue(key: string): number {
 		switch (key) {
 			case 'vo2max': return vo2max;
 			case 'endurance': return enduranceScore.score;
-			case 'balance': return rolling30dBalance(fullStatusHistory);
-			case 'hill': return hillScore.overall;
+			case 'hill': return hillScore.overall_score;
 			case 'productivity': return Math.max(0, computeProductivity(fullStatusHistory));
 			default: return 0;
 		}
 	}
 
-	function peakValues(): { norm: number[]; raw: number[] } {
-		const peaks: Record<string, number> = {};
-		const rawPeaks: Record<string, number> = {};
-		for (const key of RADAR_AXIS_ORDER) { peaks[key] = 0; rawPeaks[key] = -Infinity; }
+	type HillSubScore = {
+		label: string;
+		key: 'hillEnd' | 'hillStr';
+		raw: number;
+		color: string;
+		delta: number;
+	};
 
-		for (const s of statusHistory) {
-			const v = s.vo2max;
-			if (normalize('vo2max', v) >= peaks.vo2max) { peaks.vo2max = normalize('vo2max', v); rawPeaks.vo2max = v; }
-			const bal = rolling30dBalance(fullStatusHistory, s.date);
-			if (bal >= peaks.balance) { peaks.balance = bal; rawPeaks.balance = bal; }
-			const prod = computeProductivity(fullStatusHistory, s.date);
-			if (prod >= 0 && prod >= peaks.productivity) { peaks.productivity = prod; rawPeaks.productivity = prod; }
+	type AxisRow = {
+		key: string;
+		name: string;
+		raw: number;
+		rawStr: string;
+		delta: number;
+		color: string;
+		tipText: string;
+		tipHtml: string;
+		zones: Zone[] | null;
+		/** User's position along the bar, 0–100 */
+		posPct: number;
+		/** Zone that contains the user's value, if any */
+		activeZone: Zone | null;
+		/** For the Hill row only: End & Str values shown inline next to the overall score. */
+		hillSubs: HillSubScore[] | null;
+	};
+
+	function fmtRaw(key: string, raw: number): string {
+		if (key === 'vo2max') return raw.toFixed(1);
+		if (key === 'endurance') return Math.round(raw).toLocaleString();
+		if (key === 'productivity') return Math.round(raw) + '%';
+		return String(Math.round(raw));
+	}
+
+	function fmtRange(key: string, min: number, max: number): string {
+		// Integer-based axes (endurance, hill, productivity) use inclusive bounds Garmin-style ("5800 – 6499")
+		if (key === 'endurance' || key === 'hill' || key === 'hillStr' || key === 'hillEnd' || key === 'productivity') {
+			return `${fmtRaw(key, min)} – ${fmtRaw(key, max - 1)}`;
 		}
-		for (const h of hillScoreHistory) {
-			if (normalize('hill', h.overall) >= peaks.hill) { peaks.hill = normalize('hill', h.overall); rawPeaks.hill = h.overall; }
+		return `${fmtRaw(key, min)} – ${fmtRaw(key, max)}`;
+	}
+
+	function zoneTableRows(zones: Zone[], userRaw: number, rawStr: string, key: string): string {
+		return zones.map(z => {
+			const inZone = userRaw >= z.min && userRaw < z.max;
+			const range = fmtRange(key, z.min, z.max);
+			const swatch = `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${z.color};margin-right:6px;vertical-align:middle"></span>`;
+			const nameStyle = inZone ? `color:${z.color};font-weight:700` : '';
+			const marker = inZone
+				? `<td style="color:${z.color};padding-left:8px;font-weight:700">← ${rawStr}</td>`
+				: '<td></td>';
+			return `<tr><td style="${nameStyle}">${swatch}${z.name}</td><td style="text-align:right;padding-left:12px;color:${C.textSecondary}" class="num">${range}</td>${marker}</tr>`;
+		}).join('');
+	}
+
+	function buildZoneTipHtml(title: string, zones: Zone[], userRaw: number, rawStr: string, key: string, extras = ''): string {
+		const body = zoneTableRows(zones, userRaw, rawStr, key);
+		return `<div style="font-weight:600;margin-bottom:6px;color:${C.text}">${title}</div>`
+			+ `<table style="border-spacing:0 2px;font-size:11px">${body}</table>`
+			+ extras;
+	}
+
+	function buildHillExtras(hillSubs: HillSubScore[]): string {
+		const rows = hillSubs.map(sub => {
+			return `<tr><td style="padding-right:8px;color:${C.textSecondary}">${sub.label}</td><td style="text-align:right;font-weight:700;color:${sub.color}" class="num">${sub.raw}</td></tr>`;
+		}).join('');
+		return `<div style="margin-top:8px;padding-top:6px;border-top:1px solid ${C.cardBorder};font-size:11px"><table style="border-spacing:0 1px">${rows}</table></div>`;
+	}
+
+	// Week-over-week raw-value deltas, bucketed last-of-week (Monday → next Monday)
+	const weekDeltas = $derived.by(() => {
+		const statusByWeek = new Map<string, DailyTrainingStatus>();
+		for (const s of [...fullStatusHistory].filter(s => s.date).sort((a, b) => a.date.localeCompare(b.date))) {
+			statusByWeek.set(weekMonday(s.date), s);
 		}
-		for (const e of enduranceScoreHistory) {
-			if (normalize('endurance', e.score) >= peaks.endurance) { peaks.endurance = normalize('endurance', e.score); rawPeaks.endurance = e.score; }
+		const hillByWeek = new Map<string, HillScore>();
+		for (const h of [...hillScoreHistory].filter(h => h.date).sort((a, b) => a.date.localeCompare(b.date))) {
+			hillByWeek.set(weekMonday(h.date), h);
 		}
+		const endurByWeek = new Map<string, EnduranceScore>();
+		for (const e of [...enduranceScoreHistory].filter(e => e.date).sort((a, b) => a.date.localeCompare(b.date))) {
+			endurByWeek.set(weekMonday(e.date), e);
+		}
+
+		const weeks = [...statusByWeek.keys()].sort();
+		const zero = { vo2max: 0, endurance: 0, productivity: 0, hill: 0, hillEnd: 0, hillStr: 0 };
+		if (weeks.length < 2) return zero;
+		const cur = weeks[weeks.length - 1];
+		const prev = weeks[weeks.length - 2];
+		const curS = statusByWeek.get(cur)!;
+		const prevS = statusByWeek.get(prev)!;
+		const curH = hillByWeek.get(cur);
+		const prevH = hillByWeek.get(prev);
+		const curE = endurByWeek.get(cur);
+		const prevE = endurByWeek.get(prev);
+
+		const curProd = computeProductivity(fullStatusHistory, curS.date);
+		const prevProd = computeProductivity(fullStatusHistory, prevS.date);
 
 		return {
-			norm: RADAR_AXIS_ORDER.map(key => peaks[key]),
-			raw: RADAR_AXIS_ORDER.map(key => rawPeaks[key] === -Infinity ? 0 : rawPeaks[key]),
+			vo2max: (curS.vo2max ?? 0) - (prevS.vo2max ?? 0),
+			endurance: curE && prevE ? curE.score - prevE.score : 0,
+			productivity: curProd >= 0 && prevProd >= 0 ? curProd - prevProd : 0,
+			hill: curH && prevH ? curH.overall_score - prevH.overall_score : 0,
+			hillEnd: curH && prevH ? curH.endurance_score - prevH.endurance_score : 0,
+			hillStr: curH && prevH ? curH.strength_score - prevH.strength_score : 0,
 		};
-	}
-
-	function floorValues(): { norm: number[]; raw: number[] } {
-		const floors: Record<string, number> = {};
-		const rawFloors: Record<string, number> = {};
-		for (const key of RADAR_AXIS_ORDER) { floors[key] = 100; rawFloors[key] = Infinity; }
-
-		for (const s of statusHistory) {
-			const v = s.vo2max;
-			if (normalize('vo2max', v) <= floors.vo2max) { floors.vo2max = normalize('vo2max', v); rawFloors.vo2max = v; }
-			const bal = rolling30dBalance(fullStatusHistory, s.date);
-			if (bal <= floors.balance) { floors.balance = bal; rawFloors.balance = bal; }
-			const prod = computeProductivity(fullStatusHistory, s.date);
-			if (prod >= 0 && prod <= floors.productivity) { floors.productivity = prod; rawFloors.productivity = prod; }
-		}
-		for (const h of hillScoreHistory) {
-			if (normalize('hill', h.overall) <= floors.hill) { floors.hill = normalize('hill', h.overall); rawFloors.hill = h.overall; }
-		}
-		for (const e of enduranceScoreHistory) {
-			if (normalize('endurance', e.score) <= floors.endurance) { floors.endurance = normalize('endurance', e.score); rawFloors.endurance = e.score; }
-		}
-
-		return {
-			norm: RADAR_AXIS_ORDER.map(key => floors[key]),
-			raw: RADAR_AXIS_ORDER.map(key => rawFloors[key] === Infinity ? 0 : rawFloors[key]),
-		};
-	}
-
-	const radarData = $derived(() =>
-		RADAR_AXIS_ORDER.map(key => {
-			const raw = rawValue(key);
-			const pct = normalize(key, raw);
-			return {
-				key,
-				axis: AXES[key].name,
-				value: pct,
-				raw,
-				rawStr: formatRaw(key, raw),
-			};
-		})
-	);
-
-	let _chart: any;
-	let _ro: ResizeObserver;
-	let _ready = $state(false);
-	let _indicatorNames: string[] = [];
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
-
-	function renderChart() {
-		if (!_chart) return;
-		const rd = radarData();
-		const peakData = peakValues();
-		const floorData = floorValues();
-		const peaks = peakData.norm;
-		const floors = floorData.norm;
-		const rawPeaks = peakData.raw;
-		const rawFloors = floorData.raw;
-
-		_chart.setOption({
-			radar: {
-				triggerEvent: true,
-				indicator: rd.map((d, i) => ({
-					name: `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`,
-					max: 100,
-				})),
-				shape: 'polygon',
-				radius: '72%',
-				center: ['50%', '58%'],
-				axisName: {
-					rich: {
-						val: { color: C.text, fontSize: 12, fontWeight: 'bold', fontFamily: MONO, align: 'center' },
-						name: { color: C.textSecondary, fontSize: 10, fontFamily: MONO, align: 'center' },
-						...Object.fromEntries(RADAR_AXIS_ORDER.map((key, i) => [
-							`dot${i}`, { color: AXIS_COLORS[key], fontSize: 12, align: 'center' },
-						])),
-					},
-				},
-				axisLine: { lineStyle: { color: C.hover } },
-				splitLine: { lineStyle: { color: C.cardBorder } },
-				splitArea: { show: false },
-			},
-			tooltip: { show: false },
-			series: [{
-				type: 'radar',
-				data: [
-					{
-						value: floors,
-						name: 'Low',
-						areaStyle: { color: 'rgba(239, 68, 68, 0.15)' },
-						lineStyle: { color: 'rgba(239, 68, 68, 0.6)', width: 1.5, type: 'dashed' },
-						itemStyle: { color: 'rgba(239, 68, 68, 0.6)' },
-						symbol: 'circle',
-						symbolSize: 3,
-						z: 0,
-					},
-					{
-						value: peaks,
-						name: 'Peak',
-						areaStyle: { color: 'rgba(59, 130, 246, 0.12)' },
-						lineStyle: { color: 'rgba(59, 130, 246, 0.5)', width: 1.5, type: 'dashed' },
-						itemStyle: { color: 'rgba(59, 130, 246, 0.5)' },
-						symbol: 'circle',
-						symbolSize: 3,
-						z: 1,
-					},
-					{
-						value: rd.map(d => d.value),
-						name: 'Current',
-						areaStyle: { color: 'transparent' },
-						lineStyle: { color: C.blue, width: 2 },
-						itemStyle: { color: C.blue },
-						symbol: 'circle',
-						symbolSize: 6,
-						z: 2,
-					},
-				],
-			}],
-		}, true);
-
-		// Keep indicator names fresh for axis-name hover lookup
-		_indicatorNames = rd.map((d, i) => `{val|${d.rawStr}}\n{dot${i}|●} {name|${d.axis}}`);
-	}
-
-	onMount(async () => {
-		const echarts = await import('echarts');
-		_chart = echarts.init(radarEl, undefined, { renderer: 'svg' });
-
-		_ro = new ResizeObserver(() => _chart.resize());
-		_ro.observe(radarEl);
-
-		_chart.on('mouseover', (params: any) => {
-			if (params.targetType === 'axisName') {
-				const idx = _indicatorNames.indexOf(params.name);
-				if (idx >= 0) {
-					const key = RADAR_AXIS_ORDER[idx];
-					const e = (params.event?.event ?? params.event) as MouseEvent;
-					axisTip = { visible: true, text: AXES[key].tip, x: e.clientX, y: e.clientY - 12 };
-				}
-			}
-		});
-		_chart.on('mouseout', (params: any) => {
-			if (params.targetType === 'axisName') {
-				axisTip = { ...axisTip, visible: false };
-			}
-		});
-
-		_ready = true;
 	});
 
-	$effect(() => {
-		if (!_ready) return;
-		hillScore; currentStatus; enduranceScore; vo2max; statusHistory; fullStatusHistory; hillScoreHistory; enduranceScoreHistory;
-		renderChart();
+
+	const rows = $derived.by<AxisRow[]>(() => {
+		return RADAR_AXIS_ORDER.map(key => {
+			const raw = rawValue(key);
+			const rawStr = fmtRaw(key, raw);
+			const delta = weekDeltas[key as keyof typeof weekDeltas] ?? 0;
+
+			const zones = axisZones(key, ctx);
+			let posPct: number;
+			let activeZone: Zone | null = null;
+
+			const hillSubs: HillSubScore[] | null = key === 'hill'
+				? [
+					{ label: 'End', key: 'hillEnd', raw: hillScore.endurance_score, color: hillSubColor(hillScore.endurance_score), delta: weekDeltas.hillEnd ?? 0 },
+					{ label: 'Str', key: 'hillStr', raw: hillScore.strength_score, color: hillSubColor(hillScore.strength_score), delta: weekDeltas.hillStr ?? 0 },
+				]
+				: null;
+
+			let tipHtml = '';
+			const tipText = AXES[key].tip;
+
+			if (zones) {
+				const first = zones[0].min;
+				const last = zones[zones.length - 1].max;
+				posPct = Math.max(0, Math.min(100, ((raw - first) / (last - first)) * 100));
+				activeZone = zones.find(z => raw >= z.min && raw < z.max)
+					?? (raw >= last ? zones[zones.length - 1] : zones[0]);
+				const titles: Record<string, string> = {
+					vo2max: `VO2max — Cooper scale · ${ctx.age}yo ${ctx.sex}`,
+					endurance: `Endurance — Garmin zones · ${ctx.age}yo ${ctx.sex}`,
+					hill: 'Hill score — Garmin zones',
+					productivity: 'Productivity — 30-day weighted training quality',
+				};
+				const extras = hillSubs ? buildHillExtras(hillSubs) : '';
+				tipHtml = buildZoneTipHtml(titles[key] ?? AXES[key].name, zones, raw, rawStr, key, extras);
+			} else {
+				posPct = normalize(key, raw, ctx);
+			}
+
+			return {
+				key,
+				name: AXES[key].name,
+				raw,
+				rawStr,
+				delta,
+				color: AXIS_COLORS[key],
+				tipText,
+				tipHtml,
+				zones,
+				posPct,
+				activeZone,
+				hillSubs,
+			};
+		});
 	});
 </script>
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
 	<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartPolar size={14} weight="bold" /> Profile</h2>
-	<div bind:this={radarEl} class="flex-1 min-h-[200px] w-full"></div>
-{#if axisTip.visible}
-	<span class="axis-tip" style="left:{axisTip.x}px;top:{axisTip.y}px">
-		{#each axisTip.text.split('\n') as line, i}
-			{#if i > 0}<br/>{/if}{line}
+	<div class="flex-1 flex flex-col justify-around gap-3 mt-3">
+		{#each rows as row}
+			{@const total = row.zones ? row.zones[row.zones.length - 1].max - row.zones[0].min : 0}
+			<Tip text={row.tipText} html={row.tipHtml || undefined}>
+				<div>
+					<div class="flex items-baseline justify-between text-xs mb-1.5">
+						<span class="flex items-center gap-1.5 min-w-0">
+							<span class="text-text-secondary">{row.name}</span>
+							{#if row.activeZone}
+								<span class="font-semibold" style="color: {row.activeZone.color}">{row.activeZone.name}</span>
+							{/if}
+						</span>
+						<span class="num text-text whitespace-nowrap inline-flex items-baseline gap-1.5">
+							{#if row.hillSubs}
+								{#each row.hillSubs as sub}
+									<span class="inline-flex items-baseline gap-1">
+										<span class="text-text-dim">{sub.label}</span>
+										<span class="font-semibold" style="color: {sub.color}">{sub.raw}</span>
+										<span style="color: {sub.delta > 0 ? C.green : sub.delta < 0 ? C.red : C.textDim}">{formatRawDelta(sub.key, sub.delta)}</span>
+									</span>
+									<span class="text-text-dim">·</span>
+								{/each}
+							{/if}
+							<span class="inline-flex items-baseline gap-1">
+								<span>{row.rawStr}</span>
+								<span style="color: {row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.textDim}">{formatRawDelta(row.key, row.delta)}</span>
+							</span>
+						</span>
+					</div>
+					<div class="relative h-2 rounded-full overflow-hidden">
+						{#if row.zones}
+							<div class="absolute inset-0 flex gap-px">
+								{#each row.zones as z}
+									<div style="width: {((z.max - z.min) / total) * 100}%; background: {z.color}"></div>
+								{/each}
+							</div>
+						{:else}
+							<div class="absolute inset-0 bg-hover"></div>
+							<div class="absolute inset-y-0 left-0" style="width: {row.posPct}%; background: {row.color}"></div>
+						{/if}
+						<div class="absolute inset-y-0 bg-card/75" style="left: {row.posPct}%; right: 0"></div>
+					</div>
+				</div>
+			</Tip>
 		{/each}
-	</span>
-{/if}
+	</div>
 </div>
-
-<style>
-	.axis-tip {
-		position: fixed;
-		z-index: 50;
-		width: max-content;
-		max-width: min(340px, calc(100vw - 24px));
-		padding: 8px 12px;
-		border-radius: 6px;
-		background: #1e1e2a;
-		border: 1px solid #2a2a3a;
-		color: #c8c8d4;
-		font-size: 11px;
-		line-height: 1.6;
-		font-weight: 400;
-		white-space: normal;
-		pointer-events: none;
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-		transform: translateX(-50%) translateY(-100%);
-	}
-</style>

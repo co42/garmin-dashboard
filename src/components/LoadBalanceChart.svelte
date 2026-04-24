@@ -35,7 +35,7 @@
 	const activityDays = $derived(() => {
 		const m = new Map<string, number>();
 		for (const a of activities) {
-			const d = a.start_time.slice(0, 10);
+			const d = a.start_time_local.slice(0, 10);
 			m.set(d, (m.get(d) ?? 0) + (a.activity_training_load ?? 0));
 		}
 		return m;
@@ -149,7 +149,14 @@
 								<div class="absolute top-0 h-full transition-all" style="left: {recentW + middleW}%; width: {expiringW}%; background: {bar.color}; opacity: 0.25; border-radius: {recentW + middleW <= 0 ? '4px' : '0 4px 4px 0'};"></div>
 							{/if}
 						{/each}
-						<div class="absolute top-0 z-10 h-full rounded-sm border-2 border-white/50" style="left: {zoneLeft}%; width: {zoneWidth}%;"></div>
+						<div
+							class="absolute z-10 pointer-events-none"
+							style="left: {zoneLeft}%; top: -3px; bottom: -3px; width: 2px; transform: translateX(-50%); background: {bar.value < bar.min ? C.red : C.text}; box-shadow: 0 0 0 1px {C.card}; border-radius: 1px;"
+						></div>
+						<div
+							class="absolute z-10 pointer-events-none"
+							style="left: {zoneLeft + zoneWidth}%; top: -3px; bottom: -3px; width: 2px; transform: translateX(-50%); background: {bar.value > bar.max ? C.red : C.text}; box-shadow: 0 0 0 1px {C.card}; border-radius: 1px;"
+						></div>
 					</div>
 					</Tip>
 				</td>

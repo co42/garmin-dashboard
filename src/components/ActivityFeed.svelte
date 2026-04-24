@@ -27,7 +27,7 @@
 	const years = $derived(() => {
 		const ySet = new Set<number>();
 		for (const a of activities) {
-			ySet.add(new Date(a.start_time).getFullYear());
+			ySet.add(new Date(a.start_time_local).getFullYear());
 		}
 		return [...ySet].sort();
 	});
@@ -36,7 +36,7 @@
 	const monthCounts = $derived(() => {
 		const counts = new Array(12).fill(0);
 		for (const a of activities) {
-			const d = new Date(a.start_time);
+			const d = new Date(a.start_time_local);
 			if (d.getFullYear() === selectedYear) {
 				counts[d.getMonth()]++;
 			}
@@ -47,14 +47,14 @@
 	// Filtered activities for selected year+month
 	const displayed = $derived(() => {
 		return activities.filter(a => {
-			const d = new Date(a.start_time);
+			const d = new Date(a.start_time_local);
 			return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
 		});
 	});
 
 	// Stats for selected year
 	const yearStats = $derived(() => {
-		const yearActivities = activities.filter(a => new Date(a.start_time).getFullYear() === selectedYear);
+		const yearActivities = activities.filter(a => new Date(a.start_time_local).getFullYear() === selectedYear);
 		const totalKm = yearActivities.reduce((s, a) => s + (a.distance_meters ?? 0), 0) / 1000;
 		return { count: yearActivities.length, km: totalKm };
 	});
@@ -79,9 +79,9 @@
 
 	/** Called from calendar/race times to navigate to a specific activity */
 	export async function navigateTo(activityId: number) {
-		const a = activities.find(a => a.id === activityId);
+		const a = activities.find(a => a.activity_id === activityId);
 		if (!a) return;
-		const d = new Date(a.start_time);
+		const d = new Date(a.start_time_local);
 		selectedYear = d.getFullYear();
 		selectedMonth = d.getMonth();
 		expandedId = activityId;
@@ -95,7 +95,7 @@
 	<!-- Year tabs -->
 	<div class="flex items-center gap-1 flex-wrap">
 		{#each years() as year}
-			{@const yCount = activities.filter(a => new Date(a.start_time).getFullYear() === year).length}
+			{@const yCount = activities.filter(a => new Date(a.start_time_local).getFullYear() === year).length}
 			<button
 				class="cursor-pointer px-3 py-1 rounded-md text-xs font-mono font-medium transition-colors {year === selectedYear ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
 				onclick={() => { selectedYear = year; if (monthCounts()[selectedMonth] === 0) { const lastMonth = monthCounts().findLastIndex((c: number) => c > 0); if (lastMonth >= 0) selectedMonth = lastMonth; } }}
@@ -127,24 +127,24 @@
 
 	<!-- Activity list -->
 	<div class="space-y-2">
-		{#each displayed() as activity (activity.id)}
-			<div id="activity-{activity.id}" class="rounded-lg bg-card">
+		{#each displayed() as activity (activity.activity_id)}
+			<div id="activity-{activity.activity_id}" class="rounded-lg bg-card">
 				<ActivityRow
 					{activity}
-					splits={splits[activity.id]}
-					weather={weather[activity.id] ?? null}
+					splits={splits[activity.activity_id]}
+					weather={weather[activity.activity_id] ?? null}
 					{hrZones}
 					loadColor={getLoadColor(activity.activity_training_load)}
 					context="feed"
-					expanded={expandedId === activity.id}
-					ontoggle={() => toggleExpand(activity.id)}
+					expanded={expandedId === activity.activity_id}
+					ontoggle={() => toggleExpand(activity.activity_id)}
 				/>
-				{#if expandedId === activity.id}
+				{#if expandedId === activity.activity_id}
 					<ActivityDetailsComp
 						{activity}
-						splits={splits[activity.id] ?? []}
-						details={details[activity.id] ?? null}
-						weather={weather[activity.id] ?? null}
+						splits={splits[activity.activity_id] ?? []}
+						details={details[activity.activity_id] ?? null}
+						weather={weather[activity.activity_id] ?? null}
 						{hrZones}
 					/>
 				{/if}

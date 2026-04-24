@@ -32,10 +32,10 @@ export function generateAdvice(data: DashboardData): Advice {
 	// Aggregate HR zone time from last 10 activities
 	const recentActivities = data.activities.slice(0, 10);
 	const totalZ4Z5 = recentActivities.reduce((sum, a) =>
-		sum + (a.hr_time_in_zone_4 ?? 0) + (a.hr_time_in_zone_5 ?? 0), 0);
+		sum + (a.hr_time_in_zone_4_seconds ?? 0) + (a.hr_time_in_zone_5_seconds ?? 0), 0);
 	const totalZoneTime = recentActivities.reduce((sum, a) =>
-		sum + (a.hr_time_in_zone_1 ?? 0) + (a.hr_time_in_zone_2 ?? 0) +
-		(a.hr_time_in_zone_3 ?? 0) + (a.hr_time_in_zone_4 ?? 0) + (a.hr_time_in_zone_5 ?? 0), 0);
+		sum + (a.hr_time_in_zone_1_seconds ?? 0) + (a.hr_time_in_zone_2_seconds ?? 0) +
+		(a.hr_time_in_zone_3_seconds ?? 0) + (a.hr_time_in_zone_4_seconds ?? 0) + (a.hr_time_in_zone_5_seconds ?? 0), 0);
 	const z4z5Pct = totalZoneTime > 0 ? totalZ4Z5 / totalZoneTime : 0;
 	const hasNoHighIntensity = z4z5Pct < 0.05 && recentActivities.length >= 3;
 
@@ -152,11 +152,11 @@ export function generateAdvice(data: DashboardData): Advice {
 		}
 
 		// Weak hills?
-		if (hillScore.overall > 0 && hillScore.endurance < 30) {
+		if (hillScore.overall_score > 0 && hillScore.endurance_score < 30) {
 			return {
 				runType: 'Hill Endurance Run',
 				description: 'Your hill endurance is a limiter. Run a hilly route today.',
-				rationale: `Hill endurance score ${hillScore.endurance}/100. Steady effort on rolling terrain builds this.`,
+				rationale: `Hill endurance score ${hillScore.endurance_score}/100. Steady effort on rolling terrain builds this.`,
 				intensity: 'moderate',
 				distanceKm: '10-12',
 				paceGuidance: 'Even effort (not even pace) on hills',

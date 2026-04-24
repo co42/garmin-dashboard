@@ -13,7 +13,7 @@
 
 	const pacingAnalysis = $derived(() => {
 		const results: { name: string; fadePercent: number; assessment: string }[] = [];
-		const activityMap = new Map(activities.map(a => [a.id, a]));
+		const activityMap = new Map(activities.map(a => [a.activity_id, a]));
 		for (const [idStr, splits] of Object.entries(recentSplits)) {
 			const id = Number(idStr);
 			const activity = activityMap.get(id);
@@ -29,7 +29,7 @@
 			if (fade > 5) assessment = 'Fading';
 			else if (fade > 2) assessment = 'Slight fade';
 			else if (fade < -2) assessment = 'Negative split';
-			results.push({ name: activity.name, fadePercent: fade, assessment });
+			results.push({ name: activity.activity_name, fadePercent: fade, assessment });
 		}
 		return results;
 	});

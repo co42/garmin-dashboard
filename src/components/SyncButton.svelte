@@ -83,13 +83,13 @@
 			<button
 				onclick={() => sync()}
 				disabled={syncing}
-				class="cursor-pointer rounded-l-md bg-card-border px-2.5 py-1.5 text-xs font-medium text-text transition hover:bg-hover disabled:opacity-50 inline-flex items-center gap-1.5"
+				class="cursor-pointer rounded-l-md bg-card-border px-2.5 py-1 text-xs font-medium text-text transition hover:bg-hover disabled:opacity-50 inline-flex items-center gap-1.5"
 			>
 				<ArrowsClockwise size={12} weight="bold" class={syncing ? 'animate-spin' : ''} />
 				{#if syncing}Syncing…{:else}Sync{/if}
 			</button>
 			<button
-				class="cursor-pointer rounded-r-md bg-card-border px-1.5 py-1.5 text-text-dim transition hover:bg-hover hover:text-text-secondary border-l border-hover disabled:opacity-50"
+				class="cursor-pointer rounded-r-md bg-card-border px-1.5 py-1 text-text-dim transition hover:bg-hover hover:text-text-secondary border-l border-card disabled:opacity-50"
 				onclick={() => menuOpen = !menuOpen}
 				disabled={syncing}
 				aria-haspopup="true"

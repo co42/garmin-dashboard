@@ -1,13 +1,13 @@
 import type { Readiness, ReadinessEntry } from './types.js';
 
 export function resolveReadiness(r: Readiness): ReadinessEntry {
-	return r.morning ?? r.post_activity ?? {
-		score: 0, level: 'UNKNOWN', feedback: '', recovery_time_minutes: 0,
-		hrv_weekly_average: 0, hrv_score: 0, hrv_feedback: '',
-		sleep_history_score: 0, sleep_history_feedback: '',
-		sleep_score: 0, sleep_feedback: '',
-		recovery_score: 0, recovery_feedback: '',
-		acwr_score: 0, acwr_feedback: '',
-		stress_score: 0, stress_feedback: '',
+	return r.morning ?? r.post_activity ?? r.latest ?? {
+		score: 0, level: 'UNKNOWN', feedback_short: '', recovery_time: 0,
+		hrv_weekly_average: 0, hrv_factor_percent: 0, hrv_factor_feedback: '',
+		sleep_history_factor_percent: 0, sleep_history_factor_feedback: '',
+		sleep_score_factor_percent: 0, sleep_score_factor_feedback: '',
+		recovery_time_factor_percent: 0, recovery_time_factor_feedback: '',
+		acwr_factor_percent: 0, acwr_factor_feedback: '',
+		stress_history_factor_percent: 0, stress_history_factor_feedback: '',
 	};
 }

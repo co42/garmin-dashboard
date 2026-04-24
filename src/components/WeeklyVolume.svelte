@@ -51,19 +51,19 @@
 	function getZoneTimes(a: Activity, m: 'hr' | 'power'): number[] {
 		if (m === 'hr') {
 			return [
-				a.hr_time_in_zone_1 ?? 0,
-				a.hr_time_in_zone_2 ?? 0,
-				a.hr_time_in_zone_3 ?? 0,
-				a.hr_time_in_zone_4 ?? 0,
-				a.hr_time_in_zone_5 ?? 0,
+				a.hr_time_in_zone_1_seconds ?? 0,
+				a.hr_time_in_zone_2_seconds ?? 0,
+				a.hr_time_in_zone_3_seconds ?? 0,
+				a.hr_time_in_zone_4_seconds ?? 0,
+				a.hr_time_in_zone_5_seconds ?? 0,
 			];
 		}
 		return [
-			a.power_time_in_zone_1 ?? 0,
-			a.power_time_in_zone_2 ?? 0,
-			a.power_time_in_zone_3 ?? 0,
-			a.power_time_in_zone_4 ?? 0,
-			a.power_time_in_zone_5 ?? 0,
+			a.power_time_in_zone_1_seconds ?? 0,
+			a.power_time_in_zone_2_seconds ?? 0,
+			a.power_time_in_zone_3_seconds ?? 0,
+			a.power_time_in_zone_4_seconds ?? 0,
+			a.power_time_in_zone_5_seconds ?? 0,
 		];
 	}
 
@@ -71,7 +71,7 @@
 		const weeks = new Map<string, { totalKm: number; runs: number; zoneKm: number[] }>();
 
 		for (const a of activities) {
-			const week = weekMonday(a.start_time);
+			const week = weekMonday(a.start_time_local);
 			const existing = weeks.get(week) ?? { totalKm: 0, runs: 0, zoneKm: [0, 0, 0, 0, 0] };
 			const km = a.distance_meters / 1000;
 			existing.totalKm += km;
@@ -166,7 +166,7 @@
 			xAxis: {
 				type: 'category', data: labels,
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: false, showMaxLabel: false },
+				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true },
 			},
 			yAxis: {
 				type: 'value',
@@ -199,7 +199,7 @@
 			<Tip text={"Weekly running distance split by zone.\nDistance is proportionally allocated based on time spent in each zone.\n\nToggle between HR zones and Power zones."}>
 				<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartBar size={14} weight="bold" /> Weekly Volume</h2>
 			</Tip>
-			<div class="flex rounded-md border border-card-border text-[10px] font-medium">
+			<div class="flex rounded-md border border-card-border divide-x divide-card-border text-[10px] font-medium">
 				<button
 					class="cursor-pointer px-2 py-0.5 rounded-l-md transition-colors {mode === 'hr' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
 					onclick={() => mode = 'hr'}

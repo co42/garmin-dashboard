@@ -20,8 +20,8 @@
 	// Convert course geo_points to ActivityDetailPoint[] for ElevationChart
 	const timeseries = $derived<ActivityDetailPoint[]>(
 		course.geo_points.map(p => ({
-			dist: p.distance,
-			elev: p.elevation,
+			dist: p.distance_meters,
+			elev: p.elevation_meters,
 			hr: null,
 			pace: null,
 			power: null,
@@ -38,13 +38,13 @@
 	);
 
 	const hasElevation = $derived(
-		course.geo_points.some(p => p.elevation != null && p.elevation > 0)
+		course.geo_points.some(p => p.elevation_meters != null && p.elevation_meters > 0)
 	);
 
 	// Compute metrics from geo_points
 	const elevStats = $derived(() => {
 		if (!hasElevation) return null;
-		const elevs = course.geo_points.filter(p => p.elevation != null).map(p => p.elevation);
+		const elevs = course.geo_points.filter(p => p.elevation_meters != null).map(p => p.elevation_meters);
 		if (elevs.length === 0) return null;
 		const min = arrMin(elevs);
 		const max = arrMax(elevs);
@@ -64,24 +64,24 @@
 		for (let i = 1; i < course.geo_points.length; i++) {
 			const prev = course.geo_points[i - 1];
 			const curr = course.geo_points[i];
-			const diff = (curr.elevation ?? 0) - (prev.elevation ?? 0);
+			const diff = (curr.elevation_meters ?? 0) - (prev.elevation_meters ?? 0);
 			if (diff > 0) gain += diff;
 			else loss += Math.abs(diff);
-			if (curr.elevation != null) {
-				if (curr.elevation < minE) minE = curr.elevation;
-				if (curr.elevation > maxE) maxE = curr.elevation;
+			if (curr.elevation_meters != null) {
+				if (curr.elevation_meters < minE) minE = curr.elevation_meters;
+				if (curr.elevation_meters > maxE) maxE = curr.elevation_meters;
 			}
-			if (curr.distance / 1000 >= currentKm || i === course.geo_points.length - 1) {
+			if (curr.distance_meters / 1000 >= currentKm || i === course.geo_points.length - 1) {
 				splits.push({
 					km: currentKm,
-					dist: curr.distance - prevDist,
+					dist: curr.distance_meters - prevDist,
 					elevGain: Math.round(gain),
 					elevLoss: Math.round(loss),
 					minElev: Math.round(minE),
 					maxElev: Math.round(maxE),
 				});
 				currentKm++;
-				prevDist = curr.distance;
+				prevDist = curr.distance_meters;
 				gain = 0;
 				loss = 0;
 				minE = Infinity;

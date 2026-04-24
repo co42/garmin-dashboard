@@ -35,7 +35,7 @@
 	let { calendar, activities, splits, courses, hrZones, activityWeather, onNavigate, onNavigateCourse }: Props = $props();
 
 	// Course lookup by ID
-	const courseMap = $derived(new Map(courses.map(c => [c.id, c])));
+	const courseMap = $derived(new Map(courses.map(c => [c.course_id, c])));
 	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
 	// ── Week boundaries (Monday-based) ──────────────────────────────────────
@@ -95,13 +95,13 @@
 		// Activities in this week range
 		const activityRows: Row[] = activities
 			.filter(a => {
-				const d = a.start_time.slice(0, 10);
+				const d = a.start_time_local.slice(0, 10);
 				return d >= weekStart && d < weekEnd;
 			})
 			.map((a): Row => ({
 				kind: 'done',
-				id: a.id,
-				date: a.start_time.slice(0, 10),
+				id: a.activity_id,
+				date: a.start_time_local.slice(0, 10),
 				activity: a,
 			}));
 
@@ -181,7 +181,7 @@
 	}
 
 	function fmtExercise(name: string): string {
-		return name.toLowerCase().replace(/_/g, ' ');
+		return name.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 	}
 
 	function fmtDuration(s: number): string {
@@ -256,11 +256,28 @@
 	function prettyPhrase(phrase: string): string {
 		return phrase.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 	}
-	function phraseBadge(phrase: string | null): { code: string; name: string; color: string } | null {
+	// Title-based fallback for coach workouts when the detailed workout_phrase
+	// isn't available (e.g. /workout-service/fbt-adaptive didn't return it yet).
+	const TITLE_BADGE: { match: RegExp; code: string; name: string; color: string }[] = [
+		{ match: /strength/i,          code: 'ST', name: 'Strength',  color: C.purple },
+		{ match: /long/i,              code: 'LR', name: 'Long Run',  color: C.cyan },
+		{ match: /tempo|threshold/i,   code: 'TP', name: 'Tempo',     color: C.orange },
+		{ match: /speed|interval|vo2/i,code: 'SP', name: 'Speed',     color: C.purple },
+		{ match: /recovery|easy/i,     code: 'RC', name: 'Recovery',  color: C.textDim },
+		{ match: /rest/i,              code: 'RS', name: 'Rest',      color: C.textDim },
+		{ match: /base/i,              code: 'AB', name: 'Base',      color: C.cyan },
+	];
+	function phraseBadge(phrase: string | null, title: string | null): { code: string; name: string; color: string } | null {
+		if (phrase) {
+			if (phrase.startsWith('STRENGTH_')) return { code: 'ST', name: 'Strength', color: C.purple };
+			const meta = PHRASE_BADGE[phrase];
+			if (meta) return { code: meta.code, name: prettyPhrase(phrase), color: meta.color };
+		}
+		if (title) {
+			const hit = TITLE_BADGE.find(t => t.match.test(title));
+			if (hit) return { code: hit.code, name: hit.name, color: hit.color };
+		}
 		if (!phrase) return null;
-		if (phrase.startsWith('STRENGTH_')) return { code: 'ST', name: 'Strength', color: C.purple };
-		const meta = PHRASE_BADGE[phrase];
-		if (meta) return { code: meta.code, name: prettyPhrase(phrase), color: meta.color };
 		return { code: 'TR', name: 'Training', color: C.textDim };
 	}
 
@@ -303,10 +320,10 @@
 	function activitySummary(a: Activity): string {
 		const parts: string[] = [];
 		if (a.distance_meters) parts.push(fmtDist(a.distance_meters));
-		if (a.pace_min_km) parts.push(a.pace_min_km);
+		if (a.average_speed_mps) parts.push(fmtPace(a.average_speed_mps));
 		if (a.duration_seconds) parts.push(fmtDuration(a.duration_seconds));
-		if (a.avg_hr) parts.push(`${Math.round(a.avg_hr)} bpm`);
-		if (a.elevation_gain && a.elevation_gain > 50) parts.push(`+${Math.round(a.elevation_gain)}m`);
+		if (a.average_hr) parts.push(`${Math.round(a.average_hr)} bpm`);
+		if (a.elevation_gain_meters && a.elevation_gain_meters > 50) parts.push(`+${Math.round(a.elevation_gain_meters)}m`);
 		return parts.join(' · ');
 	}
 </script>
@@ -405,8 +422,8 @@
 		<div class="rounded-lg bg-card">
 			<ActivityRow
 				activity={row.activity}
-				splits={splits[row.activity.id]}
-				weather={activityWeather[row.activity.id] ?? null}
+				splits={splits[row.activity.activity_id]}
+				weather={activityWeather[row.activity.activity_id] ?? null}
 				{hrZones}
 				loadColor={computeLoadColor(row.activity.activity_training_load, medianLoad)}
 				context="calendar"
@@ -424,9 +441,9 @@
 					{#if linkedCourse}
 						<button
 							class="flex items-center gap-3 mt-0.5 text-xs leading-none cursor-pointer hover:opacity-80 transition-opacity max-w-full overflow-hidden"
-							onclick={() => onNavigateCourse?.(linkedCourse.id)}
+							onclick={() => onNavigateCourse?.(linkedCourse.course_id)}
 						>
-							<span class="flex items-center gap-1 text-text-secondary truncate min-w-0"><Path size={11} weight="bold" class="shrink-0" /> <span class="truncate">{linkedCourse.name}</span></span>
+							<span class="flex items-center gap-1 text-text-secondary truncate min-w-0"><Path size={11} weight="bold" class="shrink-0" /> <span class="truncate">{linkedCourse.course_name}</span></span>
 							<span class="num text-text font-semibold shrink-0">{formatDistance(linkedCourse.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
 							<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{Math.round(linkedCourse.elevation_gain_meters)}m</span>
 						</button>
@@ -442,12 +459,12 @@
 		{@const hasSteps = entry.steps.length > 0}
 		{@const key = entryKey(entry)}
 		{@const isExpanded = expanded.has(key)}
-		{@const badge = phraseBadge(entry.workout_phrase)}
+		{@const badge = phraseBadge(entry.workout_phrase, entry.title)}
 		{@const aeroTE = entry.estimated_training_effect}
 		{@const anaeroTE = entry.estimated_anaerobic_training_effect}
 		{@const est = hasSteps ? stepsEstimates(entry.steps) : null}
 		{@const distM = entry.estimated_distance_meters ?? (est && est.dist > 0 ? est.dist : null)}
-		{@const durS = entry.estimated_duration_secs ?? (est && est.time > 0 ? est.time : null)}
+		{@const durS = entry.estimated_duration_seconds ?? (est && est.time > 0 ? est.time : null)}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
 			<button
 				class="w-full text-left {hasSteps ? 'cursor-pointer' : 'cursor-default'}"
@@ -515,17 +532,19 @@
 
 <!-- ── Layout ────────────────────────────────────────────────────────────── -->
 
-<div class="flex items-center justify-between mb-3">
-	<div class="flex items-center gap-2">
+<div class="mt-4 mb-1 flex flex-wrap items-center gap-3">
+	<Tip text={"Your planned workouts, races, and courses for the next two weeks.\nNavigate weeks with the arrows to plan ahead."}>
+		<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
+			<CalendarBlank size={14} weight="bold" /> Calendar
+		</h2>
+	</Tip>
+	<div class="flex items-center gap-1.5">
 		<button
 			class="cursor-pointer rounded p-1 text-text-dim hover:text-text-secondary hover:bg-card-border/30 transition-colors"
 			onclick={() => weekOffset--}
 			aria-label="Previous weeks"
 		><CaretLeft size={14} weight="bold" /></button>
-		<span class="text-xs font-medium uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-			<CalendarBlank size={14} weight="bold" />
-			{#if isCurrentWeek}Schedule{:else}{weekLabel(thisWeekStr)}{/if}
-		</span>
+		<span class="num text-[10px] font-medium text-text-secondary">{weekLabel(thisWeekStr)}</span>
 		<button
 			class="cursor-pointer rounded p-1 text-text-dim hover:text-text-secondary hover:bg-card-border/30 transition-colors"
 			onclick={() => weekOffset++}

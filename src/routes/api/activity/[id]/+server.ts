@@ -37,7 +37,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 		const row = db.prepare('SELECT data FROM activities WHERE id = ?').get(Number(id)) as { data: string } | undefined;
 		if (row) {
 			const activity = JSON.parse(row.data);
-			activity.name = name;
+			activity.activity_name = name;
 			db.prepare('UPDATE activities SET data = ? WHERE id = ?').run(JSON.stringify(activity), Number(id));
 		}
 	}

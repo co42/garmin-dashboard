@@ -16,12 +16,26 @@ import type {
 	WorkoutStep,
 	HrZone,
 	UserSettings,
-	Course,
-	CourseGeoPoint,
 	RacePredictions,
 	GearItem,
 	LactateThreshold,
+	CoachPlan,
+	CoachEvent,
+	EventProjection,
 } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Raw CLI shapes (before normalization into our typed storage shape)
+// ---------------------------------------------------------------------------
+
+type RawHillScore = { calendar_date: string; overall_score: number | null; strength_score: number | null; endurance_score: number | null; vo2_max: number | null };
+type RawHeartRate = { calendar_date: string; resting_heart_rate: number; last_seven_days_avg_resting_heart_rate: number; max_heart_rate: number; min_heart_rate: number };
+type RawSleepScore = { calendar_date: string; value: number | null };
+type RawStress = { calendar_date: string; avg_stress_level: number; max_stress_level: number };
+type RawBodyBattery = { calendar_date: string; body_battery_high: number; body_battery_low: number; body_battery_latest: number; body_battery_reset_level?: number | null; body_battery_reset_timestamp_ms?: number | null };
+type RawHrv = { calendar_date: string; hrv_summary: { status: string; weekly_avg: number; last_night_avg: number | null; last_night5_min_high: number | null; baseline: { balanced_low: number | null; balanced_upper: number | null } } };
+type RawGearListItem = { uuid: string; display_name: string; brand: string; gear_type_name: string; gear_status_name: string | null; maximum_meters: number; date_begin: string | null; date_end: string | null };
+type RawGearStats = { uuid: string; total_activities: number; total_distance_meters: number };
 
 export interface SyncResult {
 	status: 'ok' | 'error';
@@ -39,6 +53,7 @@ export interface SyncResult {
 		splits: number;
 		weather: number;
 		courses: number;
+		projection_days: number;
 	};
 }
 
@@ -68,11 +83,16 @@ async function fetchOne<T>(args: string[]): Promise<T | null> {
 	return arr ?? null;
 }
 
-/** Fetch a time-series endpoint in 30-day chunks using --from/--to. */
-async function fetchDateRange<T extends { date: string }>(
+/**
+ * Fetch a time-series endpoint in 30-day chunks using --from/--to.
+ * Caller supplies a mapper that turns the raw CLI row into our typed storage
+ * shape (always keyed by `date`). Deduplication is by date.
+ */
+async function fetchDateRange<Raw, T extends { date: string }>(
 	args: string[],
 	fromDate: string,
 	toDate: string,
+	mapper: (raw: Raw) => T | null,
 	chunkDays: number = 30,
 ): Promise<T[]> {
 	// Generate chunks
@@ -90,22 +110,70 @@ async function fetchDateRange<T extends { date: string }>(
 		const batch = chunks.slice(i, i + 3);
 		const batchResults = await Promise.all(
 			batch.map(c =>
-				garminSafe<T[]>([...args, '--from', c.from, '--to', c.to], [])
+				garminSafe<Raw[]>([...args, '--from', c.from, '--to', c.to], [])
 			)
 		);
 		for (const arr of batchResults) {
-			results.push(...arr);
+			for (const raw of arr) {
+				const mapped = mapper(raw);
+				if (mapped) results.push(mapped);
+			}
 		}
 	}
 
 	// Deduplicate by date (keep last occurrence = freshest)
 	const byDate = new Map<string, T>();
 	for (const item of results) {
-		const key = item.date.slice(0, 10);
-		byDate.set(key, item);
+		byDate.set(item.date, item);
 	}
 	return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+// ---------------------------------------------------------------------------
+// CLI → storage shape mappers
+// ---------------------------------------------------------------------------
+
+const mapIdentity = <T extends { date: string }>(raw: T): T => ({ ...raw, date: raw.date.slice(0, 10) });
+
+const mapHrv = (raw: RawHrv): HrvDay => ({
+	date: raw.calendar_date.slice(0, 10),
+	status: raw.hrv_summary?.status ?? '',
+	weekly_average: raw.hrv_summary?.weekly_avg ?? 0,
+	last_night_avg: raw.hrv_summary?.last_night_avg ?? null,
+	last_night_5min_high: raw.hrv_summary?.last_night5_min_high ?? null,
+	baseline_balanced_low: raw.hrv_summary?.baseline?.balanced_low ?? null,
+	baseline_balanced_upper: raw.hrv_summary?.baseline?.balanced_upper ?? null,
+});
+
+const mapHeartRate = (raw: RawHeartRate): HeartRateDay => ({
+	date: raw.calendar_date.slice(0, 10),
+	resting_hr: raw.resting_heart_rate,
+	avg_7day_resting: raw.last_seven_days_avg_resting_heart_rate,
+	max_hr: raw.max_heart_rate,
+	min_hr: raw.min_heart_rate,
+});
+
+const mapSleepScore = (raw: RawSleepScore): SleepScoreDay | null => {
+	if (raw.value == null) return null;
+	return { date: raw.calendar_date.slice(0, 10), score: raw.value };
+};
+
+const mapStress = (raw: RawStress): StressDay => ({
+	date: raw.calendar_date.slice(0, 10),
+	avg_stress: raw.avg_stress_level,
+	max_stress: raw.max_stress_level,
+});
+
+const mapHillScore = (raw: RawHillScore): HillScore | null => {
+	if (raw.overall_score == null) return null;
+	return {
+		date: raw.calendar_date.slice(0, 10),
+		overall_score: raw.overall_score,
+		strength_score: raw.strength_score ?? 0,
+		endurance_score: raw.endurance_score ?? 0,
+		vo2_max: raw.vo2_max ?? 0,
+	};
+};
 
 // ---------------------------------------------------------------------------
 // Sync window computation
@@ -127,7 +195,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 	const db = getDb();
 
 	if (fullReset) {
-		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'daily_race_predictions', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
+		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'daily_race_predictions', 'daily_event_projections', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
 			db.exec(`DELETE FROM ${table}`);
 		}
 	}
@@ -143,7 +211,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		// Sync window: first sync = 365 days back, incremental = since last sync - 1 day overlap
 		const fromDate = isFirstSync ? addDays(today, -365) : addDays(lastSync, -1);
 		const activityLimit = isFirstSync ? 500 : 50;
-		const activityAfter = isFirstSync ? addDays(today, -365) : addDays(lastSync, -1);
+		const activityFrom = isFirstSync ? addDays(today, -365) : addDays(lastSync, -1);
 
 		// Phase 1: Fetch all data in parallel
 		// Snapshots (latest-only) + time-series (date-range paginated)
@@ -152,11 +220,11 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			readiness,
 			racePredictions,
 			enduranceScore,
-			hillScore,
+			hillScoreSnapshot,
 			fitnessAge,
 			lactateThresholdHistory,
-			stressSnapshot,
-			bodyBattery,
+			stressSnapshotRaw,
+			bodyBatteryRaw,
 			records,
 			gear,
 			hrZones,
@@ -176,45 +244,75 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			// Snapshots (CLI returns single-item arrays — unwrap)
 			fetchOne(['training', 'readiness']),
 			fetchOne(['training', 'race-predictions']),
-			fetchOne(['training', 'endurance-score']),
-			fetchOne(['training', 'hill-score']),
+			fetchOne<EnduranceScore>(['training', 'endurance-score']),
+			fetchOne<RawHillScore>(['training', 'hill-score']),
 			fetchOne(['training', 'fitness-age']),
 			garminSafe<LactateThreshold[]>(['training', 'lactate-threshold', '--days', '365'], []),
-			fetchOne(['health', 'stress']),
-			fetchOne(['health', 'body-battery']),
+			fetchOne<RawStress>(['health', 'stress']),
+			fetchOne<RawBodyBattery>(['health', 'body-battery']),
 			garminSafe(['records'], []),
-			garminSafe(['gear', 'list'], []),
+			garminSafe<RawGearListItem[]>(['gear', 'list'], []),
 			garminSafe<HrZone[]>(['training', 'hr-zones'], []),
 			garminSafe<UserSettings | null>(['profile', 'settings'], null),
 			// Time-series
-			fetchDateRange<DailyTrainingStatus>(['training', 'status'], fromDate, today),
-			fetchDateRange<HrvDay>(['health', 'hrv'], fromDate, today),
-			fetchDateRange<HeartRateDay>(['health', 'heart-rate'], fromDate, today),
-			fetchDateRange<SleepScoreDay>(['health', 'sleep-scores'], fromDate, today),
-			fetchDateRange<StressDay>(['health', 'stress'], fromDate, today),
-			fetchDateRange<HillScore>(['training', 'hill-score'], fromDate, today),
-			fetchDateRange<EnduranceScore>(['training', 'endurance-score'], fromDate, today),
-			fetchDateRange<RacePredictions>(['training', 'race-predictions'], fromDate, today),
+			fetchDateRange<DailyTrainingStatus, DailyTrainingStatus>(['training', 'status'], fromDate, today, mapIdentity),
+			fetchDateRange<RawHrv, HrvDay>(['health', 'hrv'], fromDate, today, mapHrv),
+			fetchDateRange<RawHeartRate, HeartRateDay>(['health', 'heart-rate'], fromDate, today, mapHeartRate),
+			fetchDateRange<RawSleepScore, SleepScoreDay>(['health', 'sleep-scores'], fromDate, today, mapSleepScore),
+			fetchDateRange<RawStress, StressDay>(['health', 'stress'], fromDate, today, mapStress),
+			fetchDateRange<RawHillScore, HillScore>(['training', 'hill-score'], fromDate, today, mapHillScore),
+			fetchDateRange<EnduranceScore, EnduranceScore>(['training', 'endurance-score'], fromDate, today, mapIdentity),
+			fetchDateRange<RacePredictions, RacePredictions>(['training', 'race-predictions'], fromDate, today, mapIdentity),
 			// Activities
-			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running', '--after', activityAfter]),
+			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running', '--from', activityFrom]),
 		]);
 
+		// Normalize snapshots that use calendar_date
+		const hillScore: HillScore | null = hillScoreSnapshot ? mapHillScore(hillScoreSnapshot) : null;
+		const stressSnapshot: StressDay | null = stressSnapshotRaw ? mapStress(stressSnapshotRaw) : null;
+		const bodyBattery = bodyBatteryRaw
+			? { ...bodyBatteryRaw, date: bodyBatteryRaw.calendar_date.slice(0, 10) }
+			: null;
+
+		// Coach plan + event (optional — absent for users without a plan).
+		// The event call with a date range returns both the event object and
+		// the full projection history in one shot. When there's no plan yet,
+		// call without range to still fetch the event if it exists.
+		type CoachPlanWithTasks = CoachPlan & { task_list?: unknown };
+		type CoachEventBlob = { event: CoachEvent; plan_id: number | null; plan_name: string | null; projections: EventProjection[] };
+		const coachPlanRaw = await garminSafe<CoachPlanWithTasks | null>(['coach', 'plan'], null);
+		const coachPlan: CoachPlan | null = coachPlanRaw
+			? (() => { const { task_list: _t, ...rest } = coachPlanRaw; return rest; })()
+			: null;
+		// Don't clamp --from to `coachPlan.start_date`. Garmin's projection
+		// history can extend earlier than the current plan's start_date (e.g.,
+		// when the plan was rebuilt mid-cycle and the old projections were
+		// preserved). Pass a wide window — the API caps at the earliest
+		// available projection automatically.
+		const projectionFrom = addDays(today, -365);
+		const coachEventBlob = await garminSafe<CoachEventBlob | null>(
+			['coach', 'event', '--from', projectionFrom, '--to', today],
+			null,
+		);
+
 		// Enrich gear with usage stats
-		interface GearListItem { uuid: string; display_name: string; brand: string; gear_type: string; max_distance_meters: number; date_begin: string | null; status: string | null; }
-		interface GearStats { uuid: string; total_activities: number; total_distance_meters: number; }
 		const enrichedGear: GearItem[] = await Promise.all(
-			(gear as GearListItem[]).map(async (g) => {
-				const stats = await garminSafe<GearStats>(['gear', 'stats', g.uuid], { uuid: g.uuid, total_activities: 0, total_distance_meters: 0 });
+			gear.map(async (g) => {
+				const stats = await garminSafe<RawGearStats>(
+					['gear', 'stats', g.uuid],
+					{ uuid: g.uuid, total_activities: 0, total_distance_meters: 0 },
+				);
 				return {
 					uuid: g.uuid,
 					display_name: g.display_name,
 					brand: g.brand,
-					gear_type: g.gear_type,
+					gear_type_name: g.gear_type_name,
+					gear_status_name: g.gear_status_name,
 					distance_meters: stats.total_distance_meters,
-					max_distance_meters: g.max_distance_meters,
+					maximum_meters: g.maximum_meters,
 					activities: stats.total_activities,
 					date_begin: g.date_begin,
-					status: g.status ?? null,
+					date_end: g.date_end,
 				};
 			})
 		);
@@ -241,6 +339,8 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			upsertSnapshot.run('gear', JSON.stringify(enrichedGear));
 			if (hrZones.length > 0) upsertSnapshot.run('hr_zones', JSON.stringify(hrZones));
 			if (userSettings) upsertSnapshot.run('user_settings', JSON.stringify(userSettings));
+			if (coachPlan) upsertSnapshot.run('coach_plan', JSON.stringify(coachPlan));
+			if (coachEventBlob?.event) upsertSnapshot.run('coach_event', JSON.stringify(coachEventBlob.event));
 		});
 		snapshotBatch();
 
@@ -258,33 +358,35 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		const stmtHill = upsertDaily('daily_hill_score');
 		const stmtEndurance = upsertDaily('daily_endurance_score');
 		const stmtRacePred = upsertDaily('daily_race_predictions');
+		const stmtProjections = upsertDaily('daily_event_projections');
 
 		const timeseriesBatch = db.transaction(() => {
 			for (const s of statusHistory) {
 				stmtStatus.run(s.date, JSON.stringify(s));
 			}
 			for (const h of hrvHistory) {
-				// HRV dates come as timestamps — normalize to YYYY-MM-DD
-				const date = h.date.slice(0, 10);
-				stmtHrv.run(date, JSON.stringify({ ...h, date }));
+				stmtHrv.run(h.date, JSON.stringify(h));
 			}
 			for (const hr of heartRateHistory) {
 				stmtHr.run(hr.date, JSON.stringify(hr));
 			}
 			for (const ss of sleepScoreHistory) {
-				if (ss.score) stmtSleep.run(ss.date, JSON.stringify(ss));
+				stmtSleep.run(ss.date, JSON.stringify(ss));
 			}
 			for (const st of stressHistory) {
 				stmtStress.run(st.date, JSON.stringify(st));
 			}
 			for (const hs of hillScoreHistory) {
-				if (hs.date && hs.overall != null) stmtHill.run(hs.date, JSON.stringify(hs));
+				stmtHill.run(hs.date, JSON.stringify(hs));
 			}
 			for (const es of enduranceScoreHistory) {
 				if (es.date && es.score != null) stmtEndurance.run(es.date, JSON.stringify(es));
 			}
 			for (const rp of racePredictionHistory) {
 				if (rp.date && rp.time_5k_seconds) stmtRacePred.run(rp.date, JSON.stringify(rp));
+			}
+			for (const p of coachEventBlob?.projections ?? []) {
+				stmtProjections.run(p.date, JSON.stringify(p));
 			}
 		});
 		timeseriesBatch();
@@ -304,9 +406,9 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 
 		const activityBatch = db.transaction(() => {
 			for (const a of activities) {
-				upsertActivity.run(a.id, JSON.stringify(a));
-				if (!existingIds.has(a.id)) {
-					newActivityIds.push(a.id);
+				upsertActivity.run(a.activity_id, JSON.stringify(a));
+				if (!existingIds.has(a.activity_id)) {
+					newActivityIds.push(a.activity_id);
 				}
 			}
 		});
@@ -331,15 +433,15 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 
 		// Also backfill details for existing activities that don't have them yet
 		const backfillIds = activities
-			.filter(a => !newActivityIds.includes(a.id) && !existingDetailIds.has(a.id))
-			.map(a => a.id);
+			.filter(a => !newActivityIds.includes(a.activity_id) && !existingDetailIds.has(a.activity_id))
+			.map(a => a.activity_id);
 
 		// Fetch splits + details + weather in batches of 5
 		let totalSplits = 0;
 		let totalWeather = 0;
 		const allIdsToFetch = [...newActivityIds, ...backfillIds];
 		// Also fetch weather for activities that don't have it yet
-		const weatherIds = activities.filter(a => !existingWeatherIds.has(a.id)).map(a => a.id);
+		const weatherIds = activities.filter(a => !existingWeatherIds.has(a.activity_id)).map(a => a.activity_id);
 		const weatherIdsSet = new Set(weatherIds);
 
 		for (let i = 0; i < allIdsToFetch.length; i += 5) {
@@ -424,35 +526,35 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		);
 
 		// Fetch geo_points for courses that don't have them yet
-		const coursesNeedingGeo = courseList.filter(c => !existingCourseGeoIds.has(c.id));
+		const coursesNeedingGeo = courseList.filter(c => !existingCourseGeoIds.has(c.course_id));
 		for (let i = 0; i < coursesNeedingGeo.length; i += 5) {
 			const batch = coursesNeedingGeo.slice(i, i + 5);
 			const details = await Promise.all(
-				batch.map(c => garminSafe<any>(['courses', 'get', String(c.id)], null))
+				batch.map(c => garminSafe<any>(['courses', 'get', String(c.course_id)], null))
 			);
 			const tx = db.transaction(() => {
 				for (let j = 0; j < batch.length; j++) {
 					const geoPoints = details[j]?.geo_points ?? [];
-					upsertCourse.run(batch[j].id, JSON.stringify(batch[j]), JSON.stringify(geoPoints));
+					upsertCourse.run(batch[j].course_id, JSON.stringify(batch[j]), JSON.stringify(geoPoints));
 				}
 			});
 			tx();
 		}
 
 		// Update metadata for courses that already have geo_points
-		const coursesWithGeo = courseList.filter(c => existingCourseGeoIds.has(c.id));
+		const coursesWithGeo = courseList.filter(c => existingCourseGeoIds.has(c.course_id));
 		if (coursesWithGeo.length > 0) {
 			const updateMeta = db.prepare('UPDATE courses SET data = ?, synced_at = datetime(\'now\') WHERE id = ?');
 			const metaTx = db.transaction(() => {
 				for (const c of coursesWithGeo) {
-					updateMeta.run(JSON.stringify(c), c.id);
+					updateMeta.run(JSON.stringify(c), c.course_id);
 				}
 			});
 			metaTx();
 		}
 
 		// Phase 7: Calendar + workout steps
-		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', '--weeks', '4'], []);
+		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', 'list', '--weeks', '4'], []);
 		const calendarEntries: CalendarEntry[] = [];
 
 		// Collect items that have workout IDs for batch fetching
@@ -583,7 +685,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				steps,
 				workout_description: adaptiveTask?.workoutDescription ?? null,
 				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? raw?.estimatedDistanceInMeters ?? null,
-				estimated_duration_secs: adaptiveTask?.estimatedDurationInSecs ?? raw?.estimatedDurationInSecs ?? null,
+				estimated_duration_seconds: adaptiveTask?.estimatedDurationInSecs ?? raw?.estimatedDurationInSecs ?? null,
 				training_effect_label: adaptiveTask?.trainingEffectLabel ?? null,
 				workout_phrase: coachDetail?.workoutPhrase ?? null,
 				estimated_training_effect: coachDetail?.estimatedTrainingEffect ?? null,
@@ -604,7 +706,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				status_days: statusHistory.length,
 				hrv_days: hrvHistory.length,
 				hr_days: heartRateHistory.length,
-				sleep_days: sleepScoreHistory.filter(s => s.score).length,
+				sleep_days: sleepScoreHistory.length,
 				stress_days: stressHistory.length,
 				hill_days: hillScoreHistory.length,
 				endurance_days: enduranceScoreHistory.length,
@@ -612,6 +714,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				splits: totalSplits,
 				weather: totalWeather,
 				courses: courseList.length,
+				projection_days: coachEventBlob?.projections.length ?? 0,
 			},
 		};
 	} catch (err: any) {
@@ -622,7 +725,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			status: 'error',
 			duration_ms: Date.now() - start,
 			error: err.message,
-			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0, courses: 0 },
+			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0, courses: 0, projection_days: 0 },
 		};
 	}
 }
