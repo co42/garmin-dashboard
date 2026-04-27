@@ -562,15 +562,13 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', 'list', '--weeks', '16'], []);
 		const calendarEntries: CalendarEntry[] = [];
 
-		// Collect items that have workout IDs for batch fetching
+		// User-created workout details (steps + sport type), batched 5 at a time
 		const workoutItems = calendarItems.filter(
 			(ci): ci is CalendarItem & { workout_id: number } => ci.workout_id != null
 		);
-
-		// Fetch workout details in batches of 5 (deduplicate by workout_id)
 		const uniqueWorkoutIds = [...new Set(workoutItems.map(ci => ci.workout_id))];
 		const workoutStepsMap = new Map<number, WorkoutStep[]>();
-		const workoutRawMap = new Map<number, any>();
+		const workoutSportTypeMap = new Map<number, string | null>();
 		for (let i = 0; i < uniqueWorkoutIds.length; i += 5) {
 			const batch = uniqueWorkoutIds.slice(i, i + 5);
 			const results = await Promise.all(
@@ -581,143 +579,74 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			);
 			for (const { workoutId, raw } of results) {
 				if (raw) {
-					workoutRawMap.set(workoutId, raw);
 					workoutStepsMap.set(workoutId, parseWorkoutSteps(raw));
+					workoutSportTypeMap.set(workoutId, raw.sport_type?.sport_type_key ?? null);
 				}
 			}
 		}
 
-		// Enrich events + adaptive workouts from raw calendar API
-		const needsRawCalendar = calendarItems.filter(
-			ci => (ci.item_type === 'event' || ci.item_type === 'fbtAdaptiveWorkout') && ci.date
+		// Upcoming events — drives both calendar event-row enrichment (course,
+		// url, race/primary flags, start time) and the dedicated events snapshot.
+		const events = await garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []);
+		const eventsById = new Map<number, RaceEvent>(events.map(e => [e.id, e]));
+
+		// Adaptive coach workouts — keyed by workout_uuid. Provides phrase,
+		// predicted TE, description, distance/duration, sport type, and steps
+		// for fbtAdaptiveWorkout calendar entries.
+		type CoachListItem = {
+			workout_uuid: string;
+			workout_phrase: string | null;
+			description: string | null;
+			estimated_training_effect: number | null;
+			estimated_anaerobic_training_effect: number | null;
+			estimated_duration_seconds: number | null;
+			estimated_distance_meters: number | null;
+			training_effect_label: string | null;
+			sport_type: { sport_type_key: string | null } | null;
+			workout_segments: unknown[];
+		};
+		const hasAdaptive = calendarItems.some(ci => ci.item_type === 'fbtAdaptiveWorkout');
+		const coachWorkouts = hasAdaptive
+			? await garminSafe<CoachListItem[]>(['coach', 'list'], [])
+			: [];
+		const coachByUuid = new Map<string, CoachListItem>(
+			coachWorkouts.filter(cw => cw.workout_uuid).map(cw => [cw.workout_uuid, cw])
 		);
-		const rawCalMonths = new Set<string>();
-		for (const ci of needsRawCalendar) {
-			const [y, m] = ci.date!.split('-');
-			rawCalMonths.add(`${y}/${parseInt(m) - 1}`);
-		}
-		const rawEventMap = new Map<number, { courseId: number | null; isRace: boolean; url: string | null; distanceMeters: number | null; startTimeLocal: string | null; isPrimaryEvent: boolean }>();
-		const adaptivePlanIds = new Set<number>();
-		const adaptiveUuidMap = new Map<string, { trainingPlanId: number; workoutUuid: string; sportTypeKey: string | null }>();
-		for (const ym of rawCalMonths) {
-			const [y, m] = ym.split('/');
-			const raw = await garminSafe<any>(['api', `/calendar-service/year/${y}/month/${m}`], null);
-			if (raw?.calendarItems) {
-				for (const item of raw.calendarItems) {
-					if (item.itemType === 'event') {
-						const target = item.completionTarget;
-						const distanceMeters = target?.unit === 'kilometer' && typeof target.value === 'number'
-							? target.value * 1000
-							: target?.unit === 'meter' && typeof target.value === 'number'
-								? target.value
-								: target?.unit === 'mile' && typeof target.value === 'number'
-									? target.value * 1609.344
-									: null;
-						rawEventMap.set(item.id, {
-							courseId: item.courseId ?? null,
-							isRace: item.isRace ?? false,
-							url: item.url ?? null,
-							distanceMeters,
-							startTimeLocal: item.eventTimeLocal?.startTimeHhMm ?? null,
-							isPrimaryEvent: item.primaryEvent ?? false,
-						});
-					} else if (item.itemType === 'fbtAdaptiveWorkout' && item.trainingPlanId && item.workoutUuid) {
-						adaptivePlanIds.add(item.trainingPlanId);
-						// Key by id|title — coach workouts on the same day share the same id
-						const key = `${item.id}|${item.title ?? ''}`;
-						adaptiveUuidMap.set(key, {
-							trainingPlanId: item.trainingPlanId,
-							workoutUuid: item.workoutUuid,
-							sportTypeKey: item.sportTypeKey ?? null,
-						});
-					}
-				}
-			}
-		}
-
-		// Fetch adaptive training plan details
-		type AdaptiveTask = { workoutDescription: string | null; estimatedDistanceInMeters: number | null; estimatedDurationInSecs: number | null; trainingEffectLabel: string | null; sportTypeKey: string | null };
-		const adaptiveTaskMap = new Map<string, AdaptiveTask>();
-		for (const planId of adaptivePlanIds) {
-			const plan = await garminSafe<any>(['api', `/trainingplan-service/trainingplan/fbt-adaptive/${planId}`], null);
-			if (plan?.taskList) {
-				for (const task of plan.taskList) {
-					const tw = task.taskWorkout;
-					if (tw?.workoutUuid) {
-						adaptiveTaskMap.set(tw.workoutUuid, {
-							workoutDescription: tw.workoutDescription ?? null,
-							estimatedDistanceInMeters: tw.estimatedDistanceInMeters ?? null,
-							estimatedDurationInSecs: tw.estimatedDurationInSecs ?? null,
-							trainingEffectLabel: tw.trainingEffectLabel ?? null,
-							sportTypeKey: tw.sportType?.sportTypeKey ?? null,
-						});
-					}
-				}
-			}
-		}
-
-		// Fetch coach workout details (workoutPhrase, predicted TE)
-		type CoachDetail = { workoutPhrase: string | null; estimatedTrainingEffect: number | null; estimatedAnaerobicTrainingEffect: number | null; steps: WorkoutStep[] };
-		const coachDetailMap = new Map<string, CoachDetail>();
-		if (adaptiveUuidMap.size > 0) {
-			const coachWorkouts = await garminSafe<any[]>(['api', '/workout-service/fbt-adaptive'], []);
-			if (Array.isArray(coachWorkouts)) {
-				for (const cw of coachWorkouts) {
-					const uuid = cw.workoutUuid;
-					if (uuid) {
-						coachDetailMap.set(uuid, {
-							workoutPhrase: cw.workoutPhrase ?? null,
-							estimatedTrainingEffect: cw.estimatedTrainingEffect ?? null,
-							estimatedAnaerobicTrainingEffect: cw.estimatedAnaerobicTrainingEffect ?? null,
-							steps: parseWorkoutSteps(cw),
-						});
-					}
-				}
-			}
-		}
 
 		for (const ci of calendarItems) {
 			if (!ci.title || !ci.date) continue;
-			const raw = ci.workout_id != null ? workoutRawMap.get(ci.workout_id) : null;
-			const eventData = rawEventMap.get(ci.id);
-			const adaptiveInfo = adaptiveUuidMap.get(`${ci.id}|${ci.title ?? ''}`);
-			const adaptiveTask = adaptiveInfo ? adaptiveTaskMap.get(adaptiveInfo.workoutUuid) : null;
-			const coachDetail = adaptiveInfo ? coachDetailMap.get(adaptiveInfo.workoutUuid) : null;
-			// Coach workouts: prefer steps from fbt-adaptive API (has instruction targets), fall back to workout-service
-			const steps = coachDetail?.steps?.length
-				? coachDetail.steps
-				: ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [];
+			const event = ci.item_type === 'event' ? eventsById.get(ci.id) : null;
+			const coach = ci.workout_uuid ? coachByUuid.get(ci.workout_uuid) : null;
+			const userSteps = ci.workout_id != null ? (workoutStepsMap.get(ci.workout_id) ?? []) : [];
+			const steps = coach ? parseWorkoutSteps(coach) : userSteps;
 			calendarEntries.push({
 				id: ci.id,
 				item_type: ci.item_type,
-				sport_type: raw?.sportType?.sportTypeKey ?? adaptiveTask?.sportTypeKey ?? adaptiveInfo?.sportTypeKey ?? null,
+				sport_type: coach?.sport_type?.sport_type_key
+					?? (ci.workout_id != null ? (workoutSportTypeMap.get(ci.workout_id) ?? null) : null),
 				title: ci.title,
 				date: ci.date,
 				workout_id: ci.workout_id,
-				workout_uuid: adaptiveInfo?.workoutUuid ?? null,
-				course_id: eventData?.courseId ?? null,
-				is_race: eventData?.isRace ?? false,
-				is_primary_event: eventData?.isPrimaryEvent ?? false,
-				start_time_local: eventData?.startTimeLocal ?? null,
-				url: eventData?.url ?? null,
+				workout_uuid: ci.workout_uuid ?? null,
+				course_id: event?.course_id ?? null,
+				is_race: event?.is_race ?? false,
+				is_primary_event: event?.is_primary_event ?? false,
+				start_time_local: event?.start_time_local ?? null,
+				url: event?.url ?? null,
 				steps,
-				workout_description: adaptiveTask?.workoutDescription ?? null,
-				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? raw?.estimatedDistanceInMeters ?? eventData?.distanceMeters ?? null,
-				estimated_duration_seconds: adaptiveTask?.estimatedDurationInSecs ?? raw?.estimatedDurationInSecs ?? null,
-				training_effect_label: adaptiveTask?.trainingEffectLabel ?? null,
-				workout_phrase: coachDetail?.workoutPhrase ?? null,
-				estimated_training_effect: coachDetail?.estimatedTrainingEffect ?? null,
-				estimated_anaerobic_training_effect: coachDetail?.estimatedAnaerobicTrainingEffect ?? null,
+				workout_description: coach?.description ?? null,
+				estimated_distance_meters: coach?.estimated_distance_meters ?? event?.distance_meters ?? null,
+				estimated_duration_seconds: coach?.estimated_duration_seconds ?? null,
+				training_effect_label: coach?.training_effect_label ?? null,
+				workout_phrase: coach?.workout_phrase ?? null,
+				estimated_training_effect: coach?.estimated_training_effect ?? null,
+				estimated_anaerobic_training_effect: coach?.estimated_anaerobic_training_effect ?? null,
 			});
 		}
 
 		upsertSnapshot.run('calendar', JSON.stringify(calendarEntries));
 
-		// Phase 8: Upcoming events (races, primary plan event, scheduled events).
-		// `garmin calendar events` returns the same `TargetEvent` shape used by
-		// `coach event`, but for *all* upcoming events — not just the plan target.
-		// Independent of the calendar window: events 6+ months out still surface.
-		const events = await garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []);
+		// Phase 8: Upcoming events snapshot — reuses the events fetched above.
 		upsertSnapshot.run('events', JSON.stringify(events));
 
 		// Finish
@@ -843,9 +772,9 @@ function parseRawStep(step: any): WorkoutStep {
 }
 
 function parseWorkoutSteps(raw: any): WorkoutStep[] {
-	const segments = raw?.workoutSegments;
+	const segments = raw?.workout_segments;
 	if (!Array.isArray(segments) || segments.length === 0) return [];
-	const rawSteps = segments[0]?.workoutSteps;
+	const rawSteps = segments[0]?.workout_steps;
 	if (!Array.isArray(rawSteps)) return [];
 	return rawSteps.map(parseRawStep);
 }
