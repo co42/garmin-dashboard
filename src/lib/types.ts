@@ -411,6 +411,38 @@ export interface CoachEvent {
 	training_plan_id: number | null;
 }
 
+// --- Upcoming events (races, primary plan event, scheduled events) ---
+
+/// Mirrors `garmin calendar events` (CLI's TargetEvent). Renamed to avoid
+/// collision with the DOM Event type. All fields nullable to match the CLI's
+/// optional shape.
+export interface RaceEvent {
+	id: number;
+	name: string;
+	date: string;
+	event_type: string | null;
+	start_time_local: string | null;
+	timezone: string | null;
+	location: string | null;
+	latitude: number | null;
+	longitude: number | null;
+	distance_meters: number | null;
+	goal_seconds: number | null;
+	predicted_race_time_seconds: number | null;
+	projected_race_time_seconds: number | null;
+	predicted_race_speed_mps: number | null;
+	projected_race_speed_mps: number | null;
+	is_primary_event: boolean | null;
+	is_race: boolean | null;
+	is_training_event: boolean | null;
+	course_id: number | null;
+	url: string | null;
+	registration_url: string | null;
+	note: string | null;
+	training_plan_id: number | null;
+	enrollment_time: string | null;
+}
+
 export interface EventProjection {
 	date: string;
 	predicted_race_time_seconds: number | null;
@@ -456,6 +488,8 @@ export interface CalendarEntry {
 	workout_uuid: string | null;
 	course_id: number | null;
 	is_race: boolean;
+	is_primary_event: boolean;
+	start_time_local: string | null;
 	url: string | null;
 	steps: WorkoutStep[];
 	// Adaptive workout (Garmin Coach) fields
@@ -506,6 +540,9 @@ export interface DashboardData {
 
 	// Calendar
 	calendar: CalendarEntry[];
+
+	// Upcoming events (races, primary plan event, scheduled events)
+	events: RaceEvent[];
 
 	// Coach plan + target event + projection history
 	coachPlan: CoachPlan | null;

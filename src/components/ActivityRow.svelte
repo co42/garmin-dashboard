@@ -156,6 +156,10 @@
 	const zones = $derived(zoneData(activity));
 	const trail = $derived(isTrail(activity));
 	const hasElevation = $derived(activity.elevation_gain_meters != null && activity.elevation_gain_meters > 0);
+	// Strength / yoga / cardio sessions have no meaningful distance — gate
+	// km / pace / split sparkline / trail elevation on this so the row stays
+	// honest. HR / load / zones still apply.
+	const hasDistance = $derived(activity.distance_meters != null && activity.distance_meters > 0);
 
 	// Mini pace sparkline from splits
 	function parsePace(s: ActivitySplit): number {
@@ -282,14 +286,16 @@
 
 	<!-- Row 2: Metrics -->
 	<div class="flex flex-wrap items-end gap-x-3 gap-y-1.5 text-xs leading-none">
-		<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
+		{#if hasDistance}
+			<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
+		{/if}
 		<span class="num text-text-secondary shrink-0">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
-		{#if trail && activity.avg_grade_adjusted_speed_mps}
+		{#if hasDistance && trail && activity.avg_grade_adjusted_speed_mps}
 			<span class="num shrink-0 inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground"><Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed_mps)}</span>
-		{:else if activity.average_speed_mps}
+		{:else if hasDistance && activity.average_speed_mps}
 			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{speedToPace(activity.average_speed_mps)}</span>
 		{/if}
-		{#if trail}
+		{#if hasDistance && trail}
 			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{activity.elevation_gain_meters}m</span>
 		{/if}
 		{#if activity.average_hr}
@@ -298,7 +304,7 @@
 
 		<!-- Right group: sparkline + load + zones -->
 		<span class="flex items-end gap-3 shrink-0 w-full sm:w-auto sm:ml-auto">
-			{#if sparkBars.length >= 2}
+			{#if hasDistance && sparkBars.length >= 2}
 				<div class="flex items-end gap-px h-3" title="Pace per split">
 					{#each sparkBars as b}
 						{@const pct = 20 + ((b.pace - paceMin) / paceRange) * 80}

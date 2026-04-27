@@ -1,20 +1,16 @@
 <script lang="ts">
-	import type { CalendarEntry, WorkoutStep, Activity, ActivitySplit, ActivityWeather, HrZone, Course } from '$lib/types.js';
+	import type { CalendarEntry, WorkoutStep, Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
 	import { C, computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
-	import { formatDistance } from '$lib/format.js';
 	import ActivityRow from './ActivityRow.svelte';
 	import Tip from './Tip.svelte';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
 	import FlagCheckered from 'phosphor-svelte/lib/FlagCheckered';
-	import Mountains from 'phosphor-svelte/lib/Mountains';
-	import Path from 'phosphor-svelte/lib/Path';
 	import CaretRight from 'phosphor-svelte/lib/CaretRight';
 	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
-	import TrendUp from 'phosphor-svelte/lib/TrendUp';
 	import PauseCircle from 'phosphor-svelte/lib/PauseCircle';
 	import Timer from 'phosphor-svelte/lib/Timer';
 	import CrosshairSimple from 'phosphor-svelte/lib/CrosshairSimple';
@@ -25,23 +21,33 @@
 		calendar: CalendarEntry[];
 		activities: Activity[];
 		splits: Record<number, ActivitySplit[]>;
-		courses: Course[];
 		hrZones: HrZone[];
 		activityWeather: Record<number, ActivityWeather>;
 		onNavigate?: (activityId: number) => void;
-		onNavigateCourse?: (courseId: number) => void;
 	}
 
-	let { calendar, activities, splits, courses, hrZones, activityWeather, onNavigate, onNavigateCourse }: Props = $props();
+	let { calendar, activities, splits, hrZones, activityWeather, onNavigate }: Props = $props();
 
-	// Course lookup by ID
-	const courseMap = $derived(new Map(courses.map(c => [c.course_id, c])));
 	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
 	// ── Week boundaries (Monday-based) ──────────────────────────────────────
 
-	const todayStr = today();
-	const currentWeekStr = weekMonday(todayStr);
+	// `todayStr` must stay live across syncs and midnight rollovers so that
+	// "Today" highlight and the current-week label track real time without a
+	// page reload. It refreshes on prop changes (post-sync) and on a 60s tick.
+	let todayStr = $state(today());
+	$effect(() => {
+		calendar; activities;
+		todayStr = today();
+	});
+	$effect(() => {
+		const id = setInterval(() => {
+			const t = today();
+			if (t !== todayStr) todayStr = t;
+		}, 60_000);
+		return () => clearInterval(id);
+	});
+	const currentWeekStr = $derived(weekMonday(todayStr));
 	let weekOffset = $state(0);
 	const thisWeekStr = $derived(addDays(currentWeekStr, weekOffset * 7));
 	const nextWeekStr = $derived(addDays(thisWeekStr, 7));
@@ -251,6 +257,10 @@
 		LONG_WORKOUT: { code: 'LR', color: C.cyan },
 		TEMPO: { code: 'TP', color: C.orange },
 		ANAEROBIC_SPEED: { code: 'SP', color: C.purple },
+		RECOVERY: { code: 'RC', color: C.teal },
+		RECOVERY_RUN: { code: 'RC', color: C.teal },
+		EASY_RUN: { code: 'RC', color: C.teal },
+		AEROBIC_LOW_RECOVERY: { code: 'RC', color: C.teal },
 		FORCED_REST: { code: 'RS', color: C.textDim },
 	};
 	function prettyPhrase(phrase: string): string {
@@ -263,7 +273,7 @@
 		{ match: /long/i,              code: 'LR', name: 'Long Run',  color: C.cyan },
 		{ match: /tempo|threshold/i,   code: 'TP', name: 'Tempo',     color: C.orange },
 		{ match: /speed|interval|vo2/i,code: 'SP', name: 'Speed',     color: C.purple },
-		{ match: /recovery|easy/i,     code: 'RC', name: 'Recovery',  color: C.textDim },
+		{ match: /recovery|easy/i,     code: 'RC', name: 'Recovery',  color: C.teal },
 		{ match: /rest/i,              code: 'RS', name: 'Rest',      color: C.textDim },
 		{ match: /base/i,              code: 'AB', name: 'Base',      color: C.cyan },
 	];
@@ -431,26 +441,22 @@
 			/>
 		</div>
 	{:else if row.kind === 'event'}
-		{@const days = daysUntilDate(row.date)}
-		{@const linkedCourse = row.entry.course_id ? courseMap.get(row.entry.course_id) ?? null : null}
+		{@const entry = row.entry}
+		{@const distM = entry.estimated_distance_meters}
+		{@const iconColor = entry.is_primary_event ? C.cyan : entry.is_race ? C.red : C.textSecondary}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
 			<div class="flex items-center gap-2.5 leading-5">
-				<span class="shrink-0 leading-[0] text-red-400"><FlagCheckered size={16} weight="bold" /></span>
-				<div class="min-w-0 flex-1 overflow-hidden">
-					<div class="text-sm font-semibold text-text truncate">{row.entry.title}</div>
-					{#if linkedCourse}
-						<button
-							class="flex items-center gap-3 mt-0.5 text-xs leading-none cursor-pointer hover:opacity-80 transition-opacity max-w-full overflow-hidden"
-							onclick={() => onNavigateCourse?.(linkedCourse.course_id)}
-						>
-							<span class="flex items-center gap-1 text-text-secondary truncate min-w-0"><Path size={11} weight="bold" class="shrink-0" /> <span class="truncate">{linkedCourse.course_name}</span></span>
-							<span class="num text-text font-semibold shrink-0">{formatDistance(linkedCourse.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
-							<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{Math.round(linkedCourse.elevation_gain_meters)}m</span>
-						</button>
-					{/if}
+				<span class="shrink-0 leading-[0]" style="color: {iconColor}"><FlagCheckered size={16} weight="bold" /></span>
+				<div class="min-w-0 flex-1">
+					<span class="font-medium text-sm text-text">{entry.title}</span>
 				</div>
-				<span class="num rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-400">
-					in {days} days
+				<span class="shrink-0 flex items-center gap-2 text-xs num ml-auto">
+					{#if distM}
+						<span class="text-text font-semibold">{fmtDist(distM)}</span>
+					{/if}
+					{#if entry.start_time_local}
+						<span class="text-text-secondary">{entry.start_time_local}</span>
+					{/if}
 				</span>
 			</div>
 		</div>

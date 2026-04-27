@@ -113,11 +113,11 @@ export const RADAR_AXIS_ORDER = ['vo2max', 'endurance', 'hill', 'productivity'] 
 
 /** Colors per axis — used by both charts */
 export const AXIS_COLORS: Record<string, string> = {
-	vo2max: '#22c55e',
+	vo2max: '#3b82f6',
 	endurance: '#3b82f6',
 	hillStr: '#a855f7',
 	hillEnd: '#06b6d4',
-	hill: '#a855f7',
+	hill: '#3b82f6',
 	productivity: '#ec4899',
 };
 
@@ -392,6 +392,7 @@ export interface TrendSeries {
 	labels: string[];
 	vo2max: (number | null)[];
 	endurance: (number | null)[];
+	hill: (number | null)[];
 	hillStr: (number | null)[];
 	hillEnd: (number | null)[];
 }
@@ -424,6 +425,7 @@ export function computeTrendSeries(
 			labels: weeks.map(_fmtLabel),
 			vo2max: weeks.map(w => weekStatus.get(w)?.vo2max ?? null),
 			endurance: weeks.map(w => weekEndur.get(w)?.score ?? null),
+			hill: weeks.map(w => weekHill.get(w)?.overall_score ?? null),
 			hillStr: weeks.map(w => weekHill.get(w)?.strength_score ?? null),
 			hillEnd: weeks.map(w => weekHill.get(w)?.endurance_score ?? null),
 		};
@@ -439,6 +441,7 @@ export function computeTrendSeries(
 		labels: days.map(s => _fmtLabel(s.date)),
 		vo2max: days.map(s => s.vo2max ?? null),
 		endurance: days.map(s => endurByDate.get(s.date)?.score ?? null),
+		hill: days.map(s => hillByDate.get(s.date)?.overall_score ?? null),
 		hillStr: days.map(s => hillByDate.get(s.date)?.strength_score ?? null),
 		hillEnd: days.map(s => hillByDate.get(s.date)?.endurance_score ?? null),
 	};

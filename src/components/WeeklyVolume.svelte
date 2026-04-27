@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Activity, HrZone } from '$lib/types.js';
-	import { weekMonday, utcDate, fmtDateISO } from '$lib/dates.js';
+	import { weekMonday, utcDate, fmtDateISO, today } from '$lib/dates.js';
 	import { C, ZONE_COLORS, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import Tip from './Tip.svelte';
 	import ChartBar from 'phosphor-svelte/lib/ChartBar';
@@ -10,9 +10,11 @@
 		activities: Activity[];
 		hrZones: HrZone[];
 		maxHr: number | null;
+		/** Inclusive start of the window — must be a Monday (YYYY-MM-DD). */
+		windowStart: string;
 	}
 
-	let { activities, hrZones, maxHr }: Props = $props();
+	let { activities, hrZones, maxHr, windowStart }: Props = $props();
 	let chartEl: HTMLDivElement;
 	let mode = $state<'hr' | 'power'>('hr');
 
@@ -90,12 +92,11 @@
 			weeks.set(week, existing);
 		}
 
-		const sorted = [...weeks.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-		if (sorted.length === 0) return [];
-
+		// Iterate from windowStart (a Monday) to the current week inclusive, so the
+		// chart always shows the full selected range AND the current week (even at 0).
 		const result: WeekData[] = [];
-		const start = utcDate(sorted[0][0]);
-		const end = utcDate(sorted[sorted.length - 1][0]);
+		const start = utcDate(windowStart);
+		const end = utcDate(weekMonday(today()));
 
 		for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 7)) {
 			const key = fmtDateISO(d);
@@ -188,7 +189,7 @@
 
 	$effect(() => {
 		if (!_ready) return;
-		mode; activities; hrZones; maxHr; hiddenZones;
+		mode; activities; hrZones; maxHr; hiddenZones; windowStart;
 		renderChart();
 	});
 </script>

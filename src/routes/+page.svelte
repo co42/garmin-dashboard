@@ -19,6 +19,7 @@
 	import CourseFeed from '../components/CourseFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
 	import UpcomingCard from '../components/UpcomingCard.svelte';
+	import EventsList from '../components/EventsList.svelte';
 	import PlanSummaryCard from '../components/PlanSummaryCard.svelte';
 	import ProjectionChart from '../components/ProjectionChart.svelte';
 	import favicon from '$lib/assets/favicon.svg';
@@ -47,16 +48,6 @@
 		return monday.toISOString().slice(0, 10);
 	});
 
-	// Fixed 13-week window for Weekly Volume (independent of 1M/3M toggle)
-	const volumeStart = $derived(() => {
-		const now = new Date();
-		const day = now.getUTCDay();
-		const monday = new Date(now);
-		monday.setUTCDate(now.getUTCDate() - (day === 0 ? 6 : day - 1));
-		monday.setUTCDate(monday.getUTCDate() - (13 * 7));
-		return monday.toISOString().slice(0, 10);
-	});
-
 	// Daily points (1M) vs Monday-bucketed weekly points (3M, 1Y)
 	const granularity = $derived(windowWeeks >= 13 ? 'week' : 'day');
 
@@ -77,7 +68,10 @@
 		return `${Math.floor(spk / 60)}:${String(spk % 60).padStart(2, '0')}`;
 	}
 
-	// Windowed slices for all time-series components
+	// Windowed slices for all time-series components.
+	// `activities` is running-only (Weekly Volume / load deconvolution want km from
+	// runs, not strength sessions). The full mixed-type list lives on `dash.activities`
+	// for the calendar + activity log.
 	function filterWindow(dash: DashboardData) {
 		const start = windowStart();
 		return {
@@ -87,7 +81,7 @@
 			sleep: dash.sleepScoreHistory.filter(s => s.date >= start),
 			hillScore: dash.hillScoreHistory.filter(h => h.date >= start),
 			endurance: dash.enduranceScoreHistory.filter(e => e.date >= start),
-			activities: dash.activities.filter(a => a.start_time_local.slice(0, 10) >= start),
+			activities: dash.activities.filter(a => a.activity_type === 'running' && a.start_time_local.slice(0, 10) >= start),
 		};
 	}
 </script>
@@ -135,7 +129,12 @@
 
 		<!-- ═══ CALENDAR: upcoming workouts and events ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
-			<UpcomingCard calendar={d.calendar} activities={d.activities} splits={d.recentSplits} courses={d.courses} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
+			<UpcomingCard calendar={d.calendar} activities={d.activities} splits={d.recentSplits} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} />
+		{/if}
+
+		<!-- ═══ EVENTS: full upcoming race calendar (independent of week navigation) ═══ -->
+		{#if d.events.length > 0}
+			<EventsList events={d.events} courses={d.courses} lastSyncedAt={d.lastSyncedAt} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
 		{/if}
 
 		<!-- ═══ COACH: active adaptive training plan & race projection ═══ -->
@@ -196,11 +195,12 @@
 			/>
 			<TrendCard
 				title="Hill"
-				tip="Hill strength & endurance sub-scores over time (0–100 each)."
-				rawKey="hillStr"
+				tip="Garmin Hill score (overall climbing ability — combines Str, End and VO2max).\nSub-scores Str (power on steep climbs) and End (sustained climbing) shown for context. 0–100 each."
+				rawKey="hill"
 				interval={5}
 				labels={trend.labels}
 				series={[
+					{ name: 'Hill', color: AXIS_COLORS.hill, values: trend.hill },
 					{ name: 'Str', color: AXIS_COLORS.hillStr, values: trend.hillStr },
 					{ name: 'End', color: AXIS_COLORS.hillEnd, values: trend.hillEnd },
 				]}
@@ -220,7 +220,7 @@
 		</div>
 
 		<div class="grid gap-4 md:grid-cols-2">
-			<WeeklyVolume activities={d.activities.filter(a => a.start_time_local.slice(0, 10) >= volumeStart())} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr_bpm ?? null} />
+			<WeeklyVolume activities={w.activities} hrZones={d.hrZones} maxHr={d.userSettings?.max_hr_bpm ?? null} windowStart={windowStart()} />
 			<LactateThresholdChart history={d.lactateThresholdHistory} windowStart={windowStart()} />
 		</div>
 		{/key}

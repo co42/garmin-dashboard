@@ -94,6 +94,10 @@
 		}
 		return gaps;
 	});
+	// Strength / yoga / cardio sessions don't have GPS, splits, or pace — gate
+	// the distance-flavoured panels (Map & Splits, Performance chart, advanced
+	// metrics) on this. HR / load / zones still apply and stay visible.
+	const hasDistance = $derived(activity.distance_meters != null && activity.distance_meters > 0);
 	const hasMap = $derived(details != null && details.polyline.length > 1);
 	const hasTimeseries = $derived(details != null && details.timeseries.length > 5);
 	const hasElev = $derived(splits.some(s => s.elevation_gain_meters > 0));
@@ -141,7 +145,7 @@
 	</div>
 
 	<!-- ═══ WEATHER ═══ -->
-	{#if weather}
+	{#if weather && hasDistance}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><CloudSun size={12} weight="bold" /> Weather</h3>
 			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-dim">
@@ -179,7 +183,7 @@
 	{/if}
 
 	<!-- ═══ MAP + SPLITS ═══ -->
-	{#if hasMap || splits.length > 0}
+	{#if hasDistance && (hasMap || splits.length > 0)}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><MapPin size={12} weight="bold" /> Map & Splits</h3>
 			<div class="flex flex-col md:flex-row gap-4">
@@ -246,7 +250,7 @@
 	{/if}
 
 	<!-- ═══ CHARTS (Elevation + Performance) ═══ -->
-	{#if hasTimeseries && details}
+	{#if hasDistance && hasTimeseries && details}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><ChartLine size={12} weight="bold" /> {trail && hasElevTimeseries ? 'Elevation & Performance' : 'Performance'}</h3>
 			<ActivityCharts timeseries={details.timeseries} showGap={trail} showElevation={trail && hasElevTimeseries} />

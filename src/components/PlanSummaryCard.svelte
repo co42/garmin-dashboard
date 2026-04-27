@@ -104,10 +104,33 @@
 		return `${Math.floor(spk / 60)}:${String(spk % 60).padStart(2, '0')}/km`;
 	}
 
-	const goalDelta = $derived.by(() => {
+	const goalTimeDelta = $derived.by(() => {
 		if (!todayProj?.projection_race_time_seconds || !event.goal_seconds) return null;
 		return Math.round(todayProj.projection_race_time_seconds - event.goal_seconds);
 	});
+	const goalPaceDelta = $derived.by(() => {
+		if (!todayProj?.projection_race_time_seconds || !event.goal_seconds || !event.distance_meters) return null;
+		const km = event.distance_meters / 1000;
+		return Math.round(todayProj.projection_race_time_seconds / km - event.goal_seconds / km);
+	});
+
+	function fmtTimeDelta(secs: number): string {
+		const sign = secs >= 0 ? '+' : '-';
+		const a = Math.abs(secs);
+		if (a < 60) return `${sign}${a}s`;
+		const m = Math.floor(a / 60);
+		const s = a % 60;
+		if (a < 3600) return `${sign}${m}:${String(s).padStart(2, '0')}s`;
+		const h = Math.floor(a / 3600);
+		return `${sign}${h}:${String(m % 60).padStart(2, '0')}:${String(s).padStart(2, '0')}s`;
+	}
+	function fmtPaceDelta(secsPerKm: number): string {
+		const sign = secsPerKm >= 0 ? '+' : '-';
+		const a = Math.abs(secsPerKm);
+		const m = Math.floor(a / 60);
+		const s = a % 60;
+		return `${sign}${m}:${String(s).padStart(2, '0')}/km`;
+	}
 
 	const projAge = $derived(todayProj ? daysBetween(todayProj.date, todayStr) : null);
 	const projLabel = $derived(projAge === 0 ? 'TODAY' : projAge != null ? `${projAge}d AGO` : null);
@@ -217,18 +240,8 @@
 		</div>
 	{/if}
 
-	<!-- Event · Goal — header-style flex row with divider -->
+	<!-- Goal · Event — header-style flex row with divider -->
 	<div class="flex items-start gap-x-5 mb-2">
-		<div class="flex-1 min-w-0">
-			<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5">Event</p>
-			<p class="num text-xs text-text whitespace-nowrap">{fmtEventDateTime(event)}</p>
-			{#if event.location}
-				<p class="text-xs text-text-secondary truncate" title={event.location}>{event.location}</p>
-			{:else}
-				<p class="text-xs text-text-dim">—</p>
-			{/if}
-		</div>
-		<div class="self-stretch w-px bg-card-border"></div>
 		<div class="flex-1 min-w-0">
 			<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5">Goal</p>
 			{#if event.goal_seconds}
@@ -244,6 +257,16 @@
 			{/if}
 			<p class="num text-xs text-text-secondary">{event.distance_meters ? (event.distance_meters / 1000).toFixed(2) + ' km' : '—'}</p>
 		</div>
+		<div class="self-stretch w-px bg-card-border"></div>
+		<div class="flex-1 min-w-0">
+			<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5">Event</p>
+			<p class="num text-xs text-text whitespace-nowrap">{fmtEventDateTime(event)}</p>
+			{#if event.location}
+				<p class="text-xs text-text-secondary truncate" title={event.location}>{event.location}</p>
+			{:else}
+				<p class="text-xs text-text-dim">—</p>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Projection (latest) pinned to the bottom of the card -->
@@ -254,14 +277,15 @@
 		{#if todayProj?.projection_race_time_seconds}
 			<p class="num text-xs whitespace-nowrap flex items-baseline gap-1.5">
 				<span class="font-semibold text-text">{formatTime(todayProj.projection_race_time_seconds)}</span>
+				{#if goalTimeDelta != null}
+					<span style="color: {goalTimeDelta <= 0 ? C.green : C.amber}">{fmtTimeDelta(goalTimeDelta)}</span>
+				{/if}
 				{#if event.distance_meters}
 					<span class="text-text-dim">·</span>
 					<span class="text-text-secondary">{paceMSSPerKm(todayProj.projection_race_time_seconds, event.distance_meters)}</span>
-				{/if}
-				{#if goalDelta != null}
-					<span style="color: {goalDelta <= 0 ? C.green : C.amber}">
-						{goalDelta > 0 ? '+' : ''}{goalDelta}s vs goal
-					</span>
+					{#if goalPaceDelta != null}
+						<span style="color: {goalPaceDelta <= 0 ? C.green : C.amber}">{fmtPaceDelta(goalPaceDelta)}</span>
+					{/if}
 				{/if}
 			</p>
 		{:else}

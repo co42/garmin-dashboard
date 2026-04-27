@@ -202,50 +202,51 @@
 
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
 	<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ChartPolar size={14} weight="bold" /> Profile</h2>
-	<div class="flex-1 flex flex-col justify-around gap-3 mt-3">
+	<div class="flex-1 mt-3">
+	<table class="w-full h-full" style="border-collapse: separate; border-spacing: 0 8px;">
+		<tbody>
 		{#each rows as row}
 			{@const total = row.zones ? row.zones[row.zones.length - 1].max - row.zones[0].min : 0}
-			<Tip text={row.tipText} html={row.tipHtml || undefined}>
-				<div>
-					<div class="flex items-baseline justify-between text-xs mb-1.5">
-						<span class="flex items-center gap-1.5 min-w-0">
-							<span class="text-text-secondary">{row.name}</span>
-							{#if row.activeZone}
-								<span class="font-semibold" style="color: {row.activeZone.color}">{row.activeZone.name}</span>
-							{/if}
-						</span>
-						<span class="num text-text whitespace-nowrap inline-flex items-baseline gap-1.5">
-							{#if row.hillSubs}
-								{#each row.hillSubs as sub}
-									<span class="inline-flex items-baseline gap-1">
-										<span class="text-text-dim">{sub.label}</span>
-										<span class="font-semibold" style="color: {sub.color}">{sub.raw}</span>
-										<span style="color: {sub.delta > 0 ? C.green : sub.delta < 0 ? C.red : C.textDim}">{formatRawDelta(sub.key, sub.delta)}</span>
-									</span>
-									<span class="text-text-dim">·</span>
-								{/each}
-							{/if}
-							<span class="inline-flex items-baseline gap-1">
-								<span>{row.rawStr}</span>
-								<span style="color: {row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.textDim}">{formatRawDelta(row.key, row.delta)}</span>
-							</span>
-						</span>
-					</div>
-					<div class="relative h-2 rounded-full overflow-hidden">
-						{#if row.zones}
-							<div class="absolute inset-0 flex gap-px">
-								{#each row.zones as z}
-									<div style="width: {((z.max - z.min) / total) * 100}%; background: {z.color}"></div>
-								{/each}
+			<tr>
+				<td class="pr-3 whitespace-nowrap align-middle">
+					<span class="text-xs text-text-secondary">{row.name}</span>
+				</td>
+				<td class="w-full align-middle">
+					<Tip text={row.tipText} html={row.tipHtml || undefined}>
+						<div class="relative h-5">
+							<div class="absolute inset-0 rounded bg-card-border overflow-hidden">
+								{#if row.zones}
+									<div class="flex h-full gap-px">
+										{#each row.zones as z}
+											{@const isActive = row.activeZone === z}
+											<div style="flex: {(z.max - z.min) / total}; background: {z.color}; opacity: {isActive ? 0.9 : 0.18};"></div>
+										{/each}
+									</div>
+								{:else}
+									<div class="h-full" style="background: {row.color}; opacity: 0.9; width: {row.posPct}%"></div>
+								{/if}
 							</div>
-						{:else}
-							<div class="absolute inset-0 bg-hover"></div>
-							<div class="absolute inset-y-0 left-0" style="width: {row.posPct}%; background: {row.color}"></div>
+							<!-- White tick at current value (matches LoadBalance bounds markers) -->
+							<div
+								class="absolute z-10 pointer-events-none"
+								style="left: {row.posPct}%; top: -3px; bottom: -3px; width: 2px; transform: translateX(-50%); background: {C.text}; box-shadow: 0 0 0 1px {C.card}; border-radius: 1px;"
+							></div>
+						</div>
+					</Tip>
+				</td>
+				<td class="pl-3 whitespace-nowrap align-middle text-left">
+					<div class="leading-tight">
+						{#if row.activeZone}
+							<div class="text-xs font-semibold" style="color: {row.activeZone.color}">{row.activeZone.name}</div>
 						{/if}
-						<div class="absolute inset-y-0 bg-card/75" style="left: {row.posPct}%; right: 0"></div>
+						<div class="num text-[10px] font-medium" style="color: {row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.textDim}">
+							{formatRawDelta(row.key, row.delta)}
+						</div>
 					</div>
-				</div>
-			</Tip>
+				</td>
+			</tr>
 		{/each}
+		</tbody>
+	</table>
 	</div>
 </div>

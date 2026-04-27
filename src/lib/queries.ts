@@ -27,6 +27,7 @@ import type {
 	CoachPlan,
 	CoachEvent,
 	EventProjection,
+	RaceEvent,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -125,6 +126,7 @@ export function loadDashboard(): DashboardData | null {
 	const records = snapshot<PersonalRecord[]>('records', []);
 	const gear = snapshot<GearItem[]>('gear', []);
 	const calendar = snapshot<CalendarEntry[]>('calendar', []);
+	const events = snapshot<RaceEvent[]>('events', []);
 	const hrZones = snapshot<HrZone[]>('hr_zones', []);
 	const userSettings = snapshot<UserSettings | null>('user_settings', null);
 	const coachPlan = snapshot<CoachPlan | null>('coach_plan', null);
@@ -220,6 +222,7 @@ export function loadDashboard(): DashboardData | null {
 		gear,
 		courses,
 		calendar,
+		events,
 		coachPlan,
 		coachEvent,
 		projectionHistory,

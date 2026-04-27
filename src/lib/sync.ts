@@ -22,6 +22,7 @@ import type {
 	CoachPlan,
 	CoachEvent,
 	EventProjection,
+	RaceEvent,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -263,8 +264,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			fetchDateRange<RawHillScore, HillScore>(['training', 'hill-score'], fromDate, today, mapHillScore),
 			fetchDateRange<EnduranceScore, EnduranceScore>(['training', 'endurance-score'], fromDate, today, mapIdentity),
 			fetchDateRange<RacePredictions, RacePredictions>(['training', 'race-predictions'], fromDate, today, mapIdentity),
-			// Activities
-			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--type', 'running', '--from', activityFrom]),
+			// Activities — all types so strength/cycling/etc. show up in the calendar
+			// and activity log. Running-specific consumers (Weekly Volume, profile)
+			// filter on activity_type at the page level.
+			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--from', activityFrom]),
 		]);
 
 		// Normalize snapshots that use calendar_date
@@ -554,7 +557,9 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		}
 
 		// Phase 7: Calendar + workout steps
-		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', 'list', '--weeks', '4'], []);
+		// 16 weeks ≈ 4 months — covers a typical race-season planning horizon
+		// without paying for many extra month fetches (1 call per spanned month).
+		const calendarItems = await garminSafe<CalendarItem[]>(['calendar', 'list', '--weeks', '16'], []);
 		const calendarEntries: CalendarEntry[] = [];
 
 		// Collect items that have workout IDs for batch fetching
@@ -591,7 +596,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			const [y, m] = ci.date!.split('-');
 			rawCalMonths.add(`${y}/${parseInt(m) - 1}`);
 		}
-		const rawEventMap = new Map<number, { courseId: number | null; isRace: boolean; url: string | null }>();
+		const rawEventMap = new Map<number, { courseId: number | null; isRace: boolean; url: string | null; distanceMeters: number | null; startTimeLocal: string | null; isPrimaryEvent: boolean }>();
 		const adaptivePlanIds = new Set<number>();
 		const adaptiveUuidMap = new Map<string, { trainingPlanId: number; workoutUuid: string; sportTypeKey: string | null }>();
 		for (const ym of rawCalMonths) {
@@ -600,10 +605,21 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			if (raw?.calendarItems) {
 				for (const item of raw.calendarItems) {
 					if (item.itemType === 'event') {
+						const target = item.completionTarget;
+						const distanceMeters = target?.unit === 'kilometer' && typeof target.value === 'number'
+							? target.value * 1000
+							: target?.unit === 'meter' && typeof target.value === 'number'
+								? target.value
+								: target?.unit === 'mile' && typeof target.value === 'number'
+									? target.value * 1609.344
+									: null;
 						rawEventMap.set(item.id, {
 							courseId: item.courseId ?? null,
 							isRace: item.isRace ?? false,
 							url: item.url ?? null,
+							distanceMeters,
+							startTimeLocal: item.eventTimeLocal?.startTimeHhMm ?? null,
+							isPrimaryEvent: item.primaryEvent ?? false,
 						});
 					} else if (item.itemType === 'fbtAdaptiveWorkout' && item.trainingPlanId && item.workoutUuid) {
 						adaptivePlanIds.add(item.trainingPlanId);
@@ -681,10 +697,12 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				workout_uuid: adaptiveInfo?.workoutUuid ?? null,
 				course_id: eventData?.courseId ?? null,
 				is_race: eventData?.isRace ?? false,
+				is_primary_event: eventData?.isPrimaryEvent ?? false,
+				start_time_local: eventData?.startTimeLocal ?? null,
 				url: eventData?.url ?? null,
 				steps,
 				workout_description: adaptiveTask?.workoutDescription ?? null,
-				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? raw?.estimatedDistanceInMeters ?? null,
+				estimated_distance_meters: adaptiveTask?.estimatedDistanceInMeters ?? raw?.estimatedDistanceInMeters ?? eventData?.distanceMeters ?? null,
 				estimated_duration_seconds: adaptiveTask?.estimatedDurationInSecs ?? raw?.estimatedDurationInSecs ?? null,
 				training_effect_label: adaptiveTask?.trainingEffectLabel ?? null,
 				workout_phrase: coachDetail?.workoutPhrase ?? null,
@@ -694,6 +712,13 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		}
 
 		upsertSnapshot.run('calendar', JSON.stringify(calendarEntries));
+
+		// Phase 8: Upcoming events (races, primary plan event, scheduled events).
+		// `garmin calendar events` returns the same `TargetEvent` shape used by
+		// `coach event`, but for *all* upcoming events — not just the plan target.
+		// Independent of the calendar window: events 6+ months out still surface.
+		const events = await garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []);
+		upsertSnapshot.run('events', JSON.stringify(events));
 
 		// Finish
 		db.prepare('UPDATE sync_log SET finished_at = ?, status = ? WHERE id = ?')
