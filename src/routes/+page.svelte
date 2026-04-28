@@ -69,9 +69,10 @@
 	}
 
 	// Windowed slices for all time-series components.
-	// `activities` is running-only (Weekly Volume / load deconvolution want km from
-	// runs, not strength sessions). The full mixed-type list lives on `dash.activities`
-	// for the calendar + activity log.
+	// `activities` is run-only (Weekly Volume / load deconvolution want km from
+	// runs, not strength sessions) but covers all running variants: road, trail,
+	// treadmill, track. The full mixed-type list lives on `dash.activities` for
+	// the calendar + activity log.
 	function filterWindow(dash: DashboardData) {
 		const start = windowStart();
 		return {
@@ -81,7 +82,7 @@
 			sleep: dash.sleepScoreHistory.filter(s => s.date >= start),
 			hillScore: dash.hillScoreHistory.filter(h => h.date >= start),
 			endurance: dash.enduranceScoreHistory.filter(e => e.date >= start),
-			activities: dash.activities.filter(a => a.activity_type === 'running' && a.start_time_local.slice(0, 10) >= start),
+			activities: dash.activities.filter(a => a.activity_type.endsWith('running') && a.start_time_local.slice(0, 10) >= start),
 		};
 	}
 </script>
