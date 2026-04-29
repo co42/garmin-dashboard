@@ -3,6 +3,7 @@
 	import type { DailyTrainingStatus } from '$lib/types.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import { weekMonday } from '$lib/dates.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
 	import ChartLineUp from 'phosphor-svelte/lib/ChartLineUp';
 
@@ -53,7 +54,8 @@
 
 	let _chart: any; let _ro: ResizeObserver;
 	let _ready = $state(false);
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+	let _unbindTooltip: (() => void) | null = null;
+	onDestroy(() => { _unbindTooltip?.(); _ro?.disconnect(); _chart?.dispose(); });
 
 	function dot(color: string, opacity = 1) {
 		return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:2px${opacity < 1 ? `;opacity:${opacity}` : ''}"></span>`;
@@ -76,7 +78,7 @@
 		const nil = data.map(() => null);
 
 		_chart.setOption({
-			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
+			grid: { top: 16, right: 8, bottom: 30, left: 0, containLabel: false },
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
@@ -121,11 +123,25 @@
 					z: 1,
 				},
 				{
-					type: 'line', data: hideAcwr ? nil : acwrValues, name: 'ACWR',
-					smooth: true, symbol: 'none',
+					type: 'line', name: 'ACWR',
+					data: hideAcwr ? nil : acwrValues.map((v, i) =>
+						i === acwrValues.length - 1 && v != null ? { value: v, label: { show: true } } : v
+					),
+					smooth: true,
+					symbol: 'circle',
+					symbolSize: (_v: any, p: any) => p.dataIndex === acwrValues.length - 1 && !hideAcwr ? 5 : 0,
 					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
 					z: 2,
+					label: {
+						show: false,
+						position: 'top',
+						color: C.blue,
+						fontSize: 10,
+						fontFamily: MONO,
+						fontWeight: 600,
+						formatter: (p: any) => (p.value as number).toFixed(2),
+					},
 				},
 			],
 		}, true);
@@ -146,7 +162,7 @@
 		const nil = data.map(() => null);
 
 		_chart.setOption({
-			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
+			grid: { top: 16, right: 8, bottom: 30, left: 0, containLabel: false },
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
@@ -167,6 +183,7 @@
 			xAxis: { type: 'category', data: days, boundaryGap: false, ...CHART_AXIS, axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true } },
 			yAxis: {
 				type: 'value',
+				min: (v: { min: number }) => Math.max(0, Math.floor((v.min - 25) / 25) * 25),
 				axisLine: { show: false },
 				axisLabel: CHART_AXIS.axisLabel,
 				splitLine: CHART_AXIS.splitLine,
@@ -189,18 +206,46 @@
 					z: 1,
 				},
 				{
-					type: 'line', data: hideChronic ? nil : chronicValues, name: 'Chronic',
-					smooth: true, symbol: 'none',
+					type: 'line', name: 'Chronic',
+					data: hideChronic ? nil : chronicValues.map((v, i) =>
+						i === chronicValues.length - 1 && v != null ? { value: v, label: { show: true } } : v
+					),
+					smooth: true,
+					symbol: 'circle',
+					symbolSize: (_v: any, p: any) => p.dataIndex === chronicValues.length - 1 && !hideChronic ? 4 : 0,
 					lineStyle: { width: 1.5, color: C.teal + '40' },
 					itemStyle: { color: C.teal },
 					z: 2,
+					label: {
+						show: false,
+						position: 'top',
+						color: C.teal,
+						fontSize: 10,
+						fontFamily: MONO,
+						fontWeight: 600,
+						formatter: (p: any) => String(p.value),
+					},
 				},
 				{
-					type: 'line', data: hideAcute ? nil : acuteValues, name: 'Acute',
-					smooth: true, symbol: 'none',
+					type: 'line', name: 'Acute',
+					data: hideAcute ? nil : acuteValues.map((v, i) =>
+						i === acuteValues.length - 1 && v != null ? { value: v, label: { show: true } } : v
+					),
+					smooth: true,
+					symbol: 'circle',
+					symbolSize: (_v: any, p: any) => p.dataIndex === acuteValues.length - 1 && !hideAcute ? 5 : 0,
 					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
 					z: 3,
+					label: {
+						show: false,
+						position: 'top',
+						color: C.blue,
+						fontSize: 10,
+						fontFamily: MONO,
+						fontWeight: 600,
+						formatter: (p: any) => String(p.value),
+					},
 				},
 			],
 		}, true);
@@ -211,6 +256,7 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		_ready = true;
 	});
 

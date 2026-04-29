@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { Activity, HrZone } from '$lib/types.js';
 	import { C, ZONE_COLORS, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
 	import ChartPieSlice from 'phosphor-svelte/lib/ChartPieSlice';
 
@@ -91,11 +92,13 @@
 	});
 
 	let _chart: any; let _ro: ResizeObserver;
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+	let _unbindTooltip: (() => void) | null = null;
+	onDestroy(() => { _unbindTooltip?.(); _ro?.disconnect(); _chart?.dispose(); });
 
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		const { pcts } = zoneTotals();
 
 		_chart.setOption({

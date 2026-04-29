@@ -5,6 +5,7 @@
 	import { addDays, today as todayFn } from '$lib/dates.js';
 	import { formatTime } from '$lib/format.js';
 	import { feedbackLabel } from '$lib/coach-feedback.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
 	import Target from 'phosphor-svelte/lib/Target';
 
@@ -44,7 +45,8 @@
 	let _chart: any;
 	let _ro: ResizeObserver;
 	let _ready = $state(false);
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+	let _unbindTooltip: (() => void) | null = null;
+	onDestroy(() => { _unbindTooltip?.(); _ro?.disconnect(); _chart?.dispose(); });
 
 	function toPace(seconds: number): number {
 		// fractional s/km — rounding happens at format time, not here
@@ -178,6 +180,7 @@
 		const showPlanStart = planStartIdx > 0; // > 0 so we don't mark the very first day
 
 		_chart.setOption({
+			animation: false,
 			grid: { top: 8, right: 0, bottom: 30, left: 0, containLabel: false },
 			tooltip: {
 				...CHART_TOOLTIP,
@@ -268,13 +271,7 @@
 								silent: true,
 								symbol: 'none',
 								lineStyle: { color: C.green, type: 'dashed', width: 1.5 },
-								label: {
-									formatter: 'Goal',
-									position: 'insideEndTop',
-									color: C.green,
-									fontSize: 10,
-									fontFamily: MONO,
-								},
+								label: { show: false },
 								data: [{ yAxis: goalV as number }],
 							}
 						: undefined,
@@ -320,6 +317,7 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		_ready = true;
 	});
 

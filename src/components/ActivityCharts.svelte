@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { ActivityDetailPoint } from '$lib/types.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, GRADIENT_COLORS, MONO, arrMin, arrMax } from '$lib/colors.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 
 	interface Props {
 		timeseries: ActivityDetailPoint[];
@@ -15,7 +16,8 @@
 	let _chart: any; let _ro: ResizeObserver;
 	let _elevSegColors: string[] = [];
 	let _totalSeries = 0;
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+	let _unbindTooltip: (() => void) | null = null;
+	onDestroy(() => { _unbindTooltip?.(); _ro?.disconnect(); _chart?.dispose(); });
 
 	const gradLegend = [
 		{ color: GRADIENT_COLORS.vSteepDown, label: '<15%' },
@@ -77,6 +79,7 @@
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 
 		// Sample every ~50m
 		const sampled: ActivityDetailPoint[] = [];

@@ -104,37 +104,59 @@
 		return `${Math.floor(spk / 60)}:${String(spk % 60).padStart(2, '0')}/km`;
 	}
 
-	const goalTimeDelta = $derived.by(() => {
-		if (!todayProj?.projection_race_time_seconds || !event.goal_seconds) return null;
-		return Math.round(todayProj.projection_race_time_seconds - event.goal_seconds);
-	});
-	const goalPaceDelta = $derived.by(() => {
-		if (!todayProj?.projection_race_time_seconds || !event.goal_seconds || !event.distance_meters) return null;
+	// Signed delta vs the goal for projection / current race-time predictions.
+	function timeDeltaVsGoal(secs: number | null | undefined): number | null {
+		if (secs == null || !event.goal_seconds) return null;
+		return Math.round(secs - event.goal_seconds);
+	}
+	function paceDeltaVsGoal(secs: number | null | undefined): number | null {
+		if (secs == null || !event.goal_seconds || !event.distance_meters) return null;
 		const km = event.distance_meters / 1000;
-		return Math.round(todayProj.projection_race_time_seconds / km - event.goal_seconds / km);
-	});
-
+		return Math.round(secs / km - event.goal_seconds / km);
+	}
 	function fmtTimeDelta(secs: number): string {
-		const sign = secs >= 0 ? '+' : '-';
+		const sign = secs >= 0 ? '+' : '−';
 		const a = Math.abs(secs);
 		if (a < 60) return `${sign}${a}s`;
 		const m = Math.floor(a / 60);
 		const s = a % 60;
-		if (a < 3600) return `${sign}${m}:${String(s).padStart(2, '0')}s`;
+		if (a < 3600) return `${sign}${m}:${String(s).padStart(2, '0')}`;
 		const h = Math.floor(a / 3600);
-		return `${sign}${h}:${String(m % 60).padStart(2, '0')}:${String(s).padStart(2, '0')}s`;
+		return `${sign}${h}:${String(m % 60).padStart(2, '0')}`;
 	}
 	function fmtPaceDelta(secsPerKm: number): string {
-		const sign = secsPerKm >= 0 ? '+' : '-';
+		const sign = secsPerKm >= 0 ? '+' : '−';
 		const a = Math.abs(secsPerKm);
 		const m = Math.floor(a / 60);
 		const s = a % 60;
-		return `${sign}${m}:${String(s).padStart(2, '0')}/km`;
+		return m > 0 ? `${sign}${m}:${String(s).padStart(2, '0')}` : `${sign}${s}s`;
+	}
+	function deltaColor(delta: number | null): string {
+		if (delta == null) return C.textDim;
+		return delta <= 0 ? C.green : C.amber;
 	}
 
+	// Age of the latest projection — surfaced as a relative-time badge next to
+	// the Current column so a stale projection (e.g. a week-old sync) is
+	// obvious at a glance.
 	const projAge = $derived(todayProj ? daysBetween(todayProj.date, todayStr) : null);
-	const projLabel = $derived(projAge === 0 ? 'TODAY' : projAge != null ? `${projAge}d AGO` : null);
-	const projColor = $derived(projAge === 0 ? C.green : C.orange);
+	const projAgeLabel = $derived(
+		projAge == null ? null
+			: projAge === 0 ? 'TODAY'
+			: projAge === 1 ? '1d AGO'
+			: `${projAge}d AGO`
+	);
+	const projAgeColor = $derived(projAge === 0 ? C.green : C.orange);
+
+	// Race-time projections + signed deltas vs goal. Computed in script so
+	// they stay reactive without violating Svelte's `{@const}` placement rules
+	// (which only allow it as a direct child of {#if}/{#each}/...).
+	const projTime = $derived(todayProj?.projection_race_time_seconds ?? null);
+	const curTime = $derived(todayProj?.predicted_race_time_seconds ?? null);
+	const projTimeDelta = $derived(timeDeltaVsGoal(projTime));
+	const projPaceDelta = $derived(paceDeltaVsGoal(projTime));
+	const curTimeDelta = $derived(timeDeltaVsGoal(curTime));
+	const curPaceDelta = $derived(paceDeltaVsGoal(curTime));
 
 	function statusPillColor(status: string | null): { bg: string; fg: string } {
 		switch (status) {
@@ -240,8 +262,8 @@
 		</div>
 	{/if}
 
-	<!-- Goal · Event — header-style flex row with divider -->
-	<div class="flex items-start gap-x-5 mb-2">
+	<!-- Goal · Event — 2-column row with divider, original layout. -->
+	<div class="flex items-start gap-x-5 mb-3">
 		<div class="flex-1 min-w-0">
 			<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5">Goal</p>
 			{#if event.goal_seconds}
@@ -269,28 +291,59 @@
 		</div>
 	</div>
 
-	<!-- Projection (latest) pinned to the bottom of the card -->
-	<div class="mt-auto">
-		<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5">
-			Projection <span class="num" style="color: {projColor}">({projLabel ?? '—'})</span>
-		</p>
-		{#if todayProj?.projection_race_time_seconds}
-			<p class="num text-xs whitespace-nowrap flex items-baseline gap-1.5">
-				<span class="font-semibold text-text">{formatTime(todayProj.projection_race_time_seconds)}</span>
-				{#if goalTimeDelta != null}
-					<span style="color: {goalTimeDelta <= 0 ? C.green : C.amber}">{fmtTimeDelta(goalTimeDelta)}</span>
-				{/if}
-				{#if event.distance_meters}
-					<span class="text-text-dim">·</span>
-					<span class="text-text-secondary">{paceMSSPerKm(todayProj.projection_race_time_seconds, event.distance_meters)}</span>
-					{#if goalPaceDelta != null}
-						<span style="color: {goalPaceDelta <= 0 ? C.green : C.amber}">{fmtPaceDelta(goalPaceDelta)}</span>
-					{/if}
+	<!-- Current · Projection — same 2-col split as Goal/Event.
+	     Current    = today's fitness-only predicted time. The TODAY / Xd AGO
+	                  age badge sits on Current so a stale sync is obvious.
+	     Projection = plan-adjusted forecast at race day. -->
+	<div class="flex items-start gap-x-5 mt-auto">
+		<div class="flex-1 min-w-0">
+			<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5 flex items-baseline gap-1.5">
+				<span>Current</span>
+				{#if projAgeLabel}
+					<span class="num text-[9px]" style="color: {projAgeColor}">({projAgeLabel})</span>
 				{/if}
 			</p>
-		{:else}
-			<p class="text-xs text-text-dim italic">unavailable</p>
-		{/if}
+			{#if curTime != null}
+				<p class="num text-xs text-text whitespace-nowrap flex items-baseline gap-1.5">
+					<span>{formatTime(curTime)}</span>
+					{#if curTimeDelta != null}
+						<span class="text-[10px]" style="color: {deltaColor(curTimeDelta)}">{fmtTimeDelta(curTimeDelta)}</span>
+					{/if}
+				</p>
+				{#if event.distance_meters}
+					<p class="num text-xs text-text-secondary whitespace-nowrap flex items-baseline gap-1.5">
+						<span>{paceMSSPerKm(curTime, event.distance_meters)}</span>
+						{#if curPaceDelta != null}
+							<span class="text-[10px]" style="color: {deltaColor(curPaceDelta)}">{fmtPaceDelta(curPaceDelta)}</span>
+						{/if}
+					</p>
+				{/if}
+			{:else}
+				<p class="num text-xs text-text-dim italic">—</p>
+			{/if}
+		</div>
+		<div class="self-stretch w-px bg-card-border"></div>
+		<div class="flex-1 min-w-0">
+			<p class="text-[10px] font-semibold uppercase tracking-wider text-text-dim mb-0.5">Projection</p>
+			{#if projTime != null}
+				<p class="num text-xs text-text whitespace-nowrap flex items-baseline gap-1.5">
+					<span>{formatTime(projTime)}</span>
+					{#if projTimeDelta != null}
+						<span class="text-[10px]" style="color: {deltaColor(projTimeDelta)}">{fmtTimeDelta(projTimeDelta)}</span>
+					{/if}
+				</p>
+				{#if event.distance_meters}
+					<p class="num text-xs text-text-secondary whitespace-nowrap flex items-baseline gap-1.5">
+						<span>{paceMSSPerKm(projTime, event.distance_meters)}</span>
+						{#if projPaceDelta != null}
+							<span class="text-[10px]" style="color: {deltaColor(projPaceDelta)}">{fmtPaceDelta(projPaceDelta)}</span>
+						{/if}
+					</p>
+				{/if}
+			{:else}
+				<p class="num text-xs text-text-dim italic">—</p>
+			{/if}
+		</div>
 	</div>
 </div>
 

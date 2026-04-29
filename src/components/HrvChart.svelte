@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { HrvDay } from '$lib/types.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO, hrvStatusColor } from '$lib/colors.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 
@@ -60,7 +61,8 @@
 
 	let _chart: any; let _ro: ResizeObserver;
 	let _ready = $state(false);
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+	let _unbindTooltip: (() => void) | null = null;
+	onDestroy(() => { _unbindTooltip?.(); _ro?.disconnect(); _chart?.dispose(); });
 
 	function renderChart() {
 		if (!_chart) return;
@@ -165,6 +167,7 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		_ready = true;
 	});
 

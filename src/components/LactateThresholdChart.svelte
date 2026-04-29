@@ -3,6 +3,7 @@
 	import type { LactateThreshold } from '$lib/types.js';
 	import { fmtDateISO } from '$lib/dates.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
 	import Pulse from 'phosphor-svelte/lib/Pulse';
 
@@ -57,12 +58,27 @@
 		const lastSeen = sorted.filter(p => p.date <= todayStr).pop();
 		if (!lastSeen) return [];
 
-		const result: DayPoint[] = inWindow.map(p => ({
-			date: p.date,
-			bpm: p.heart_rate,
-			paceSec: speedToPaceSec(p.speed_mps),
-			isChange: true,
-		}));
+		// Anchor the line at windowStart with the last-known-before-window value
+		// so the step line spans the full window even when the next change point
+		// is mid-window.
+		const beforeWindow = sorted.filter(p => p.date < windowStart).pop();
+		const result: DayPoint[] = [];
+		if (beforeWindow && (inWindow.length === 0 || inWindow[0].date !== windowStart)) {
+			result.push({
+				date: windowStart,
+				bpm: beforeWindow.heart_rate,
+				paceSec: speedToPaceSec(beforeWindow.speed_mps),
+				isChange: false,
+			});
+		}
+		for (const p of inWindow) {
+			result.push({
+				date: p.date,
+				bpm: p.heart_rate,
+				paceSec: speedToPaceSec(p.speed_mps),
+				isChange: true,
+			});
+		}
 
 		if (result.length === 0 || result[result.length - 1].date !== todayStr) {
 			result.push({
@@ -76,17 +92,8 @@
 		return result;
 	}
 
-	const stats = $derived(() => {
-		const data = buildSeries();
-		if (data.length === 0) return { current: null as LactateThreshold | null, bpmDelta: 0, paceDelta: 0 };
-		const first = data[0];
-		const last = data[data.length - 1];
-		return {
-			current: history[history.length - 1] ?? null,
-			bpmDelta: last.bpm - first.bpm,
-			paceDelta: last.paceSec - first.paceSec,
-		};
-	});
+	// Latest known LT value for the in-header summary.
+	const current = $derived(history.length > 0 ? history[history.length - 1] : null);
 
 	/** Pick a "nice" step ≥ minStep so the axis shows at most `targetTicks` labels. */
 	function niceStep(range: number, minStep: number, targetTicks = 5): number {
@@ -118,20 +125,31 @@
 
 	let _chart: any; let _ro: ResizeObserver;
 	let _ready = $state(false);
-	onDestroy(() => { _ro?.disconnect(); _chart?.dispose(); });
+	let _unbindTooltip: (() => void) | null = null;
+	onDestroy(() => { _unbindTooltip?.(); _ro?.disconnect(); _chart?.dispose(); });
 
 	function renderChart() {
 		if (!_chart) return;
 		const data = buildSeries();
-		const dates = data.map(d => d.date.slice(5));
 		const bpmValues = data.map(d => d.bpm);
 		const paceValues = data.map(d => d.paceSec);
+		// Tag each point with its UTC timestamp so the x-axis spaces sparse
+		// updates at their real-time positions instead of evenly.
+		const ts = (d: DayPoint) => Date.parse(d.date + 'T12:00:00Z');
+		const paceTs = data.map(d => [ts(d), d.paceSec] as [number, number]);
+		const bpmTs = data.map(d => [ts(d), d.bpm] as [number, number]);
 
 		const hideHr = hiddenSeries.has('hr');
 		const hidePace = hiddenSeries.has('pace');
-		const nil = data.map(() => null);
+
+		// "DD/MM" — matches the format used by ProjectionChart and the trend cards.
+		const dateLabel = (t: number) => {
+			const d = new Date(t);
+			return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+		};
 
 		_chart.setOption({
+			animation: false,
 			grid: { top: 8, right: 8, bottom: 30, left: 36, containLabel: false },
 			legend: { show: false },
 			tooltip: {
@@ -141,7 +159,7 @@
 				formatter(params: any) {
 					const idx = params[0]?.dataIndex ?? 0;
 					const d = data[idx];
-					let html = `<b>${dates[idx]}</b>${d.isChange ? ` <span style="color:${C.textDim}">· updated</span>` : ''}<br/><table style="border-spacing:8px 1px">`;
+					let html = `<b>${dateLabel(ts(d))}</b>${d.isChange ? ` <span style="color:${C.textDim}">· updated</span>` : ''}<br/><table style="border-spacing:8px 1px">`;
 					html += `<tr><td>HR&nbsp;</td><td style="text-align:right"><b>${d.bpm}</b>&nbsp;</td><td style="color:${C.textDim}">bpm</td></tr>`;
 					html += `<tr><td>Pace&nbsp;</td><td style="text-align:right"><b>${secToPace(d.paceSec)}</b>&nbsp;</td><td style="color:${C.textDim}">min/km</td></tr>`;
 					html += '</table>';
@@ -149,19 +167,23 @@
 				},
 			},
 			xAxis: {
-				type: 'category', data: dates, boundaryGap: false,
+				type: 'time',
 				...CHART_AXIS,
-				axisLabel: { ...CHART_AXIS.axisLabel, showMinLabel: true, showMaxLabel: true, hideOverlap: true },
+				axisLabel: {
+					...CHART_AXIS.axisLabel,
+					hideOverlap: true,
+					formatter: (v: number) => dateLabel(v),
+				},
 			},
 			yAxis: (() => {
 				const hrScale = yScale(bpmValues, 1);
 				const paceScale = yScale(paceValues, 5);
 				return [
 					{
-						// Pace — the only visible axis, now on the left (inverted so faster = higher)
+						// Pace — natural y-axis: lower pace number (faster) at the
+						// bottom. Improvement makes the line trend down.
 						type: 'value',
 						position: 'left',
-						inverse: true,
 						min: paceScale.min, max: paceScale.max, interval: paceScale.step,
 						axisLine: { show: false },
 						axisLabel: {
@@ -184,7 +206,7 @@
 			series: [
 				{
 					type: 'line', name: 'Pace', yAxisIndex: 0,
-					data: hidePace ? nil : paceValues,
+					data: hidePace ? [] : paceTs,
 					smooth: true, symbol: 'none',
 					lineStyle: { width: 2, color: C.blue },
 					itemStyle: { color: C.blue },
@@ -192,7 +214,7 @@
 				},
 				{
 					type: 'line', name: 'HR', yAxisIndex: 1,
-					data: hideHr ? nil : bpmValues,
+					data: hideHr ? [] : bpmTs,
 					smooth: true, symbol: 'none',
 					lineStyle: { width: 2, color: C.amber },
 					itemStyle: { color: C.amber },
@@ -207,6 +229,7 @@
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		_ready = true;
 	});
 
@@ -220,7 +243,7 @@
 <div class="rounded-lg bg-card p-4 h-full flex flex-col">
 	<div class="mb-2">
 		<div class="flex flex-wrap items-center justify-between gap-y-1">
-			<Tip text={"Lactate threshold — HR and pace at which lactate starts accumulating.\nUpdated by Garmin when an effort reveals a new threshold.\n\nAmber = HR (bpm)\nBlue = Pace (min/km, inverted — higher = faster)"}>
+			<Tip text={"Lactate threshold — HR and pace at which lactate starts accumulating.\nUpdated by Garmin when an effort reveals a new threshold.\n\nAmber = HR (bpm)\nBlue = Pace (min/km — lower is faster)"}>
 				<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Pulse size={14} weight="bold" /> Lactate Threshold</h2>
 			</Tip>
 			<div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
@@ -237,10 +260,10 @@
 				{/each}
 			</div>
 		</div>
-		{#if stats().current}
+		{#if current}
 			<div class="flex items-center gap-3 text-[10px] num mt-1">
-				<span class="text-text-secondary"><b class="text-text">{stats().current!.heart_rate}</b> bpm</span>
-				<span class="text-text-secondary"><b class="text-text">{secToPace(speedToPaceSec(stats().current!.speed_mps))}</b> /km</span>
+				<span class="text-text-secondary"><b class="text-text">{current.heart_rate}</b> bpm</span>
+				<span class="text-text-secondary"><b class="text-text">{secToPace(speedToPaceSec(current.speed_mps))}</b> /km</span>
 			</div>
 		{/if}
 	</div>

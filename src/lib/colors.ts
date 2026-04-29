@@ -125,6 +125,42 @@ export function hrZoneColor(hr: number, zones: { zone: number; min_bpm: number; 
 	return idx >= 0 ? ZONE_COLORS[idx] : C.textDim;
 }
 
+/**
+ * Derive 4 power-zone boundaries (Z1max, Z2max, Z3max, Z4max in watts) from a
+ * timeseries + Garmin's `power_time_in_zone_*_seconds` counts.
+ *
+ * Garmin doesn't expose zone definitions in the activity payload, but it does
+ * tell us how many seconds were spent in each zone. By sorting the timeseries
+ * power readings ascending and walking the cumulative time-in-zone proportions,
+ * we recover the boundaries — accurate when timeseries sampling is uniform
+ * (Garmin's typical 1Hz). Returns [] if data is missing.
+ */
+export function derivePowerZones(timeseriesPowers: (number | null)[], counts: number[]): number[] {
+	if (counts.length < 5 || counts.every(c => c === 0)) return [];
+	const powers = timeseriesPowers.filter((p): p is number => p != null && p > 0).sort((a, b) => a - b);
+	if (powers.length === 0) return [];
+	const totalCount = counts.reduce((s, c) => s + c, 0);
+	if (totalCount === 0) return [];
+	const boundaries: number[] = [];
+	let cum = 0;
+	for (let z = 0; z < 4; z++) {
+		cum += counts[z];
+		const idx = Math.min(Math.floor((cum / totalCount) * powers.length), powers.length - 1);
+		boundaries.push(powers[idx]);
+	}
+	return boundaries;
+}
+
+/** Color a power value using zone boundaries derived via `derivePowerZones`. */
+export function powerZoneColor(power: number | null | undefined, boundaries: number[]): string {
+	if (power == null || power <= 0 || boundaries.length < 4) return C.textDim;
+	if (power < boundaries[0]) return ZONE_COLORS[0];
+	if (power < boundaries[1]) return ZONE_COLORS[1];
+	if (power < boundaries[2]) return ZONE_COLORS[2];
+	if (power < boundaries[3]) return ZONE_COLORS[3];
+	return ZONE_COLORS[4];
+}
+
 export function computeMedianLoad(loads: (number | null)[]): number {
 	const valid = loads.filter((l): l is number => l != null).sort((a, b) => a - b);
 	if (valid.length === 0) return 100;

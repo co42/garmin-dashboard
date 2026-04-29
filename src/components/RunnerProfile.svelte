@@ -239,8 +239,11 @@
 						{#if row.activeZone}
 							<div class="text-xs font-semibold" style="color: {row.activeZone.color}">{row.activeZone.name}</div>
 						{/if}
-						<div class="num text-[10px] font-medium" style="color: {row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.textDim}">
-							{formatRawDelta(row.key, row.delta)}
+						<div class="flex items-baseline justify-between gap-3">
+							<span class="num text-xs font-semibold text-text">{row.rawStr}</span>
+							<span class="num text-[10px] font-medium" style="color: {row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.textDim}">
+								{formatRawDelta(row.key, row.delta)}
+							</span>
 						</div>
 					</div>
 				</td>

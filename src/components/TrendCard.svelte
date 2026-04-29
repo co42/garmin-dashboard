@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import { formatRaw, formatRawDelta } from '$lib/profile.js';
+	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
 
 	interface Series {
@@ -29,8 +30,10 @@
 	let chart: any;
 	let ro: ResizeObserver | undefined;
 	let ready = $state(false);
+	let unbindTooltip: (() => void) | null = null;
 
 	onDestroy(() => {
+		unbindTooltip?.();
 		ro?.disconnect();
 		chart?.dispose();
 	});
@@ -69,7 +72,7 @@
 		const scale = computeYScale(flat, interval);
 
 		chart.setOption({
-			grid: { top: 8, right: 8, bottom: 24, left: 40, containLabel: false },
+			grid: { top: 16, right: 28, bottom: 24, left: 40, containLabel: false },
 			tooltip: {
 				...CHART_TOOLTIP,
 				trigger: 'axis',
@@ -116,16 +119,35 @@
 				},
 				splitLine: CHART_AXIS.splitLine,
 			},
-			series: series.map(s => ({
-				type: 'line' as const,
-				name: s.name,
-				data: s.values,
-				smooth: true,
-				symbol: 'none',
-				lineStyle: { width: 2, color: s.color },
-				itemStyle: { color: s.color },
-				connectNulls: false,
-			})),
+			series: series.map(s => {
+				// Find the last non-null index so we can label only that point.
+				let lastIdx = -1;
+				for (let i = s.values.length - 1; i >= 0; i--) {
+					if (s.values[i] != null) { lastIdx = i; break; }
+				}
+				return {
+					type: 'line' as const,
+					name: s.name,
+					data: s.values.map((v, i) => i === lastIdx
+						? { value: v, label: { show: true } }
+						: v),
+					smooth: true,
+					symbol: 'circle',
+					symbolSize: (_v: any, p: any) => p.dataIndex === lastIdx ? 5 : 0,
+					lineStyle: { width: 2, color: s.color },
+					itemStyle: { color: s.color },
+					connectNulls: false,
+					label: {
+						show: false,
+						position: 'top',
+						color: s.color,
+						fontSize: 10,
+						fontFamily: MONO,
+						fontWeight: 600,
+						formatter: (p: any) => formatRaw(rawKey, p.value),
+					},
+				};
+			}),
 		}, true);
 	}
 
@@ -134,6 +156,7 @@
 		chart = echarts.init(chartEl!, undefined, { renderer: 'svg' });
 		ro = new ResizeObserver(() => chart.resize());
 		ro.observe(chartEl!);
+		unbindTooltip = bindTooltipOutsideClick(chart, chartEl!);
 		ready = true;
 	});
 

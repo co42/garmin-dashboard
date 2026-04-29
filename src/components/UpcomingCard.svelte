@@ -248,44 +248,40 @@
 	};
 	function stepLabel(key: string): string { return STEP_LABELS[key] ?? key; }
 
-	// Short code + color by phrase category. Tooltip name uses the phrase's
-	// prettified detail so Base variants show their specific flavor.
-	const PHRASE_BADGE: Record<string, { code: string; color: string }> = {
-		BASE: { code: 'AB', color: C.cyan },
-		AEROBIC_LOW_SHORTAGE_BASE: { code: 'AB', color: C.cyan },
-		RUNNING_HISTORY_SHORTENED_BASE: { code: 'AB', color: C.cyan },
-		LONG_WORKOUT: { code: 'LR', color: C.cyan },
-		TEMPO: { code: 'TP', color: C.orange },
-		ANAEROBIC_SPEED: { code: 'SP', color: C.purple },
-		RECOVERY: { code: 'RC', color: C.teal },
-		RECOVERY_RUN: { code: 'RC', color: C.teal },
-		EASY_RUN: { code: 'RC', color: C.teal },
-		AEROBIC_LOW_RECOVERY: { code: 'RC', color: C.teal },
-		FORCED_REST: { code: 'RS', color: C.textDim },
-	};
 	function prettyPhrase(phrase: string): string {
 		return phrase.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 	}
-	// Title-based fallback for coach workouts when the detailed workout_phrase
-	// isn't available (e.g. /workout-service/fbt-adaptive didn't return it yet).
-	const TITLE_BADGE: { match: RegExp; code: string; name: string; color: string }[] = [
-		{ match: /strength/i,          code: 'ST', name: 'Strength',  color: C.purple },
-		{ match: /long/i,              code: 'LR', name: 'Long Run',  color: C.cyan },
-		{ match: /tempo|threshold/i,   code: 'TP', name: 'Tempo',     color: C.orange },
-		{ match: /speed|interval|vo2/i,code: 'SP', name: 'Speed',     color: C.purple },
-		{ match: /recovery|easy/i,     code: 'RC', name: 'Recovery',  color: C.teal },
-		{ match: /rest/i,              code: 'RS', name: 'Rest',      color: C.textDim },
-		{ match: /base/i,              code: 'AB', name: 'Base',      color: C.cyan },
+
+	// Workout-family rules. Each rule matches against the workout_phrase
+	// (Garmin's structured tag, e.g. ANAEROBIC_CAPACITY, RUNNING_HISTORY_EASY_BASE)
+	// or the human title as a fallback. The first matching rule wins, so order
+	// matters — narrower categories come before broader ones (e.g. THRESHOLD
+	// before SPEED so that ANAEROBIC_THRESHOLD doesn't get tagged as speed).
+	const BADGE_RULES: { phrase?: RegExp; title?: RegExp; code: string; name: string; color: string }[] = [
+		{ phrase: /^STRENGTH_/,                title: /strength/i,         code: 'ST', name: 'Strength',  color: C.purple },
+		{ phrase: /^FORCED_REST$|REST$/,       title: /^rest$|day off/i,   code: 'RS', name: 'Rest',      color: C.textDim },
+		{ phrase: /RECOVERY|EASY/,             title: /recovery|easy/i,    code: 'RC', name: 'Recovery',  color: C.teal },
+		{ phrase: /LONG/,                      title: /long/i,             code: 'LR', name: 'Long Run',  color: C.cyan },
+		{ phrase: /THRESHOLD|TEMPO/,           title: /tempo|threshold/i,  code: 'TP', name: 'Tempo',     color: C.orange },
+		{ phrase: /^ANAEROBIC_/,               title: /anaerobic/i,        code: 'AN', name: 'Anaerobic', color: C.purple },
+		{ phrase: /SPEED|INTERVAL|VO2/,        title: /sprint|speed|interval|vo2/i, code: 'SP', name: 'Speed', color: C.purple },
+		{ phrase: /BASE|AEROBIC/,              title: /base/i,             code: 'AB', name: 'Aerobic Base', color: C.cyan },
 	];
+
 	function phraseBadge(phrase: string | null, title: string | null): { code: string; name: string; color: string } | null {
-		if (phrase) {
-			if (phrase.startsWith('STRENGTH_')) return { code: 'ST', name: 'Strength', color: C.purple };
-			const meta = PHRASE_BADGE[phrase];
-			if (meta) return { code: meta.code, name: prettyPhrase(phrase), color: meta.color };
+		for (const rule of BADGE_RULES) {
+			if (phrase && rule.phrase?.test(phrase)) {
+				return { code: rule.code, name: prettyPhrase(phrase), color: rule.color };
+			}
 		}
+		// Title fallback when phrase is null/unknown (e.g. user-created workout
+		// or coach details haven't been fetched yet).
 		if (title) {
-			const hit = TITLE_BADGE.find(t => t.match.test(title));
-			if (hit) return { code: hit.code, name: hit.name, color: hit.color };
+			for (const rule of BADGE_RULES) {
+				if (rule.title?.test(title)) {
+					return { code: rule.code, name: rule.name, color: rule.color };
+				}
+			}
 		}
 		if (!phrase) return null;
 		return { code: 'TR', name: 'Training', color: C.textDim };
@@ -516,11 +512,26 @@
 					{/if}
 				</div>
 			</button>
-			{#if isExpanded && hasSteps}
-				{#if isRunning(entry)}
-					{@render runningSteps(entry.steps)}
-				{:else}
-					{@render nonRunningSteps(entry.steps)}
+			{#if isExpanded}
+				{#if badge}
+					<!-- Full label of the 2-letter badge code, surfaced inside the
+					     expanded details so phone users (no hover tooltip) can see
+					     what e.g. "AN" stands for. -->
+					<div class="mt-2 ml-[26px] flex items-center gap-1.5">
+						<span class="num text-[10px] font-bold leading-none" style="color: {badge.color}">{badge.code}</span>
+						<span class="text-[11px] font-medium" style="color: {badge.color}">{badge.name}</span>
+						{#if entry.workout_description}
+							<span class="text-text-dim">·</span>
+							<span class="text-[11px] text-text-secondary truncate">{entry.workout_description}</span>
+						{/if}
+					</div>
+				{/if}
+				{#if hasSteps}
+					{#if isRunning(entry)}
+						{@render runningSteps(entry.steps)}
+					{:else}
+						{@render nonRunningSteps(entry.steps)}
+					{/if}
 				{/if}
 			{/if}
 		</div>
@@ -539,10 +550,15 @@
 <!-- ── Layout ────────────────────────────────────────────────────────────── -->
 
 <div class="mt-4 mb-1 flex flex-wrap items-center gap-3">
-	<Tip text={"Your planned workouts, races, and courses for the next two weeks.\nNavigate weeks with the arrows to plan ahead."}>
-		<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
+	<Tip text={"Your planned workouts, races, and courses for the next two weeks.\nNavigate weeks with the arrows to plan ahead.\nClick the title to jump back to this week."}>
+		<button
+			type="button"
+			class="cursor-pointer flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary hover:text-text transition-colors"
+			onclick={() => weekOffset = 0}
+			aria-label="Jump to this week"
+		>
 			<CalendarBlank size={14} weight="bold" /> Calendar
-		</h2>
+		</button>
 	</Tip>
 	<div class="flex items-center gap-1.5">
 		<button
@@ -556,12 +572,6 @@
 			onclick={() => weekOffset++}
 			aria-label="Next weeks"
 		><CaretRight size={14} weight="bold" /></button>
-		{#if !isCurrentWeek}
-			<button
-				class="cursor-pointer rounded px-2 py-0.5 text-[10px] font-medium text-text-dim hover:text-text-secondary hover:bg-card-border/30 transition-colors"
-				onclick={() => weekOffset = 0}
-			>Today</button>
-		{/if}
 	</div>
 </div>
 

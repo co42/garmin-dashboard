@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatDistance, formatTime } from '$lib/format.js';
+	import { weatherIcon } from '$lib/weather.js';
 	import { C, ZONE_COLORS, hrZoneColor, arrMin, arrMax } from '$lib/colors.js';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
@@ -138,18 +139,6 @@
 		return html;
 	}
 
-	function weatherType(desc: string | undefined): 'sun' | 'cloud-sun' | 'cloud' | 'rain' | 'snow' | 'fog' | 'storm' | 'moon' {
-		if (!desc) return 'cloud';
-		const d = desc.toLowerCase();
-		if (d.includes('thunder') || d.includes('storm')) return 'storm';
-		if (d.includes('rain') || d.includes('shower') || d.includes('drizzle')) return 'rain';
-		if (d.includes('snow') || d.includes('sleet')) return 'snow';
-		if (d.includes('fog') || d.includes('mist') || d.includes('haze')) return 'fog';
-		if (d.includes('partly') || d.includes('mostly clear') || d.includes('mostly sunny')) return 'cloud-sun';
-		if (d.includes('cloud') || d.includes('overcast')) return 'cloud';
-		if (d.includes('clear') || d.includes('sun') || d.includes('fair')) return 'sun';
-		return 'cloud';
-	}
 
 	const teColor = $derived(badgeColor(activity.training_effect_label));
 	const te = $derived(teShort(activity.training_effect_label));
@@ -255,7 +244,7 @@
 				<span class="hidden md:inline text-[10px] text-text-dim">· {activity.location_name}</span>
 			{/if}
 			{#if weather?.weather_description}
-				{@const wt = weatherType(weather.weather_description)}
+				{@const wt = weatherIcon(weather.weather_description)}
 				<span class="text-text-dim">·</span>
 				<Tip text={`${weather.weather_description}\n${Math.round(weather.temperature_celsius ?? 0)}°C (feels ${Math.round(weather.feels_like_celsius ?? 0)}°C)\nWind ${Math.round(weather.wind_speed_kmh ?? 0)} km/h ${weather.wind_direction_compass_point ?? ''}\nHumidity ${Math.round(weather.relative_humidity ?? 0)}%`}>
 					<span class="flex items-center gap-1 text-text-dim">

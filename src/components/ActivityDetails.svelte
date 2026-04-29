@@ -1,18 +1,25 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityDetails as ActivityDetailsType, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatTime } from '$lib/format.js';
-	import { C, ZONE_COLORS, hrZoneColor, gradColor } from '$lib/colors.js';
+	import { weatherIcon } from '$lib/weather.js';
+	import { C, ZONE_COLORS, hrZoneColor, gradColor, derivePowerZones, powerZoneColor } from '$lib/colors.js';
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
+	import Lightning from 'phosphor-svelte/lib/Lightning';
 	import ActivityCharts from './ActivityCharts.svelte';
 	import ActivityMap from './ActivityMap.svelte';
 	import Tip from './Tip.svelte';
-	import Thermometer from 'phosphor-svelte/lib/Thermometer';
 	import Wind from 'phosphor-svelte/lib/Wind';
 	import Drop from 'phosphor-svelte/lib/Drop';
 	import NoteBlank from 'phosphor-svelte/lib/NoteBlank';
+	import Sun from 'phosphor-svelte/lib/Sun';
 	import CloudSun from 'phosphor-svelte/lib/CloudSun';
+	import Cloud from 'phosphor-svelte/lib/Cloud';
+	import CloudRain from 'phosphor-svelte/lib/CloudRain';
+	import CloudSnow from 'phosphor-svelte/lib/CloudSnow';
+	import CloudFog from 'phosphor-svelte/lib/CloudFog';
+	import CloudLightning from 'phosphor-svelte/lib/CloudLightning';
+	import Moon from 'phosphor-svelte/lib/Moon';
 	import MapPin from 'phosphor-svelte/lib/MapPin';
-	import Mountains from 'phosphor-svelte/lib/Mountains';
 	import ChartLine from 'phosphor-svelte/lib/ChartLine';
 	import Gauge from 'phosphor-svelte/lib/Gauge';
 
@@ -75,6 +82,14 @@
 	const zoneTimes = $derived([activity.hr_time_in_zone_1_seconds ?? 0, activity.hr_time_in_zone_2_seconds ?? 0, activity.hr_time_in_zone_3_seconds ?? 0, activity.hr_time_in_zone_4_seconds ?? 0, activity.hr_time_in_zone_5_seconds ?? 0]);
 	const zoneTotal = $derived(zoneTimes.reduce((s, v) => s + v, 0));
 
+	const powerZoneTimes = $derived([activity.power_time_in_zone_1_seconds ?? 0, activity.power_time_in_zone_2_seconds ?? 0, activity.power_time_in_zone_3_seconds ?? 0, activity.power_time_in_zone_4_seconds ?? 0, activity.power_time_in_zone_5_seconds ?? 0]);
+	const powerZoneTotal = $derived(powerZoneTimes.reduce((s, v) => s + v, 0));
+	// Reverse-engineer power-zone boundaries (in watts) from the timeseries
+	// + Garmin's per-zone time counts. Used to color split power values.
+	const powerZoneBoundaries = $derived(
+		details ? derivePowerZones(details.timeseries.map(p => p.power), powerZoneTimes) : []
+	);
+
 	// Compute per-km GAP from timeseries
 	const splitGaps = $derived(() => {
 		if (!details || !trail) return new Map<number, string>();
@@ -127,8 +142,8 @@
 		{#if editingDesc}
 			<!-- svelte-ignore a11y_autofocus -->
 			<textarea
-				class="w-full bg-card-border/20 rounded text-xs text-text-secondary p-2 outline-none border border-card-border/50 focus:border-blue-500/50 resize-none"
-				rows="2"
+				class="w-full bg-card-border/20 rounded text-xs text-text-secondary p-2 outline-none border border-card-border/50 focus:border-blue-500/50 resize-none whitespace-pre-line"
+				rows="3"
 				bind:value={description}
 				onblur={saveDescription}
 				onkeydown={(e: KeyboardEvent) => { if (e.key === 'Escape') { editingDesc = false; } }}
@@ -136,20 +151,35 @@
 			></textarea>
 		{:else}
 			<button
-				class="cursor-pointer text-xs text-text-dim hover:text-text-secondary transition-colors"
+				class="block w-full text-left cursor-pointer text-xs whitespace-pre-line transition-colors {description ? 'text-text hover:text-text-secondary' : 'text-text-dim hover:text-text-secondary'}"
 				onclick={() => editingDesc = true}
-			>
-				{description || 'add a note...'}
-			</button>
+			>{description || 'add a note...'}</button>
 		{/if}
 	</div>
 
 	<!-- ═══ WEATHER ═══ -->
 	{#if weather && hasDistance}
+		{@const temp = Math.round(weather.temperature_celsius ?? 0)}
+		{@const feels = Math.round(weather.feels_like_celsius ?? 0)}
+		{@const wt = weatherIcon(weather.weather_description)}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><CloudSun size={12} weight="bold" /> Weather</h3>
-			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-dim">
-				<span class="flex items-center gap-1"><Thermometer size={12} weight="bold" /> <span class="num">{Math.round(weather.temperature_celsius ?? 0)}°C</span> <span class="text-text-dim">feels {Math.round(weather.feels_like_celsius ?? 0)}°</span></span>
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
+				<span class="flex items-center gap-1 text-text">
+					{#if wt === 'sun'}<Sun size={14} weight="bold" />
+					{:else if wt === 'cloud-sun'}<CloudSun size={14} weight="bold" />
+					{:else if wt === 'cloud'}<Cloud size={14} weight="bold" />
+					{:else if wt === 'rain'}<CloudRain size={14} weight="bold" />
+					{:else if wt === 'snow'}<CloudSnow size={14} weight="bold" />
+					{:else if wt === 'fog'}<CloudFog size={14} weight="bold" />
+					{:else if wt === 'storm'}<CloudLightning size={14} weight="bold" />
+					{:else}<Moon size={14} weight="bold" />
+					{/if}
+					<span class="num">{temp}°C</span>
+					{#if feels !== temp}
+						<span class="text-text-dim">feels {feels}°</span>
+					{/if}
+				</span>
 				<span class="flex items-center gap-1"><Wind size={12} weight="bold" /> <span class="num">{Math.round(weather.wind_speed_kmh ?? 0)} km/h {weather.wind_direction_compass_point}</span></span>
 				<span class="flex items-center gap-1"><Drop size={12} weight="bold" /> <span class="num">{Math.round(weather.relative_humidity ?? 0)}%</span></span>
 				<span class="text-text-secondary">{weather.weather_description}</span>
@@ -157,28 +187,50 @@
 		</div>
 	{/if}
 
-	<!-- ═══ HR ZONES (mobile only) ═══ -->
-	{#if zoneTotal > 0}
-		<div class="md:hidden">
-			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><Heartbeat size={12} weight="bold" /> HR Zones</h3>
-			<div class="flex flex-col gap-1.5">
-				{#each [1, 2, 3, 4, 5] as z}
-					{@const t = zoneTimes[z - 1]}
-					{@const pct = zoneTotal > 0 ? t / zoneTotal * 100 : 0}
-					{@const hz = hrZones.find(h => h.zone === z)}
-					{#if t > 0}
-						<div class="flex items-center gap-2 text-xs">
-							<span class="num font-semibold w-5 shrink-0" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
-							<div class="flex-1 h-1.5 rounded-full bg-card-border overflow-hidden">
-								<div class="h-full rounded-full" style="width: {pct}%; background: {ZONE_COLORS[z - 1]};"></div>
-							</div>
-							<span class="num text-text-secondary w-8 text-right shrink-0">{Math.round(pct)}%</span>
-							<span class="num text-text-dim w-12 text-right shrink-0">{Math.floor(t / 60)}:{Math.floor(t % 60).toString().padStart(2, '0')}</span>
-							{#if hz}<span class="num text-text-dim text-[10px] w-16 text-right shrink-0 hidden sm:inline">{hz.min_bpm}–{hz.max_bpm ?? '∞'}</span>{/if}
-						</div>
-					{/if}
-				{/each}
+	<!-- ═══ HR ZONES + POWER ZONES — stacked on phone, side-by-side on desktop ═══ -->
+	{#snippet zoneRow(z: number, time: number, total: number, range: string | null)}
+		{@const pct = total > 0 ? time / total * 100 : 0}
+		{#if time > 0}
+			<div class="flex items-center gap-2 text-xs">
+				<span class="num font-semibold w-5 shrink-0" style="color: {ZONE_COLORS[z - 1]}">Z{z}</span>
+				<div class="flex-1 h-1.5 rounded-full bg-card-border overflow-hidden">
+					<div class="h-full rounded-full" style="width: {pct}%; background: {ZONE_COLORS[z - 1]};"></div>
+				</div>
+				<span class="num text-text-secondary w-8 text-right shrink-0">{Math.round(pct)}%</span>
+				<span class="num text-text-dim w-12 text-right shrink-0">{Math.floor(time / 60)}:{Math.floor(time % 60).toString().padStart(2, '0')}</span>
+				{#if range}<span class="num text-text-dim text-[10px] w-16 text-right shrink-0 hidden sm:inline">{range}</span>{/if}
 			</div>
+		{/if}
+	{/snippet}
+
+	{#if zoneTotal > 0 || powerZoneTotal > 0}
+		<div class="grid gap-5 md:grid-cols-2">
+			{#if zoneTotal > 0}
+				<div>
+					<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><Heartbeat size={12} weight="bold" /> HR Zones</h3>
+					<div class="flex flex-col gap-1.5">
+						{#each [1, 2, 3, 4, 5] as z}
+							{@const hz = hrZones.find(h => h.zone === z)}
+							{@render zoneRow(z, zoneTimes[z - 1], zoneTotal, hz ? `${hz.min_bpm}–${hz.max_bpm ?? '∞'}` : null)}
+						{/each}
+					</div>
+				</div>
+			{/if}
+			{#if powerZoneTotal > 0}
+				<div>
+					<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><Lightning size={12} weight="bold" /> Power Zones</h3>
+					<div class="flex flex-col gap-1.5">
+						{#each [1, 2, 3, 4, 5] as z}
+							{@const lo = z === 1 ? 0 : powerZoneBoundaries[z - 2]}
+							{@const hi = z === 5 ? null : powerZoneBoundaries[z - 1]}
+							{@const range = powerZoneBoundaries.length === 4
+								? (hi != null ? `${Math.round(lo)}–${Math.round(hi)}W` : `${Math.round(lo)}+W`)
+								: null}
+							{@render zoneRow(z, powerZoneTimes[z - 1], powerZoneTotal, range)}
+						{/each}
+					</div>
+				</div>
+			{/if}
 		</div>
 	{/if}
 
@@ -233,7 +285,7 @@
 											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {gradColor(avgGrade)}"><span class="opacity-50">-</span>{Math.round(split.elevation_loss_meters)}</td>
 										{/if}
 										{#if hasPower}
-											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{Math.round(split.average_power ?? 0) || '-'}</td>
+											<td class="py-0.5 pr-3 md:pr-4 num text-right" style="color: {powerZoneColor(split.average_power, powerZoneBoundaries)}">{Math.round(split.average_power ?? 0) || '-'}</td>
 										{/if}
 										{#if hasCadence}
 											<td class="py-0.5 num text-right text-text-secondary">{Math.round(split.average_run_cadence ?? 0) || '-'}</td>

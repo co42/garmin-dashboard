@@ -135,7 +135,7 @@
 
 		<!-- ═══ EVENTS: full upcoming race calendar (independent of week navigation) ═══ -->
 		{#if d.events.length > 0}
-			<EventsList events={d.events} courses={d.courses} lastSyncedAt={d.lastSyncedAt} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
+			<EventsList events={d.events} courses={d.courses} onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)} />
 		{/if}
 
 		<!-- ═══ COACH: active adaptive training plan & race projection ═══ -->
