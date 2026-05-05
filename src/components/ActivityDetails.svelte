@@ -33,20 +33,20 @@
 
 	let { activity, splits, details, weather, hrZones }: Props = $props();
 
-	// Editable state
+	// Editable state — description is fetched lazily from Garmin (it's not in
+	// the dashboard snapshot). Refetch whenever activity_id flips so reusing
+	// the same component instance for a different activity doesn't show the
+	// previous activity's description.
 	let description = $state('');
 	let editingDesc = $state(false);
-	let descLoaded = $state(false);
 
-	// Lazy-load description on first render
 	$effect(() => {
-		if (!descLoaded) {
-			descLoaded = true;
-			fetch(`/api/activity/${activity.activity_id}`)
-				.then(r => r.ok ? r.json() : null)
-				.then(data => { if (data) description = data.description ?? ''; })
-				.catch(() => {});
-		}
+		const id = activity.activity_id;
+		description = '';
+		fetch(`/api/activity/${id}`)
+			.then(r => r.ok ? r.json() : null)
+			.then(data => { if (data && id === activity.activity_id) description = data.description ?? ''; })
+			.catch(() => {});
 	});
 
 	async function saveDescription() {

@@ -76,10 +76,8 @@
 		return GRADIENT_COLORS.vSteepUp;
 	}
 
-	onMount(async () => {
-		const echarts = await import('echarts');
-		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
-		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
+	function renderChart() {
+		if (!_chart) return;
 
 		// Sample every ~50m
 		const sampled: ActivityDetailPoint[] = [];
@@ -90,7 +88,7 @@
 				nextDist = p.dist + 50;
 			}
 		}
-		if (sampled.length === 0) return;
+		if (sampled.length === 0) { _chart.clear(); return; }
 
 		const totalKm = sampled[sampled.length - 1].dist / 1000;
 		const kmStep = totalKm > 50 ? 5 : totalKm > 25 ? 2 : 1;
@@ -337,10 +335,21 @@
 			xAxis: xAxes,
 			yAxis: yAxes,
 			series,
-		});
+		}, true);
+	}
 
+	onMount(async () => {
+		const echarts = await import('echarts');
+		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		renderChart();
+	});
+
+	$effect(() => {
+		timeseries; showGap; showElevation;
+		renderChart();
 	});
 </script>
 

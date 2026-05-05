@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import type { Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatDistance, formatTime } from '$lib/format.js';
 	import { weatherIcon } from '$lib/weather.js';
 	import { C, ZONE_COLORS, hrZoneColor, arrMin, arrMax } from '$lib/colors.js';
+	import { activityBadge, teValueColor } from '$lib/badges.js';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Mountains from 'phosphor-svelte/lib/Mountains';
 	import SneakerMove from 'phosphor-svelte/lib/SneakerMove';
@@ -45,26 +47,26 @@
 
 	let { activity, splits = [], weather = null, hrZones, loadColor, context, expanded = false, ontoggle, onNavigate }: Props = $props();
 
-	// Inline title editing
+	// Inline title editing — server PUT updates Garmin + local DB row, then
+	// invalidateAll() reloads page data so every view (feed, calendar, …) sees
+	// the fresh activity_name.
 	let editingTitle = $state(false);
 	let editTitle = $state('');
-	let nameOverride = $state<string | null>(null);
-	const displayName = $derived(nameOverride ?? activity.activity_name);
 
 	async function saveTitle() {
 		editingTitle = false;
-		if (editTitle === displayName) return;
-		nameOverride = editTitle;
-		fetch(`/api/activity/${activity.activity_id}`, {
+		if (editTitle === activity.activity_name) return;
+		await fetch(`/api/activity/${activity.activity_id}`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name: nameOverride }),
+			body: JSON.stringify({ name: editTitle }),
 		});
+		await invalidateAll();
 	}
 
 	function startEditTitle(e: MouseEvent) {
 		e.stopPropagation();
-		editTitle = displayName;
+		editTitle = activity.activity_name;
 		editingTitle = true;
 	}
 
@@ -80,29 +82,6 @@
 		return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/Paris' });
 	}
 
-	function badgeColor(label: string | null): string {
-		if (!label) return C.textDim;
-		const l = label.toUpperCase();
-		if (l.includes('INTERVAL') || l.includes('SPEED') || l.includes('VO2MAX')) return C.purple;
-		if (l.includes('TEMPO') || l.includes('THRESHOLD')) return C.orange;
-		if (l.includes('RECOVERY') || l.includes('BASE')) return C.cyan;
-		if (l.includes('LONG')) return C.cyan;
-		return C.cyan;
-	}
-
-	function teShort(label: string | null): { code: string; name: string; desc: string } | null {
-		if (!label) return null;
-		const l = label.toUpperCase();
-		if (l.includes('BASE')) return { code: 'AB', name: 'Aerobic Base', desc: 'Easy effort building your aerobic foundation — the engine behind everything.' };
-		if (l.includes('RECOVERY')) return { code: 'RC', name: 'Recovery', desc: 'Very low intensity. Promotes blood flow and recovery without adding load.' };
-		if (l.includes('TEMPO')) return { code: 'TP', name: 'Tempo', desc: 'Comfortably hard effort near lactate threshold. Builds speed endurance.' };
-		if (l.includes('THRESHOLD')) return { code: 'TH', name: 'Threshold', desc: 'Sustained effort at or near lactate threshold. Raises your ceiling pace.' };
-		if (l.includes('VO2MAX')) return { code: 'VO', name: 'VO2max', desc: 'Hard intervals targeting maximal oxygen uptake. Builds top-end aerobic power.' };
-		if (l.includes('INTERVAL')) return { code: 'IT', name: 'Interval', desc: 'High-intensity repeats with recovery. Improves speed and anaerobic capacity.' };
-		if (l.includes('LONG')) return { code: 'LR', name: 'Long Run', desc: 'Extended duration at easy-to-moderate pace. Builds endurance and fat metabolism.' };
-		if (l.includes('SPEED')) return { code: 'SP', name: 'Speed', desc: 'Short, fast efforts developing neuromuscular power and running economy.' };
-		return { code: 'TR', name: label.charAt(0) + label.slice(1).toLowerCase().replace(/_/g, ' '), desc: 'Training session.' };
-	}
 
 	function speedToPace(speed: number | null): string {
 		if (!speed || speed <= 0) return '-';
@@ -140,8 +119,8 @@
 	}
 
 
-	const teColor = $derived(badgeColor(activity.training_effect_label));
-	const te = $derived(teShort(activity.training_effect_label));
+	const te = $derived(activityBadge(activity));
+	const teColor = $derived(te?.color ?? C.textDim);
 	const zones = $derived(zoneData(activity));
 	const trail = $derived(isTrail(activity));
 	const hasElevation = $derived(activity.elevation_gain_meters != null && activity.elevation_gain_meters > 0);
@@ -166,13 +145,6 @@
 	const paceMax = $derived(sparkBars.length > 0 ? arrMax(sparkBars.map(b => b.pace)) : 0);
 	const paceRange = $derived(paceMax - paceMin || 1);
 	const maxDist = $derived(sparkBars.length > 0 ? arrMax(sparkBars.map(b => b.dist)) : 1);
-
-	function teValueColor(te: number): string {
-		if (te >= 4.0) return C.purple;
-		if (te >= 3.0) return C.orange;
-		if (te >= 1.0) return C.cyan;
-		return C.textDim;
-	}
 
 	function scrollToActivity() {
 		const el = document.getElementById(`activity-${activity.activity_id}`);
@@ -235,7 +207,7 @@
 				<div
 					class="font-medium text-text text-sm truncate"
 					ondblclick={startEditTitle}
-				>{displayName}</div>
+				>{activity.activity_name}</div>
 			{/if}
 		</div>
 		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">

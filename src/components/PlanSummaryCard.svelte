@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { CoachEvent, CoachPhase, CoachPlan, EventProjection } from '$lib/types.js';
 	import { C } from '$lib/colors.js';
-	import { today, daysBetween } from '$lib/dates.js';
+	import { daysBetween } from '$lib/dates.js';
+	import { todayStore } from '$lib/today.svelte.js';
 	import { formatTime } from '$lib/format.js';
 	import Tip from './Tip.svelte';
 	import Trophy from 'phosphor-svelte/lib/Trophy';
@@ -14,7 +15,7 @@
 
 	let { plan, event, today: todayProj }: Props = $props();
 
-	const todayStr = $derived(today());
+	const todayStr = $derived(todayStore.current);
 
 	function phaseLabel(phase: string): string {
 		if (phase === 'TARGET_EVENT_DAY') return 'RACE';
@@ -60,14 +61,18 @@
 		color: string;
 	};
 
-	// Phase-themed palette: BUILD = foundation (blue), PEAK = high-intensity (orange),
-	// TAPER = easing down (cyan), RACE = goal achieved (green).
+	// Phase palette aligned with the activity-badge / load-focus scheme used by
+	// the calendar and activity feed:
+	//   BUILD = base building       → blue   (low aerobic)
+	//   PEAK  = high-intensity work → orange (high aerobic)
+	//   TAPER = easing back         → teal   (cross-training / non-running mode)
+	//   RACE  = goal day            → green
 	function phaseColor(type: string): string {
 		if (type === 'TARGET_EVENT_DAY') return C.green;
 		const t = type.toUpperCase();
 		if (t.startsWith('BUILD')) return C.blue;
 		if (t.startsWith('PEAK'))  return C.orange;
-		if (t.startsWith('TAPER')) return C.cyan;
+		if (t.startsWith('TAPER')) return C.teal;
 		return C.textSecondary;
 	}
 
@@ -205,22 +210,22 @@
 			</span>
 		</div>
 
-		<!-- Phased progress bar -->
+		<!-- Phased progress bar — same shape as PROFILE: dim segments for past
+		     and future, full color for the current phase, white tick for
+		     "today". The dim is applied via background alpha (color + 30 for
+		     ~19% / e6 for ~90%) instead of CSS opacity so the inline text
+		     stays fully opaque. No diagonal-stripe past overlay; the today
+		     marker already shows position within the current phase. -->
 		<div class="relative mb-4">
 			<div class="flex items-stretch h-5 gap-px">
 				{#each phaseInfos as info}
 					{@const isRace = info.phase.training_phase === 'TARGET_EVENT_DAY'}
+					{@const fillBg = info.status === 'current' ? `${info.color}e6` : `${info.color}30`}
 					<div class="phase-seg relative flex" style="width: {info.widthPct}%">
 						<div
 							class="phase-fill flex-1 flex items-center justify-center overflow-hidden whitespace-nowrap relative"
-							style="background: {info.color}30;"
+							style="background: {fillBg};"
 						>
-							{#if info.pastWithinPct > 0}
-								<div
-									class="phase-past absolute inset-y-0 left-0"
-									style="width: {info.pastWithinPct}%; background-image: repeating-linear-gradient(45deg, {info.color}b3 0 4px, transparent 4px 8px);"
-								></div>
-							{/if}
 							<span
 								class="relative z-10 text-[9px] uppercase tracking-wider px-1 text-text"
 								style="font-weight: {info.status === 'current' ? 700 : 600};"

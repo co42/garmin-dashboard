@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { RaceEvent, Course } from '$lib/types.js';
-	import { today, daysBetween } from '$lib/dates.js';
+	import { daysBetween } from '$lib/dates.js';
+	import { todayStore } from '$lib/today.svelte.js';
 	import { C } from '$lib/colors.js';
 	import { formatTime } from '$lib/format.js';
 	import Tip from './Tip.svelte';
@@ -21,7 +22,7 @@
 
 	let { events, courses, onNavigateCourse }: Props = $props();
 
-	const todayStr = today();
+	const todayStr = $derived(todayStore.current);
 	const courseMap = $derived(new Map(courses.map(c => [c.course_id, c])));
 	const sorted = $derived([...events].sort((a, b) => a.date.localeCompare(b.date)));
 

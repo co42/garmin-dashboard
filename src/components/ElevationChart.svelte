@@ -45,10 +45,8 @@
 		return GRADIENT_COLORS.vSteepUp;
 	}
 
-	onMount(async () => {
-		const echarts = await import('echarts');
-		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
-		if (group) { _chart.group = group; echarts.connect(group); }
+	function renderChart() {
+		if (!_chart) return;
 
 		// Sample every ~50m
 		const sampled: ActivityDetailPoint[] = [];
@@ -59,7 +57,7 @@
 				nextDist = p.dist + 50;
 			}
 		}
-		if (sampled.length < 3) return;
+		if (sampled.length < 3) { _chart.clear(); return; }
 
 		const points: { km: number; elev: number; grad: number }[] = [];
 		for (let i = 0; i < sampled.length; i++) {
@@ -150,10 +148,21 @@
 				splitLine: CHART_AXIS.splitLine,
 			},
 			series,
-		});
+		}, true);
+	}
 
+	onMount(async () => {
+		const echarts = await import('echarts');
+		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
+		if (group) { _chart.group = group; echarts.connect(group); }
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		renderChart();
+	});
+
+	$effect(() => {
+		timeseries;
+		renderChart();
 	});
 </script>
 

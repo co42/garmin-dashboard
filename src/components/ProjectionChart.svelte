@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import type { CoachEvent, EventProjection } from '$lib/types.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
-	import { addDays, today as todayFn } from '$lib/dates.js';
+	import { addDays } from '$lib/dates.js';
+	import { todayStore } from '$lib/today.svelte.js';
 	import { formatTime } from '$lib/format.js';
 	import { feedbackLabel } from '$lib/coach-feedback.js';
 	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
@@ -17,7 +18,7 @@
 
 	let { history, event, planStartDate = null }: Props = $props();
 
-	const todayStr = $derived(todayFn());
+	const todayStr = $derived(todayStore.current);
 	const distanceKm = $derived(event.distance_meters ? event.distance_meters / 1000 : null);
 
 	// Default pace (user preference). If no distance, fall back to time mode.
@@ -311,14 +312,20 @@
 		}, true);
 	}
 
-	onMount(async () => {
-		if (!chartEl) return;
-		const echarts = await import('echarts');
-		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
-		_ro = new ResizeObserver(() => _chart.resize());
-		_ro.observe(chartEl);
-		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
-		_ready = true;
+	// Chart init runs in $effect (not onMount) because chartEl lives behind
+	// {#if rows.length < 2} — onMount would bail when projection data hasn't
+	// arrived yet, leaving the chart permanently dead. $effect re-runs when
+	// chartEl flips from undefined to a real div.
+	$effect(() => {
+		if (!chartEl || _chart) return;
+		(async () => {
+			const echarts = await import('echarts');
+			_chart = echarts.init(chartEl!, undefined, { renderer: 'svg' });
+			_ro = new ResizeObserver(() => _chart.resize());
+			_ro.observe(chartEl!);
+			_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl!);
+			_ready = true;
+		})();
 	});
 
 	$effect(() => {

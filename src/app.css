@@ -16,9 +16,10 @@
 	--color-status-orange: #f97316;
 	--color-status-red: #ef4444;
 
-	--color-load-aero-high: #3b82f6;
-	--color-load-aero-low: #22c55e;
-	--color-load-anaerobic: #a855f7;
+	/* Match LOAD_COLORS in src/lib/colors.ts (Garmin Load Focus). */
+	--color-load-aero-low: #3b82f6;   /* blue   */
+	--color-load-aero-high: #fb923c;  /* orange */
+	--color-load-anaerobic: #a855f7;  /* purple */
 
 	--font-sans: 'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace;
 	--font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace;

@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { CalendarEntry, WorkoutStep, Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
-	import { today, weekMonday, addDays, daysBetween } from '$lib/dates.js';
+	import { weekMonday, addDays, daysBetween } from '$lib/dates.js';
+	import { todayStore } from '$lib/today.svelte.js';
 	import { C, computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
+	import { workoutBadge, teValueColor } from '$lib/badges.js';
 	import ActivityRow from './ActivityRow.svelte';
 	import Tip from './Tip.svelte';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
@@ -34,19 +36,8 @@
 
 	// `todayStr` must stay live across syncs and midnight rollovers so that
 	// "Today" highlight and the current-week label track real time without a
-	// page reload. It refreshes on prop changes (post-sync) and on a 60s tick.
-	let todayStr = $state(today());
-	$effect(() => {
-		calendar; activities;
-		todayStr = today();
-	});
-	$effect(() => {
-		const id = setInterval(() => {
-			const t = today();
-			if (t !== todayStr) todayStr = t;
-		}, 60_000);
-		return () => clearInterval(id);
-	});
+	// page reload. The store handles the 60s tick + visibility hook globally.
+	const todayStr = $derived(todayStore.current);
 	const currentWeekStr = $derived(weekMonday(todayStr));
 	let weekOffset = $state(0);
 	const thisWeekStr = $derived(addDays(currentWeekStr, weekOffset * 7));
@@ -248,51 +239,6 @@
 	};
 	function stepLabel(key: string): string { return STEP_LABELS[key] ?? key; }
 
-	function prettyPhrase(phrase: string): string {
-		return phrase.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
-	}
-
-	// Workout-family rules. Each rule matches against the workout_phrase
-	// (Garmin's structured tag, e.g. ANAEROBIC_CAPACITY, RUNNING_HISTORY_EASY_BASE)
-	// or the human title as a fallback. The first matching rule wins, so order
-	// matters — narrower categories come before broader ones (e.g. THRESHOLD
-	// before SPEED so that ANAEROBIC_THRESHOLD doesn't get tagged as speed).
-	const BADGE_RULES: { phrase?: RegExp; title?: RegExp; code: string; name: string; color: string }[] = [
-		{ phrase: /^STRENGTH_/,                title: /strength/i,         code: 'ST', name: 'Strength',  color: C.purple },
-		{ phrase: /^FORCED_REST$|REST$/,       title: /^rest$|day off/i,   code: 'RS', name: 'Rest',      color: C.textDim },
-		{ phrase: /RECOVERY|EASY/,             title: /recovery|easy/i,    code: 'RC', name: 'Recovery',  color: C.teal },
-		{ phrase: /LONG/,                      title: /long/i,             code: 'LR', name: 'Long Run',  color: C.cyan },
-		{ phrase: /THRESHOLD|TEMPO/,           title: /tempo|threshold/i,  code: 'TP', name: 'Tempo',     color: C.orange },
-		{ phrase: /^ANAEROBIC_/,               title: /anaerobic/i,        code: 'AN', name: 'Anaerobic', color: C.purple },
-		{ phrase: /SPEED|INTERVAL|VO2/,        title: /sprint|speed|interval|vo2/i, code: 'SP', name: 'Speed', color: C.purple },
-		{ phrase: /BASE|AEROBIC/,              title: /base/i,             code: 'AB', name: 'Aerobic Base', color: C.cyan },
-	];
-
-	function phraseBadge(phrase: string | null, title: string | null): { code: string; name: string; color: string } | null {
-		for (const rule of BADGE_RULES) {
-			if (phrase && rule.phrase?.test(phrase)) {
-				return { code: rule.code, name: prettyPhrase(phrase), color: rule.color };
-			}
-		}
-		// Title fallback when phrase is null/unknown (e.g. user-created workout
-		// or coach details haven't been fetched yet).
-		if (title) {
-			for (const rule of BADGE_RULES) {
-				if (rule.title?.test(title)) {
-					return { code: rule.code, name: rule.name, color: rule.color };
-				}
-			}
-		}
-		if (!phrase) return null;
-		return { code: 'TR', name: 'Training', color: C.textDim };
-	}
-
-	function teValueColor(te: number): string {
-		if (te >= 4.0) return C.purple;
-		if (te >= 3.0) return C.orange;
-		if (te >= 1.0) return C.cyan;
-		return C.textDim;
-	}
 
 	function stepsEstimates(steps: WorkoutStep[]): { dist: number; time: number; count: number } {
 		let totalDist = 0;
@@ -461,7 +407,7 @@
 		{@const hasSteps = entry.steps.length > 0}
 		{@const key = entryKey(entry)}
 		{@const isExpanded = expanded.has(key)}
-		{@const badge = phraseBadge(entry.workout_phrase, entry.title)}
+		{@const badge = workoutBadge(entry.workout_phrase, entry.title)}
 		{@const aeroTE = entry.estimated_training_effect}
 		{@const anaeroTE = entry.estimated_anaerobic_training_effect}
 		{@const est = hasSteps ? stepsEstimates(entry.steps) : null}

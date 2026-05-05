@@ -134,21 +134,29 @@
 				</td>
 				<td class="w-full align-middle">
 					<Tip text="" html={tooltipHtml(bar)}>
-					<div class="relative h-5 rounded bg-card-border">
-						{#each [bar.segments] as seg}
-							{@const recentW = Math.min((seg.recent / max) * 100, 100)}
-							{@const middleW = Math.min((seg.middle / max) * 100, 100)}
-							{@const expiringW = Math.min((seg.expiring / max) * 100, 100)}
-							{#if recentW > 0}
-								<div class="absolute left-0 top-0 h-full transition-all" style="width: {recentW}%; background: {bar.color}; opacity: 0.9; border-radius: {middleW + expiringW <= 0 ? '4px' : '4px 0 0 4px'};"></div>
-							{/if}
-							{#if middleW > 0}
-								<div class="absolute top-0 h-full transition-all" style="left: {recentW}%; width: {middleW}%; background: {bar.color}; opacity: 0.55; {recentW <= 0 && expiringW <= 0 ? 'border-radius: 4px;' : recentW <= 0 ? 'border-radius: 4px 0 0 4px;' : expiringW <= 0 ? 'border-radius: 0 4px 4px 0;' : ''}"></div>
-							{/if}
-							{#if expiringW > 0}
-								<div class="absolute top-0 h-full transition-all" style="left: {recentW + middleW}%; width: {expiringW}%; background: {bar.color}; opacity: 0.25; border-radius: {recentW + middleW <= 0 ? '4px' : '0 4px 4px 0'};"></div>
-							{/if}
-						{/each}
+					<div class="relative h-5">
+						<!-- Clipped track: rounded corners come from the wrapper's
+						     border-radius + overflow:hidden, so the colored
+						     segments inside need no per-segment radius and stay
+						     clean even when one is < 4px wide. -->
+						<div class="absolute inset-0 rounded bg-card-border overflow-hidden">
+							{#each [bar.segments] as seg}
+								{@const recentW = Math.min((seg.recent / max) * 100, 100)}
+								{@const middleW = Math.min((seg.middle / max) * 100, 100)}
+								{@const expiringW = Math.min((seg.expiring / max) * 100, 100)}
+								{#if recentW > 0}
+									<div class="absolute left-0 top-0 h-full transition-all" style="width: {recentW}%; background: {bar.color}; opacity: 0.9;"></div>
+								{/if}
+								{#if middleW > 0}
+									<div class="absolute top-0 h-full transition-all" style="left: {recentW}%; width: {middleW}%; background: {bar.color}; opacity: 0.55;"></div>
+								{/if}
+								{#if expiringW > 0}
+									<div class="absolute top-0 h-full transition-all" style="left: {recentW + middleW}%; width: {expiringW}%; background: {bar.color}; opacity: 0.25;"></div>
+								{/if}
+							{/each}
+						</div>
+						<!-- Target-range pins live outside the clip so they can
+						     poke ±3px above/below the bar. -->
 						<div
 							class="absolute z-10 pointer-events-none"
 							style="left: {zoneLeft}%; top: -3px; bottom: -3px; width: 2px; transform: translateX(-50%); background: {bar.value < bar.min ? C.red : C.text}; box-shadow: 0 0 0 1px {C.card}; border-radius: 1px;"

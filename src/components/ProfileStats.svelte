@@ -2,6 +2,8 @@
 	import { onDestroy } from 'svelte';
 	import type { RacePredictions, PersonalRecord, Activity } from '$lib/types.js';
 	import { formatTime } from '$lib/format.js';
+	import { daysBetween } from '$lib/dates.js';
+	import { todayStore } from '$lib/today.svelte.js';
 	import { C, CHART_TOOLTIP, MONO } from '$lib/colors.js';
 	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
@@ -61,7 +63,7 @@
 	}
 
 	function isRecent(date: string): boolean {
-		return Date.now() - new Date(date.slice(0, 10) + 'T12:00:00Z').getTime() < 30 * 86400000;
+		return daysBetween(date.slice(0, 10), todayStore.current) < 7;
 	}
 
 	// --- Sparkline charts (echarts) ---
