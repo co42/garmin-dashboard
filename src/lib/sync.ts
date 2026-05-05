@@ -20,7 +20,6 @@ import type {
 	GearItem,
 	LactateThreshold,
 	CoachPlan,
-	CoachEvent,
 	EventProjection,
 	RaceEvent,
 } from './types.js';
@@ -196,7 +195,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 	const db = getDb();
 
 	if (fullReset) {
-		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'daily_race_predictions', 'daily_event_projections', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
+		for (const table of ['snapshots', 'daily_training_status', 'daily_hrv', 'daily_heart_rate', 'daily_sleep_score', 'daily_stress', 'daily_hill_score', 'daily_endurance_score', 'daily_race_predictions', 'event_projections', 'activities', 'activity_splits', 'activity_details', 'activity_weather', 'courses', 'sync_log']) {
 			db.exec(`DELETE FROM ${table}`);
 		}
 	}
@@ -241,6 +240,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			racePredictionHistory,
 			// Activities
 			activities,
+			// Upcoming events — drives both the events snapshot and the
+			// per-event projection fetches below; also enriches calendar entries
+			// with race/primary flags + course links in Phase 7.
+			events,
 		] = await Promise.all([
 			// Snapshots (CLI returns single-item arrays — unwrap)
 			fetchOne(['training', 'readiness']),
@@ -268,6 +271,8 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			// and activity log. Running-specific consumers (Weekly Volume, profile)
 			// filter on activity_type at the page level.
 			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--from', activityFrom]),
+			// Upcoming events
+			garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []),
 		]);
 
 		// Normalize snapshots that use calendar_date
@@ -277,25 +282,33 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			? { ...bodyBatteryRaw, date: bodyBatteryRaw.calendar_date.slice(0, 10) }
 			: null;
 
-		// Coach plan + event (optional — absent for users without a plan).
-		// The event call with a date range returns both the event object and
-		// the full projection history in one shot. When there's no plan yet,
-		// call without range to still fetch the event if it exists.
+		// Coach plan (optional — absent for users without a plan). The plan's
+		// target event lives in `events`, identified by is_primary_event=true.
 		type CoachPlanWithTasks = CoachPlan & { task_list?: unknown };
-		type CoachEventBlob = { event: CoachEvent; plan_id: number | null; plan_name: string | null; projections: EventProjection[] };
 		const coachPlanRaw = await garminSafe<CoachPlanWithTasks | null>(['coach', 'plan'], null);
 		const coachPlan: CoachPlan | null = coachPlanRaw
 			? (() => { const { task_list: _t, ...rest } = coachPlanRaw; return rest; })()
 			: null;
-		// Don't clamp --from to `coachPlan.start_date`. Garmin's projection
-		// history can extend earlier than the current plan's start_date (e.g.,
-		// when the plan was rebuilt mid-cycle and the old projections were
-		// preserved). Pass a wide window — the API caps at the earliest
+
+		// Per-event projection history. Garmin computes daily projections for
+		// any event with a known course/distance — not just the active plan's
+		// primary — so we fan out one fetch per event. Skip events with no
+		// prediction at all (Garmin can't project trail events with significant
+		// elevation changes); empty histories are useless and waste a call.
+		//
+		// Window: 365 days back. Don't clamp to plan.start_date — projection
+		// history can predate a rebuilt plan, and the API caps at the earliest
 		// available projection automatically.
 		const projectionFrom = addDays(today, -365);
-		const coachEventBlob = await garminSafe<CoachEventBlob | null>(
-			['coach', 'event', '--from', projectionFrom, '--to', today],
-			null,
+		const projectableEvents = events.filter(e => e.predicted_race_time_seconds != null);
+		type CoachEventBlob = { projections: EventProjection[] };
+		const projectionResults = await Promise.all(
+			projectableEvents.map(e =>
+				garminSafe<CoachEventBlob | null>(
+					['coach', 'event', '--event-id', String(e.id), '--from', projectionFrom, '--to', today],
+					null,
+				).then(blob => ({ eventId: e.id, projections: blob?.projections ?? [] }))
+			)
 		);
 
 		// Enrich gear with usage stats
@@ -343,7 +356,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			if (hrZones.length > 0) upsertSnapshot.run('hr_zones', JSON.stringify(hrZones));
 			if (userSettings) upsertSnapshot.run('user_settings', JSON.stringify(userSettings));
 			if (coachPlan) upsertSnapshot.run('coach_plan', JSON.stringify(coachPlan));
-			if (coachEventBlob?.event) upsertSnapshot.run('coach_event', JSON.stringify(coachEventBlob.event));
+			upsertSnapshot.run('events', JSON.stringify(events));
 		});
 		snapshotBatch();
 
@@ -361,7 +374,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		const stmtHill = upsertDaily('daily_hill_score');
 		const stmtEndurance = upsertDaily('daily_endurance_score');
 		const stmtRacePred = upsertDaily('daily_race_predictions');
-		const stmtProjections = upsertDaily('daily_event_projections');
+		const stmtProjections = db.prepare(
+			`INSERT INTO event_projections (event_id, date, data) VALUES (?, ?, ?)
+			 ON CONFLICT(event_id, date) DO UPDATE SET data = excluded.data`
+		);
 
 		const timeseriesBatch = db.transaction(() => {
 			for (const s of statusHistory) {
@@ -388,8 +404,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			for (const rp of racePredictionHistory) {
 				if (rp.date && rp.time_5k_seconds) stmtRacePred.run(rp.date, JSON.stringify(rp));
 			}
-			for (const p of coachEventBlob?.projections ?? []) {
-				stmtProjections.run(p.date, JSON.stringify(p));
+			for (const { eventId, projections } of projectionResults) {
+				for (const p of projections) {
+					stmtProjections.run(eventId, p.date, JSON.stringify(p));
+				}
 			}
 		});
 		timeseriesBatch();
@@ -585,9 +603,9 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			}
 		}
 
-		// Upcoming events — drives both calendar event-row enrichment (course,
-		// url, race/primary flags, start time) and the dedicated events snapshot.
-		const events = await garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []);
+		// `events` was fetched in Phase 1; here we just index by id so the
+		// calendar entry loop below can enrich each row (course, url,
+		// race/primary flags, start time) without a re-fetch.
 		const eventsById = new Map<number, RaceEvent>(events.map(e => [e.id, e]));
 
 		// Adaptive coach workouts — keyed by workout_uuid. Provides phrase,
@@ -646,9 +664,6 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 
 		upsertSnapshot.run('calendar', JSON.stringify(calendarEntries));
 
-		// Phase 8: Upcoming events snapshot — reuses the events fetched above.
-		upsertSnapshot.run('events', JSON.stringify(events));
-
 		// Finish
 		db.prepare('UPDATE sync_log SET finished_at = ?, status = ? WHERE id = ?')
 			.run(new Date().toISOString(), 'ok', logId);
@@ -668,7 +683,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				splits: totalSplits,
 				weather: totalWeather,
 				courses: courseList.length,
-				projection_days: coachEventBlob?.projections.length ?? 0,
+				projection_days: projectionResults.reduce((s, r) => s + r.projections.length, 0),
 			},
 		};
 	} catch (err: any) {
@@ -682,6 +697,57 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0, courses: 0, projection_days: 0 },
 		};
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Targeted refresh: events + per-event projections only.
+// Used by mutation routes (delete/update event) so the UI reflects Garmin's
+// new state without a full sync pass.
+// ---------------------------------------------------------------------------
+
+export async function refreshEventsAndProjections(): Promise<void> {
+	const db = getDb();
+	const today = todayISO();
+	const projectionFrom = addDays(today, -365);
+
+	const events = await garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []);
+	const projectableEvents = events.filter(e => e.predicted_race_time_seconds != null);
+	type CoachEventBlob = { projections: EventProjection[] };
+	const projectionResults = await Promise.all(
+		projectableEvents.map(e =>
+			garminSafe<CoachEventBlob | null>(
+				['coach', 'event', '--event-id', String(e.id), '--from', projectionFrom, '--to', today],
+				null,
+			).then(blob => ({ eventId: e.id, projections: blob?.projections ?? [] }))
+		)
+	);
+
+	const upsertSnapshot = db.prepare(
+		`INSERT INTO snapshots (command, data, synced_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		 ON CONFLICT(command) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at`
+	);
+	const upsertProjection = db.prepare(
+		`INSERT INTO event_projections (event_id, date, data) VALUES (?, ?, ?)
+		 ON CONFLICT(event_id, date) DO UPDATE SET data = excluded.data`
+	);
+	const aliveEventIds = events.map(e => e.id);
+	const placeholders = aliveEventIds.length > 0 ? aliveEventIds.map(() => '?').join(',') : '0';
+	const deleteOrphans = db.prepare(
+		`DELETE FROM event_projections WHERE event_id NOT IN (${placeholders})`
+	);
+
+	const tx = db.transaction(() => {
+		upsertSnapshot.run('events', JSON.stringify(events));
+		// Wipe orphans first (events that disappeared from the upstream list,
+		// e.g. user deleted a race) so their stale projections don't linger.
+		deleteOrphans.run(...aliveEventIds);
+		for (const { eventId, projections } of projectionResults) {
+			for (const p of projections) {
+				upsertProjection.run(eventId, p.date, JSON.stringify(p));
+			}
+		}
+	});
+	tx();
 }
 
 // ---------------------------------------------------------------------------

@@ -63,10 +63,18 @@ CREATE TABLE IF NOT EXISTS daily_race_predictions (
 	data TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS daily_event_projections (
-	date TEXT PRIMARY KEY,
-	data TEXT NOT NULL
+-- Per-event projection history. Replaces the old single-event
+-- daily_event_projections table — we now fetch projections for every
+-- upcoming event (Garmin computes them for any event with a course/distance,
+-- not just the active plan's primary).
+DROP TABLE IF EXISTS daily_event_projections;
+CREATE TABLE IF NOT EXISTS event_projections (
+	event_id INTEGER NOT NULL,
+	date TEXT NOT NULL,
+	data TEXT NOT NULL,
+	PRIMARY KEY (event_id, date)
 );
+CREATE INDEX IF NOT EXISTS idx_event_projections_event ON event_projections (event_id);
 
 -- Activities
 CREATE TABLE IF NOT EXISTS activities (

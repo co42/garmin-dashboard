@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import type { CoachEvent, EventProjection } from '$lib/types.js';
+	import type { EventProjection, RaceEvent } from '$lib/types.js';
 	import { C, CHART_TOOLTIP, CHART_AXIS, MONO } from '$lib/colors.js';
 	import { addDays } from '$lib/dates.js';
 	import { todayStore } from '$lib/today.svelte.js';
@@ -8,15 +8,17 @@
 	import { feedbackLabel } from '$lib/coach-feedback.js';
 	import { bindTooltipOutsideClick } from '$lib/echarts-helpers.js';
 	import Tip from './Tip.svelte';
-	import Target from 'phosphor-svelte/lib/Target';
 
 	interface Props {
 		history: EventProjection[];
-		event: CoachEvent;
+		event: RaceEvent;
 		planStartDate?: string | null;
+		// When true, drop the outer card chrome (rounded bg + padding) so the
+		// chart sits cleanly inside another card (e.g. EventCard).
+		embedded?: boolean;
 	}
 
-	let { history, event, planStartDate = null }: Props = $props();
+	let { history, event, planStartDate = null, embedded = false }: Props = $props();
 
 	const todayStr = $derived(todayStore.current);
 	const distanceKm = $derived(event.distance_meters ? event.distance_meters / 1000 : null);
@@ -335,13 +337,11 @@
 	});
 </script>
 
-<div class="rounded-lg bg-card p-4 h-full flex flex-col">
+<div class="h-full flex flex-col" class:rounded-lg={!embedded} class:bg-card={!embedded} class:p-4={!embedded}>
 	<div class="flex flex-wrap items-center justify-between gap-y-1 mb-2">
 		<div class="flex items-center gap-2">
 			<Tip text={"Baseline (white) = daily fitness-only prediction.\nToday = big white dot at current baseline.\nProjection (blue) = forward line from today's baseline down to the plan-adjusted projection at event day, with confidence fan.\nGoal (green) = your target time."}>
-				<h2 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
-					<Target size={14} weight="bold" /> Race Projection
-				</h2>
+				<h2 class="text-xs font-medium uppercase tracking-wider text-text-secondary">Race Projection</h2>
 			</Tip>
 			{#if distanceKm}
 				<div class="flex rounded-md border border-card-border divide-x divide-card-border text-[10px] font-medium">
@@ -378,10 +378,10 @@
 		</div>
 	</div>
 	{#if rows.length < 2}
-		<div class="flex-1 flex items-center justify-center text-xs text-text-dim italic min-h-[200px]">
+		<div class="flex-1 flex items-center justify-center text-xs text-text-dim italic min-h-[160px]">
 			Not enough projection data yet
 		</div>
 	{:else}
-		<div bind:this={chartEl} class="flex-1 min-h-[200px] w-full"></div>
+		<div bind:this={chartEl} class="flex-1 min-h-[160px] w-full"></div>
 	{/if}
 </div>

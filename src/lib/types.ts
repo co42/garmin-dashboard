@@ -544,10 +544,12 @@ export interface DashboardData {
 	// Upcoming events (races, primary plan event, scheduled events)
 	events: RaceEvent[];
 
-	// Coach plan + target event + projection history
+	// Active adaptive coach plan, if any. The plan's target event lives in
+	// `events` (find by `is_primary_event === true`); no separate coachEvent.
 	coachPlan: CoachPlan | null;
-	coachEvent: CoachEvent | null;
-	projectionHistory: EventProjection[];
+	// Per-event projection history, keyed by event id. Garmin computes these
+	// for any event with a known course/distance, not just plan targets.
+	eventProjections: Record<number, EventProjection[]>;
 
 	// Courses
 	courses: Course[];
