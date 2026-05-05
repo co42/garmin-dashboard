@@ -6,9 +6,12 @@
 	interface Props {
 		timeseries: ActivityDetailPoint[];
 		group?: string;
+		// Cumulative distance (meters) under the cursor. Drives a sibling
+		// map's follower marker. null when pointer leaves the chart.
+		onHover?: (distMeters: number | null) => void;
 	}
 
-	let { timeseries, group }: Props = $props();
+	let { timeseries, group, onHover }: Props = $props();
 	let chartEl: HTMLDivElement;
 
 	let _chart: any; let _ro: ResizeObserver;
@@ -151,12 +154,28 @@
 		}, true);
 	}
 
+	function reportHover(e: PointerEvent) {
+		if (!_chart) return;
+		const rect = chartEl.getBoundingClientRect();
+		const x = e.clientX - rect.left;
+		const y = e.clientY - rect.top;
+		const result = _chart.convertFromPixel({ gridIndex: 0 }, [x, y]) as number[] | null;
+		if (Array.isArray(result) && Number.isFinite(result[0])) {
+			onHover?.(result[0] * 1000);
+		}
+	}
+	function clearHover() { onHover?.(null); }
+
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 		if (group) { _chart.group = group; echarts.connect(group); }
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		chartEl.addEventListener('pointermove', reportHover);
+		chartEl.addEventListener('pointerdown', reportHover);
+		chartEl.addEventListener('pointerleave', clearHover);
+		chartEl.addEventListener('pointercancel', clearHover);
 		renderChart();
 	});
 

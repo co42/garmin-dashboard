@@ -15,6 +15,12 @@
 
 	let { course }: Props = $props();
 
+	let hoveredDistMeters = $state<number | null>(null);
+	$effect(() => {
+		course.course_id;
+		hoveredDistMeters = null;
+	});
+
 	const hasGeoPoints = $derived(course.geo_points.length > 1);
 
 	// Convert course geo_points to ActivityDetailPoint[] for ElevationChart
@@ -112,7 +118,7 @@
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><MapPin size={12} weight="bold" /> Map & Splits</h3>
 			<div class="flex flex-col md:flex-row gap-4">
 				<div class="h-[200px] md:h-auto md:self-stretch md:flex-1 md:min-w-0 rounded overflow-hidden border border-card-border/50">
-					<ActivityMap {polyline} />
+					<ActivityMap {polyline} {timeseries} hoverDist={hoveredDistMeters} />
 				</div>
 
 				{#if kmSplits().length > 0}
@@ -150,7 +156,7 @@
 	{#if hasGeoPoints && hasElevation}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><Mountains size={12} weight="bold" /> Elevation</h3>
-			<ElevationChart {timeseries} />
+			<ElevationChart {timeseries} onHover={(d) => hoveredDistMeters = d} />
 		</div>
 	{/if}
 

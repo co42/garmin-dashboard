@@ -33,6 +33,15 @@
 
 	let { activity, splits, details, weather, hrZones }: Props = $props();
 
+	// Cumulative distance (meters) under the chart's cursor; threaded into
+	// the map so a follower marker tracks the same point. Reset when the
+	// activity changes so a stale hover doesn't carry across.
+	let hoveredDistMeters = $state<number | null>(null);
+	$effect(() => {
+		activity.activity_id;
+		hoveredDistMeters = null;
+	});
+
 	// Editable state — description is fetched lazily from Garmin (it's not in
 	// the dashboard snapshot). Refetch whenever activity_id flips so reusing
 	// the same component instance for a different activity doesn't show the
@@ -241,7 +250,7 @@
 			<div class="flex flex-col md:flex-row gap-4">
 				{#if hasMap && details}
 					<div class="h-[200px] md:h-auto md:self-stretch md:flex-1 md:min-w-0 rounded overflow-hidden border border-card-border/50">
-						<ActivityMap polyline={details.polyline} />
+						<ActivityMap polyline={details.polyline} timeseries={details.timeseries} hoverDist={hoveredDistMeters} />
 					</div>
 				{/if}
 
@@ -305,7 +314,12 @@
 	{#if hasDistance && hasTimeseries && details}
 		<div>
 			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><ChartLine size={12} weight="bold" /> {trail && hasElevTimeseries ? 'Elevation & Performance' : 'Performance'}</h3>
-			<ActivityCharts timeseries={details.timeseries} showGap={trail} showElevation={trail && hasElevTimeseries} />
+			<ActivityCharts
+				timeseries={details.timeseries}
+				showGap={trail}
+				showElevation={trail && hasElevTimeseries}
+				onHover={(d) => hoveredDistMeters = d}
+			/>
 		</div>
 	{/if}
 

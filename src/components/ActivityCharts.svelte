@@ -8,9 +8,13 @@
 		timeseries: ActivityDetailPoint[];
 		showGap?: boolean;
 		showElevation?: boolean;
+		// Reports the cumulative distance (meters) under the cursor, or null
+		// when the pointer leaves the chart. Used to drive a sibling map's
+		// follower marker.
+		onHover?: (distMeters: number | null) => void;
 	}
 
-	let { timeseries, showGap = false, showElevation = false }: Props = $props();
+	let { timeseries, showGap = false, showElevation = false, onHover }: Props = $props();
 	let chartEl: HTMLDivElement;
 
 	let _chart: any; let _ro: ResizeObserver;
@@ -338,12 +342,34 @@
 		}, true);
 	}
 
+	// Pointer events on the chart container — Pointer Events unify mouse +
+	// touch + pen so this covers desktop hover and mobile tap/scrub. Both
+	// chart grids share the same x-pixel range, so gridIndex=0 conversion
+	// returns the right km value whether the cursor is over the elevation
+	// or the performance panel. convertFromPixel with `[x, y]` returns
+	// `[xValue, yValue]` — destructure index 0 for the x.
+	function reportHover(e: PointerEvent) {
+		if (!_chart) return;
+		const rect = chartEl.getBoundingClientRect();
+		const x = e.clientX - rect.left;
+		const y = e.clientY - rect.top;
+		const result = _chart.convertFromPixel({ gridIndex: 0 }, [x, y]);
+		if (Array.isArray(result) && Number.isFinite(result[0])) {
+			onHover?.(result[0] * 1000);
+		}
+	}
+	function clearHover() { onHover?.(null); }
+
 	onMount(async () => {
 		const echarts = await import('echarts');
 		_chart = echarts.init(chartEl, undefined, { renderer: 'svg' });
 		_unbindTooltip = bindTooltipOutsideClick(_chart, chartEl);
 		_ro = new ResizeObserver(() => _chart.resize());
 		_ro.observe(chartEl);
+		chartEl.addEventListener('pointermove', reportHover);
+		chartEl.addEventListener('pointerdown', reportHover);
+		chartEl.addEventListener('pointerleave', clearHover);
+		chartEl.addEventListener('pointercancel', clearHover);
 		renderChart();
 	});
 
