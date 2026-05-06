@@ -269,6 +269,7 @@
 								<tr class="text-text-dim border-b border-card-border">
 									<th class="pb-1 pr-3 md:pr-4 text-left font-medium">km <span class="text-text-dim/50">·</span> dist</th>
 									<th class="pb-1 pr-3 md:pr-4 text-right font-medium">Pace</th>
+									<th class="pb-1 pr-3 md:pr-4 text-right font-medium">Time</th>
 									{#if trail}
 										<th class="pb-1 pr-3 md:pr-4 text-right font-medium">GAP</th>
 									{/if}
@@ -292,6 +293,7 @@
 									<tr class="border-b border-card-border/20 hover:bg-card-border/10">
 										<td class="py-0.5 pr-3 md:pr-4 num text-text-dim whitespace-nowrap">{(cumDist / 1000).toFixed(1)} <span class="text-text-dim/50">·</span> {Math.round(split.distance_meters)}m</td>
 										<td class="py-0.5 pr-3 md:pr-4 num text-right text-text">{paceSec ? `${Math.floor(paceSec / 60)}:${String(paceSec % 60).padStart(2, '0')}` : '-'}</td>
+										<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{split.duration_seconds > 0 ? formatTime(split.duration_seconds) : '-'}</td>
 										{#if trail}
 											<td class="py-0.5 pr-3 md:pr-4 num text-right text-text-secondary">{splitGaps().get(split.split) ?? '-'}</td>
 										{/if}
