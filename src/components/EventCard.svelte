@@ -73,6 +73,10 @@
 	function fmtDateTime(e: RaceEvent): string {
 		return e.start_time_local ? `${fmtDate(e.date)} ${e.start_time_local}` : fmtDate(e.date);
 	}
+	function prettyUrl(url: string): string {
+		// Strip scheme and trailing slash for display — href keeps the full URL.
+		return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+	}
 
 	function eventIcon(type: string | null) {
 		if (!type) return PersonSimpleRun;
@@ -213,64 +217,57 @@
 		</div>
 	</div>
 
-	<!-- Date + location row. Lives at the card's left edge, no indent under the icon. -->
-	<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-text-secondary">
-		<span class="num">{fmtDateTime(event)}</span>
-		{#if event.location}
-			<span class="text-text-dim">·</span>
-			<span class="inline-flex items-center gap-0.5 min-w-0">
-				<MapPin size={11} weight="bold" class="shrink-0 text-text-dim" />
-				<span class="truncate">{event.location}</span>
-			</span>
+	<!-- Body: 2 columns on desktop. Left col header = event metadata (date,
+	     location, course, site link). Right col header = the chart's own
+	     "RACE PROJECTION" bar. They share the same row so meta sits to the
+	     left of the chart title instead of stacked above the body. -->
+	<div class="mt-3 pt-3 border-t border-card-border grid gap-3 md:grid-cols-2 md:gap-4">
+		<!-- Left column: metadata + plan phase + goal/projection block -->
+		<div class="space-y-3 min-w-0">
+			<!-- Metadata block: date + location share a line; course and site
+			     each break onto their own line so long values stay readable.
+			     No "·" separators — the flex gap does the visual spacing. -->
+			<div class="text-[11px] text-text-secondary space-y-0.5">
+				<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+					<span class="num">{fmtDateTime(event)}</span>
+					{#if event.location}
+						<span class="inline-flex items-center gap-0.5 min-w-0">
+							<MapPin size={11} weight="bold" class="shrink-0 text-text-dim" />
+							<span class="truncate">{event.location}</span>
+						</span>
+					{/if}
+				</div>
+				{#if linkedCourse}
+					<button
+						type="button"
+						class="flex items-center gap-1 cursor-pointer text-text-secondary hover:text-text transition-colors min-w-0 max-w-full"
+						onclick={() => onNavigateCourse?.(linkedCourse.course_id)}
+					><Path size={11} weight="bold" class="shrink-0" /><span class="truncate">{linkedCourse.course_name}</span></button>
+				{/if}
+				{#if event.url}
+					<a
+						href={event.url}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="flex items-center gap-1 text-text-secondary hover:text-text transition-colors min-w-0 max-w-full"
+					><ArrowSquareOut size={11} weight="bold" class="shrink-0" /><span class="truncate">{prettyUrl(event.url)}</span></a>
+				{/if}
+			</div>
+			{#if showPhaseBar && coachPlan}
+				<PhaseBar plan={coachPlan} {event} />
+			{/if}
+			{#if hasGoalProjectionBlock}
+				<EventGoalProjection {event} latest={latestProjection} />
+			{/if}
+		</div>
+
+		<!-- Right column: the projection chart (its own header has the
+		     RACE PROJECTION title + toggle + legend). On phone the grid
+		     collapses; the border-top gives a visual break. -->
+		{#if hasProjectionChart}
+			<div class="min-w-0 border-t border-card-border pt-3 md:border-t-0 md:pt-0">
+				<ProjectionChart history={projections} {event} planStartDate={showPlan ? coachPlan?.start_date ?? null : null} embedded />
+			</div>
 		{/if}
 	</div>
-
-	<!-- Body: always 2 columns on desktop. Left = plan + goal/projection block,
-	     right = projection chart (or empty space if Garmin has no history yet —
-	     keeps the left column at 50% so cards line up at the same width). -->
-	{#if (showPhaseBar && coachPlan) || hasGoalProjectionBlock || hasProjectionChart}
-		<div class="mt-3 pt-3 border-t border-card-border grid gap-3 md:grid-cols-2 md:gap-4">
-			<!-- Left: plan phase bar + goal/current/projection grid. The phase bar
-			     speaks for itself here — the event title already names the plan target. -->
-			<div class="space-y-5 min-w-0">
-				{#if showPhaseBar && coachPlan}
-					<PhaseBar plan={coachPlan} {event} />
-				{/if}
-				<EventGoalProjection {event} latest={latestProjection} />
-			</div>
-
-			<!-- Right: race projection chart. min-w-0 prevents the echarts SVG
-			     from forcing the parent grid track to overflow. -->
-			{#if hasProjectionChart}
-				<!-- Phone-only separator: when the grid collapses to a single
-				     column, the chart stacks below the goal block and needs a
-				     visual break. On desktop the side-by-side layout already
-				     separates them. -->
-				<div class="min-w-0 border-t border-card-border pt-3 md:border-t-0 md:pt-0">
-					<ProjectionChart history={projections} {event} planStartDate={showPlan ? coachPlan?.start_date ?? null : null} embedded />
-				</div>
-			{/if}
-		</div>
-	{/if}
-
-	<!-- Course + site links footer. -->
-	{#if linkedCourse || event.url}
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] mt-3 pt-3 border-t border-card-border">
-			{#if linkedCourse}
-				<button
-					type="button"
-					class="inline-flex items-center gap-1 cursor-pointer text-text-secondary hover:text-text transition-colors min-w-0"
-					onclick={() => onNavigateCourse?.(linkedCourse.course_id)}
-				><Path size={11} weight="bold" class="shrink-0" /><span class="truncate">{linkedCourse.course_name}</span></button>
-			{/if}
-			{#if event.url}
-				<a
-					href={event.url}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="inline-flex items-center gap-1 text-text-secondary hover:text-text transition-colors"
-				><ArrowSquareOut size={11} weight="bold" /><span>site</span></a>
-			{/if}
-		</div>
-	{/if}
 </div>

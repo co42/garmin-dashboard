@@ -175,6 +175,37 @@
 
 		const goalV = event.goal_seconds != null && !hideGoal ? valueFor(event.goal_seconds) : null;
 
+		// Compute y-axis range over the actual data + goal so the goal line
+		// stays on screen even when it's far from the prediction. ECharts'
+		// `v.min/v.max` callback only sees series data, which silently clips
+		// markLine values past that range.
+		const yValues: number[] = [];
+		for (const arr of [pastV, futureV, lowerV, upperV]) {
+			for (const x of arr) if (typeof x === 'number') yValues.push(x);
+		}
+		if (goalV != null) yValues.push(goalV);
+
+		// Pick the smallest "nice" step that produces ≤ ~6 ticks for the
+		// observed range. A goal far from the prediction can blow the range
+		// past 30 minutes; without this, the axis would render 30+ labels at
+		// the previously-fixed 1-minute interval.
+		const niceSteps = mode === 'pace'
+			? [5, 10, 15, 20, 30, 60, 120]                // s/km
+			: [60, 120, 300, 600, 900, 1800, 3600, 7200]; // seconds
+		const baseStep = niceSteps[0];
+		const yRange = (() => {
+			if (yValues.length === 0) return null;
+			const lo = Math.floor(Math.min(...yValues) / baseStep) * baseStep;
+			const hi = Math.ceil(Math.max(...yValues) / baseStep) * baseStep;
+			const range = hi - lo;
+			const step = niceSteps.find(s => range / s <= 6) ?? niceSteps[niceSteps.length - 1];
+			return {
+				min: Math.floor(lo / step) * step - step,
+				max: Math.ceil(hi / step) * step + step,
+				step,
+			};
+		})();
+
 		// Vertical marker at plan start (only if data exists before plan start,
 		// i.e. Garmin handed us projections pre-dating the current plan).
 		const planStartIdx = planStartDate
@@ -224,18 +255,12 @@
 			},
 			yAxis: {
 				type: 'value',
-				// Snap to evenly-spaced ticks: 1-minute steps in time mode,
-				// 5-s/km steps in pace mode. Pad one step above/below so the data
-				// isn't glued to the chart edges.
-				min: (v: { min: number }) => {
-					const step = mode === 'pace' ? 5 : 60;
-					return Math.floor(v.min / step) * step - step;
-				},
-				max: (v: { max: number }) => {
-					const step = mode === 'pace' ? 5 : 60;
-					return Math.ceil(v.max / step) * step + step;
-				},
-				interval: mode === 'pace' ? 5 : 60,
+				// Range is computed over data + goal so the goal line stays on
+				// screen even when far from the prediction. Tick interval is
+				// chosen to keep ≤ 6 labels regardless of how wide the range is.
+				min: yRange?.min,
+				max: yRange?.max,
+				interval: yRange?.step,
 				axisLine: { show: false },
 				axisLabel: { ...CHART_AXIS.axisLabel, formatter: (v: number) => formatYAxis(v) },
 				splitLine: CHART_AXIS.splitLine,
