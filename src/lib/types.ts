@@ -478,6 +478,34 @@ export interface WorkoutStep {
 	steps: WorkoutStep[] | null;
 }
 
+export interface Workout {
+	workout_id: number;
+	workout_name: string;
+	description: string | null;
+	sport_type: string | null;
+	estimated_distance_meters: number | null;
+	estimated_duration_seconds: number | null;
+	created_date: string;
+	updated_date: string;
+	steps: WorkoutStep[];
+}
+
+export interface CoachWorkout {
+	workout_uuid: string;
+	workout_name: string;
+	description: string | null;
+	sport_type: string | null;
+	estimated_distance_meters: number | null;
+	estimated_duration_seconds: number | null;
+	steps: WorkoutStep[];
+	workout_phrase: string | null;
+	training_effect_label: string | null;
+	estimated_training_effect: number | null;
+	estimated_anaerobic_training_effect: number | null;
+	priority_type: string | null;
+	training_plan_id: number | null;
+}
+
 export interface CalendarEntry {
 	id: number;
 	item_type: string;
@@ -550,6 +578,12 @@ export interface DashboardData {
 	// Per-event projection history, keyed by event id. Garmin computes these
 	// for any event with a known course/distance, not just plan targets.
 	eventProjections: Record<number, EventProjection[]>;
+
+	// User-created workouts (registered to the device, schedulable to the calendar)
+	workouts: Workout[];
+
+	// Garmin Coach adaptive-plan workouts (read-only, keyed by uuid)
+	coachWorkouts: CoachWorkout[];
 
 	// Courses
 	courses: Course[];

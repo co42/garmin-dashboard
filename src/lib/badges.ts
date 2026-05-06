@@ -140,8 +140,17 @@ export function teValueColor(te: number): string {
 export function workoutBadge(phrase: string | null, title: string | null): Badge | null {
 	if (phrase) {
 		const base = fromLabel(phrase);
-		// Strength phrases keep the static name; everything else gets the
-		// prettified phrase so the user sees Garmin's exact category.
+		// Phrases we can't classify (e.g. "UNKNOWN") land on the generic
+		// `training` fallback. Garmin ships some of these with a descriptive
+		// title like "Base" or "Long Run" — try the title heuristic before
+		// giving up so they don't all collapse to "TR Training".
+		if (base === BADGES.training) {
+			const fromName = title ? fromTitle(title) : null;
+			if (fromName) return fromName;
+		}
+		// Strength / rest / training phrases keep the static name; everything
+		// else gets the prettified phrase so the user sees Garmin's exact
+		// category (e.g. "ANAEROBIC_CAPACITY" → "Anaerobic Capacity").
 		if (base === BADGES.strength || base === BADGES.rest || base === BADGES.training) return base;
 		return { ...base, name: prettyPhrase(phrase) };
 	}

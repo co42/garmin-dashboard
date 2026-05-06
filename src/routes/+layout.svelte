@@ -15,7 +15,7 @@
 	theme="dark"
 	position="top-right"
 	closeButton
-	toastOptions={{ duration: 300000 }}
+	duration={3000}
 />
 
 <div class="min-h-dvh bg-bg overflow-x-hidden">

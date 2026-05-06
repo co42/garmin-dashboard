@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import type { DashboardData } from '$lib/types.js';
 	import { computeAge, computeTrendSeries, AXIS_COLORS } from '$lib/profile.js';
 	import Tip from '../components/Tip.svelte';
@@ -17,6 +18,8 @@
 	import LactateThresholdChart from '../components/LactateThresholdChart.svelte';
 	import ActivityFeed from '../components/ActivityFeed.svelte';
 	import CourseFeed from '../components/CourseFeed.svelte';
+	import WorkoutFeed from '../components/WorkoutFeed.svelte';
+	import CoachWorkoutFeed from '../components/CoachWorkoutFeed.svelte';
 	import ShoeTracker from '../components/ShoeTracker.svelte';
 	import UpcomingCard from '../components/UpcomingCard.svelte';
 	import EventsList from '../components/EventsList.svelte';
@@ -24,12 +27,29 @@
 	import Heartbeat from 'phosphor-svelte/lib/Heartbeat';
 	import Lightning from 'phosphor-svelte/lib/Lightning';
 	import ListBullets from 'phosphor-svelte/lib/ListBullets';
-	import Path from 'phosphor-svelte/lib/Path';
 
 	let { data }: { data: { dashboard: DashboardData | null } } = $props();
 	const d = $derived(data.dashboard);
 	let feedRef: ActivityFeed | undefined = $state();
 	let courseFeedRef: CourseFeed | undefined = $state();
+
+	type FeedTab = 'activities' | 'courses' | 'workouts' | 'coach-workouts';
+	let activeTab = $state<FeedTab>('activities');
+
+	// Route inbound navigations (from UpcomingCard / EventsList) to the right
+	// tab first, then defer to the tab's own scroll-to-and-expand logic. The
+	// `tick()` is required because the feed component only mounts once its tab
+	// is active.
+	async function navigateToActivity(id: number) {
+		activeTab = 'activities';
+		await tick();
+		feedRef?.navigateTo(id);
+	}
+	async function navigateToCourse(id: number) {
+		activeTab = 'courses';
+		await tick();
+		courseFeedRef?.navigateTo(id);
+	}
 
 	// Global time window: 4 weeks (1M) or 13 weeks (3M), always starts on a Monday
 	let windowWeeks = $state(4);
@@ -117,7 +137,7 @@
 
 		<!-- ═══ CALENDAR: upcoming workouts and events ═══ -->
 		{#if d.calendar.length > 0 || d.activities.length > 0}
-			<UpcomingCard calendar={d.calendar} activities={d.activities} splits={d.recentSplits} hrZones={d.hrZones} activityWeather={d.activityWeather} onNavigate={(id) => feedRef?.navigateTo(id)} />
+			<UpcomingCard calendar={d.calendar} activities={d.activities} splits={d.recentSplits} hrZones={d.hrZones} activityWeather={d.activityWeather} workouts={d.workouts} onNavigate={navigateToActivity} />
 		{/if}
 
 		<!-- ═══ EVENTS: races + plan target, with phase bar / projection chart inline ═══ -->
@@ -127,7 +147,7 @@
 				courses={d.courses}
 				coachPlan={d.coachPlan}
 				eventProjections={d.eventProjections}
-				onNavigateCourse={(id) => courseFeedRef?.navigateTo(id)}
+				onNavigateCourse={navigateToCourse}
 			/>
 		{/if}
 
@@ -206,18 +226,40 @@
 			<HrvChart hrv={w.hrv} />
 		</div>
 
-		<!-- ═══ LOG ═══ -->
-		<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><ListBullets size={14} weight="bold" /> Activity Log</h2>
-
-		<ActivityFeed bind:this={feedRef} activities={d.activities} splits={d.recentSplits} details={d.activityDetails} weather={d.activityWeather} hrZones={d.hrZones} />
-
-		<!-- ═══ COURSES ═══ -->
-		{#if d.courses.length > 0}
-			<h2 class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary"><Path size={14} weight="bold" /> Courses</h2>
-			<CourseFeed bind:this={courseFeedRef} courses={d.courses} />
-		{/if}
-
 		<ShoeTracker gear={d.gear} />
+
+		<!-- ═══ LOG: tabbed feed (activities / courses / workouts / coach workouts) ═══ -->
+		<div class="mt-4 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
+			<ListBullets size={14} weight="bold" />
+			<div class="flex rounded-md border border-card-border text-xs font-mono font-medium divide-x divide-card-border">
+				<button
+					class="cursor-pointer px-2.5 py-1 rounded-l-md transition-colors {activeTab === 'activities' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => activeTab = 'activities'}
+				>Activities</button>
+				<button
+					class="cursor-pointer px-2.5 py-1 transition-colors {activeTab === 'courses' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => activeTab = 'courses'}
+				>Courses</button>
+				<button
+					class="cursor-pointer px-2.5 py-1 transition-colors {activeTab === 'workouts' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => activeTab = 'workouts'}
+				>Workouts</button>
+				<button
+					class="cursor-pointer px-2.5 py-1 rounded-r-md transition-colors {activeTab === 'coach-workouts' ? 'bg-blue-500/20 text-blue-400' : 'text-text-dim hover:text-text-secondary'}"
+					onclick={() => activeTab = 'coach-workouts'}
+				>Coach</button>
+			</div>
+		</div>
+
+		{#if activeTab === 'activities'}
+			<ActivityFeed bind:this={feedRef} activities={d.activities} splits={d.recentSplits} details={d.activityDetails} weather={d.activityWeather} hrZones={d.hrZones} />
+		{:else if activeTab === 'courses'}
+			<CourseFeed bind:this={courseFeedRef} courses={d.courses} />
+		{:else if activeTab === 'workouts'}
+			<WorkoutFeed workouts={d.workouts} />
+		{:else if activeTab === 'coach-workouts'}
+			<CoachWorkoutFeed coachWorkouts={d.coachWorkouts} oncopied={() => activeTab = 'workouts'} />
+		{/if}
 	</div>
 	</main>
 {/if}

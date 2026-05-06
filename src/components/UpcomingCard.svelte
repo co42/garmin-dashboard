@@ -1,10 +1,15 @@
 <script lang="ts">
-	import type { CalendarEntry, WorkoutStep, Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
+	import type { CalendarEntry, Activity, ActivitySplit, ActivityWeather, HrZone, Workout } from '$lib/types.js';
 	import { weekMonday, addDays, daysBetween } from '$lib/dates.js';
 	import { todayStore } from '$lib/today.svelte.js';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 	import { C, computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
 	import { workoutBadge, teValueColor } from '$lib/badges.js';
+	import { fmtDist, fmtPace, fmtDuration, stepsEstimates } from '$lib/workout-steps.js';
 	import ActivityRow from './ActivityRow.svelte';
+	import WorkoutSteps from './WorkoutSteps.svelte';
+	import WorkoutPicker from './WorkoutPicker.svelte';
 	import Tip from './Tip.svelte';
 	import PersonSimpleRun from 'phosphor-svelte/lib/PersonSimpleRun';
 	import Barbell from 'phosphor-svelte/lib/Barbell';
@@ -18,6 +23,7 @@
 	import CrosshairSimple from 'phosphor-svelte/lib/CrosshairSimple';
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import Robot from 'phosphor-svelte/lib/Robot';
+	import Plus from 'phosphor-svelte/lib/Plus';
 
 	interface Props {
 		calendar: CalendarEntry[];
@@ -25,10 +31,41 @@
 		splits: Record<number, ActivitySplit[]>;
 		hrZones: HrZone[];
 		activityWeather: Record<number, ActivityWeather>;
+		workouts: Workout[];
 		onNavigate?: (activityId: number) => void;
 	}
 
-	let { calendar, activities, splits, hrZones, activityWeather, onNavigate }: Props = $props();
+	let { calendar, activities, splits, hrZones, activityWeather, workouts, onNavigate }: Props = $props();
+
+	// Workout picker state — `pickerDate` doubles as visibility flag.
+	let pickerDate = $state<string | null>(null);
+	let scheduling = $state(false);
+
+	function openPicker(date: string) {
+		pickerDate = date;
+	}
+
+	async function pickWorkout(workoutId: number) {
+		if (!pickerDate || scheduling) return;
+		scheduling = true;
+		const date = pickerDate;
+		try {
+			const res = await fetch('/api/calendar/workouts', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ workout_id: workoutId, date }),
+			});
+			if (!res.ok) throw new Error(await res.text());
+			toast.success('Workout scheduled');
+			pickerDate = null;
+			await invalidateAll();
+		} catch (err) {
+			toast.error("Couldn't schedule workout", { description: err instanceof Error ? err.message : undefined });
+			console.error(err);
+		} finally {
+			scheduling = false;
+		}
+	}
 
 	const medianLoad = $derived(computeMedianLoad(activities.map(a => a.activity_training_load)));
 
@@ -162,103 +199,6 @@
 		return daysBetween(todayStr, dateStr);
 	}
 
-	function fmtDist(m: number): string {
-		return m >= 1000 ? `${m / 1000 % 1 === 0 ? m / 1000 : (m / 1000).toFixed(1)}km` : `${Math.round(m)}m`;
-	}
-
-	function fmtTime(s: number): string {
-		const m = Math.floor(s / 60), sec = Math.floor(s % 60);
-		return `${m}:${sec.toString().padStart(2, '0')}`;
-	}
-
-	function fmtPace(speedMs: number): string {
-		const secs = Math.round(1000 / speedMs);
-		const m = Math.floor(secs / 60), sec = secs % 60;
-		return `${m}:${sec.toString().padStart(2, '0')}/km`;
-	}
-
-	function fmtExercise(name: string): string {
-		return name.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-	}
-
-	function fmtDuration(s: number): string {
-		const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-		return h > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${m}min`;
-	}
-
-	function stepDuration(s: WorkoutStep): string {
-		if (s.end_condition === 'distance' && s.end_condition_value) return fmtDist(s.end_condition_value);
-		if (s.end_condition === 'time' && s.end_condition_value) return fmtTime(s.end_condition_value);
-		if (s.end_condition === 'iterations' && s.end_condition_value) return `${s.end_condition_value} reps`;
-		if (s.end_condition === 'lap.button') return 'lap';
-		return '';
-	}
-
-	const INSTRUCTION_LABELS: Record<number, string> = {
-		1: 'easy', 2: 'moderate', 3: 'hard', 4: 'very hard', 5: 'max effort',
-		6: 'warm up', 7: 'cool down', 8: 'recovery', 9: 'tempo',
-		10: 'steady', 11: 'race pace', 12: 'all out',
-	};
-
-	function stepTarget(s: WorkoutStep): string {
-		if (s.target_type === 'pace.zone' && s.target_value_one != null && s.target_value_two != null) {
-			const [fast, slow] = s.target_value_one > s.target_value_two
-				? [s.target_value_one, s.target_value_two]
-				: [s.target_value_two, s.target_value_one];
-			return `${fmtPace(fast)}–${fmtPace(slow)}`;
-		}
-		if (s.target_type === 'heart.rate.zone' && s.target_value_one != null && s.target_value_two != null) {
-			const [lo, hi] = s.target_value_one < s.target_value_two
-				? [s.target_value_one, s.target_value_two]
-				: [s.target_value_two, s.target_value_one];
-			return lo === hi ? `${lo} bpm` : `${lo}–${hi} bpm`;
-		}
-		if (s.target_type === 'instruction' && s.target_value_one != null) {
-			return INSTRUCTION_LABELS[s.target_value_one] ?? '';
-		}
-		if (s.target_type === 'power.zone' && s.target_value_one != null && s.target_value_two != null) {
-			const [lo, hi] = s.target_value_one < s.target_value_two
-				? [s.target_value_one, s.target_value_two]
-				: [s.target_value_two, s.target_value_one];
-			return `${Math.round(lo)}–${Math.round(hi)} W`;
-		}
-		return '';
-	}
-
-	function stepValues(s: WorkoutStep): string {
-		return [stepDuration(s), stepTarget(s)].filter(Boolean).join(' · ');
-	}
-
-	function stepExerciseName(s: WorkoutStep): string | null {
-		return s.exercise_name ? fmtExercise(s.exercise_name) : null;
-	}
-
-	const STEP_LABELS: Record<string, string> = {
-		warmup: 'Warm Up', cooldown: 'Cool Down', interval: 'Run',
-		recovery: 'Recovery', rest: 'Rest',
-	};
-	function stepLabel(key: string): string { return STEP_LABELS[key] ?? key; }
-
-
-	function stepsEstimates(steps: WorkoutStep[]): { dist: number; time: number; count: number } {
-		let totalDist = 0;
-		let totalTime = 0;
-		let stepCount = 0;
-		function walk(list: WorkoutStep[], reps: number) {
-			for (const s of list) {
-				if (s.type === 'RepeatGroupDTO' && s.number_of_iterations && s.steps) {
-					walk(s.steps, s.number_of_iterations);
-				} else {
-					stepCount++;
-					if (s.end_condition === 'distance' && s.end_condition_value) totalDist += s.end_condition_value * reps;
-					if (s.end_condition === 'time' && s.end_condition_value) totalTime += s.end_condition_value * reps;
-				}
-			}
-		}
-		walk(steps, 1);
-		return { dist: totalDist, time: totalTime, count: stepCount };
-	}
-
 	function groupByDate(rows: Row[]): [string, Row[]][] {
 		const map = new Map<string, Row[]>();
 		for (const row of rows) {
@@ -282,74 +222,6 @@
 
 <!-- ── Snippets ─────────────────────────────────────────────────────────── -->
 
-{#snippet runStep(step: WorkoutStep, depth: number)}
-	<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-		<td class="py-1 pr-4 font-medium text-text-secondary whitespace-nowrap" style="padding-left: {depth * 16}px">{stepLabel(step.step_type)}</td>
-		<td class="py-1 pr-4 num text-text whitespace-nowrap">{stepDuration(step)}</td>
-		<td class="py-1 pr-4 num text-text-secondary whitespace-nowrap">{stepTarget(step)}</td>
-		<td class="py-1 text-text-dim text-[11px]">{step.description ?? ''}</td>
-	</tr>
-{/snippet}
-
-{#snippet runSteps(steps: WorkoutStep[], depth: number)}
-	{#each steps as step}
-		{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
-			<tr class="border-b border-card-border/20 bg-card-border/5">
-				<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="4" style="padding-left: {depth * 16}px">{step.number_of_iterations}×</td>
-			</tr>
-			{@render runSteps(step.steps ?? [], depth + 1)}
-		{:else}
-			{@render runStep(step, depth)}
-		{/if}
-	{/each}
-{/snippet}
-
-{#snippet runningSteps(steps: WorkoutStep[])}
-	<table class="mt-2 ml-[26px] text-xs">
-	<thead><tr class="text-text-dim border-b border-card-border">
-		<th class="pb-1 pr-4 text-left font-medium">Step</th>
-		<th class="pb-1 pr-4 text-left font-medium">Dist/Time</th>
-		<th class="pb-1 pr-4 text-left font-medium">Target</th>
-		<th class="pb-1 text-left font-medium">Note</th>
-	</tr></thead>
-	<tbody>
-		{@render runSteps(steps, 0)}
-	</tbody></table>
-{/snippet}
-
-{#snippet nonRunStep(step: WorkoutStep, depth: number)}
-	{@const name = stepExerciseName(step)}
-	{@const vals = stepValues(step)}
-	<tr class="border-b border-card-border/20 hover:bg-card-border/10">
-		<td class="py-1 pr-4 text-text-secondary whitespace-nowrap" style="padding-left: {depth * 16}px">{name ?? stepLabel(step.step_type)}</td>
-		<td class="py-1 num text-text whitespace-nowrap">{vals}</td>
-	</tr>
-{/snippet}
-
-{#snippet nonRunSteps(steps: WorkoutStep[], depth: number)}
-	{#each steps as step}
-		{#if step.type === 'RepeatGroupDTO' && step.number_of_iterations}
-			<tr class="border-b border-card-border/20 bg-card-border/5">
-				<td class="py-1 pr-4 num font-semibold text-text-secondary whitespace-nowrap" colspan="2" style="padding-left: {depth * 16}px">{step.number_of_iterations}×</td>
-			</tr>
-			{@render nonRunSteps(step.steps ?? [], depth + 1)}
-		{:else}
-			{@render nonRunStep(step, depth)}
-		{/if}
-	{/each}
-{/snippet}
-
-{#snippet nonRunningSteps(steps: WorkoutStep[])}
-	<table class="mt-2 ml-[26px] text-xs">
-	<thead><tr class="text-text-dim border-b border-card-border">
-		<th class="pb-1 pr-4 text-left font-medium">Exercise</th>
-		<th class="pb-1 text-left font-medium">Reps/Time</th>
-	</tr></thead>
-	<tbody>
-		{@render nonRunSteps(steps, 0)}
-	</tbody></table>
-{/snippet}
-
 {#snippet dayHeader(date: string)}
 	{@const isToday = date === todayStr}
 	{@const isPast = date < todayStr}
@@ -366,6 +238,21 @@
 			{weekday}
 		</span>
 		<span class="text-[10px] {isToday ? 'text-blue-400 font-semibold' : 'text-text-dim'}">{dayMonth}</span>
+		<!-- Schedule a workout on this day. Hidden for past days (Garmin's
+		     `workouts schedule` accepts past dates but it's never useful and
+		     would clutter completed days). -->
+		{#if !isPast}
+			<span class="ml-auto leading-[0]">
+				<Tip text="Schedule a workout">
+					<button
+						type="button"
+						class="cursor-pointer leading-[0] text-text-dim hover:text-blue-400 transition-colors"
+						onclick={() => openPicker(date)}
+						aria-label="Schedule a workout"
+					><Plus size={12} weight="bold" /></button>
+				</Tip>
+			</span>
+		{/if}
 	</div>
 {/snippet}
 
@@ -413,13 +300,15 @@
 		{@const est = hasSteps ? stepsEstimates(entry.steps) : null}
 		{@const distM = entry.estimated_distance_meters ?? (est && est.dist > 0 ? est.dist : null)}
 		{@const durS = entry.estimated_duration_seconds ?? (est && est.time > 0 ? est.time : null)}
+		{@const descText = entry.workout_description?.trim() || '—'}
 		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
 			<button
 				class="w-full text-left {hasSteps ? 'cursor-pointer' : 'cursor-default'}"
 				onclick={() => hasSteps && toggle(key)}
 				disabled={!hasSteps}
 			>
-				<div class="flex items-center gap-2.5 leading-5">
+				<!-- Row 1: icon + badge code + name + (badge.name as right-meta) + caret -->
+				<div class="flex items-center gap-2.5 mb-1.5 leading-5">
 					<span class="shrink-0 leading-[0]" style="color: {badge?.color ?? C.textDim}">
 						{#if entry.item_type === 'fbtAdaptiveWorkout'}
 							<Robot size={16} weight="bold" />
@@ -435,50 +324,40 @@
 						</span>
 					{/if}
 					<div class="min-w-0 flex-1">
-						<span class="font-medium text-sm text-text">{entry.title}</span>
+						<div class="font-medium text-sm text-text truncate">{entry.title}</div>
 					</div>
-					<span class="shrink-0 flex items-center gap-2 text-xs num ml-auto">
-						{#if distM}
-							<span class="text-text font-semibold">{fmtDist(distM)}</span>
-						{/if}
-						{#if durS}
-							<span class="text-text-secondary inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(durS)}</span>
-						{/if}
-						{#if aeroTE != null || anaeroTE != null}
-							<span class="num font-semibold leading-none" style="color: {teValueColor(aeroTE ?? 0)}">{(aeroTE ?? 0).toFixed(1)}</span>
-							<span class="num font-semibold leading-none" style="color: {teValueColor(anaeroTE ?? 0)}">{(anaeroTE ?? 0).toFixed(1)}</span>
-						{:else if entry.workout_description}
-							<span class="text-text-dim">{entry.workout_description}</span>
+					<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim">
+						{#if badge}<span class="truncate">{badge.name}</span>{/if}
+						{#if hasSteps}
+							<span class="text-text-dim transition-transform {isExpanded ? 'rotate-180' : ''}">
+								<CaretDown size={12} weight="bold" />
+							</span>
 						{/if}
 					</span>
-					{#if hasSteps}
-						<span class="shrink-0 leading-[0] text-text-dim transition-transform {isExpanded ? 'rotate-180' : ''}">
-							<CaretDown size={12} weight="bold" />
+				</div>
+
+				<!-- Row 2: dist + duration + description + (TE values right-aligned) -->
+				<div class="flex flex-wrap items-end gap-x-3 gap-y-1.5 text-xs leading-none">
+					{#if distM}
+						<span class="num text-text font-semibold shrink-0">{fmtDist(distM)}</span>
+					{/if}
+					{#if durS}
+						<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(durS)}</span>
+					{/if}
+					<span class="text-[11px] text-text-dim min-w-0 truncate">{descText}</span>
+
+					{#if aeroTE != null || anaeroTE != null}
+						<span class="flex items-center gap-1.5 shrink-0 ml-auto">
+							<span class="num font-semibold leading-none" style="color: {teValueColor(aeroTE ?? 0)}">{(aeroTE ?? 0).toFixed(1)}</span>
+							<span class="num font-semibold leading-none" style="color: {teValueColor(anaeroTE ?? 0)}">{(anaeroTE ?? 0).toFixed(1)}</span>
 						</span>
 					{/if}
 				</div>
 			</button>
-			{#if isExpanded}
-				{#if badge}
-					<!-- Full label of the 2-letter badge code, surfaced inside the
-					     expanded details so phone users (no hover tooltip) can see
-					     what e.g. "AN" stands for. -->
-					<div class="mt-2 ml-[26px] flex items-center gap-1.5">
-						<span class="num text-[10px] font-bold leading-none" style="color: {badge.color}">{badge.code}</span>
-						<span class="text-[11px] font-medium" style="color: {badge.color}">{badge.name}</span>
-						{#if entry.workout_description}
-							<span class="text-text-dim">·</span>
-							<span class="text-[11px] text-text-secondary truncate">{entry.workout_description}</span>
-						{/if}
-					</div>
-				{/if}
-				{#if hasSteps}
-					{#if isRunning(entry)}
-						{@render runningSteps(entry.steps)}
-					{:else}
-						{@render nonRunningSteps(entry.steps)}
-					{/if}
-				{/if}
+			{#if isExpanded && hasSteps}
+				<div class="mt-2 ml-[26px]">
+					<WorkoutSteps steps={entry.steps} sportType={entry.sport_type} />
+				</div>
 			{/if}
 		</div>
 	{:else if row.kind === 'rest'}
@@ -566,3 +445,11 @@
 		{/if}
 	</div>
 </div>
+
+<WorkoutPicker
+	{workouts}
+	date={pickerDate}
+	busy={scheduling}
+	onClose={() => pickerDate = null}
+	onPick={pickWorkout}
+/>

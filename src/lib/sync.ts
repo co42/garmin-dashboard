@@ -22,6 +22,8 @@ import type {
 	CoachPlan,
 	EventProjection,
 	RaceEvent,
+	Workout,
+	CoachWorkout,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +38,39 @@ type RawBodyBattery = { calendar_date: string; body_battery_high: number; body_b
 type RawHrv = { calendar_date: string; hrv_summary: { status: string; weekly_avg: number; last_night_avg: number | null; last_night5_min_high: number | null; baseline: { balanced_low: number | null; balanced_upper: number | null } } };
 type RawGearListItem = { uuid: string; display_name: string; brand: string; gear_type_name: string; gear_status_name: string | null; maximum_meters: number; date_begin: string | null; date_end: string | null };
 type RawGearStats = { uuid: string; total_activities: number; total_distance_meters: number };
+
+// Workout detail (after `--steps` upgrade) — sport_type as nested ref, segments
+// hold the step structure parsed via `parseWorkoutSteps`.
+type RawWorkoutDetail = {
+	workout_id: number;
+	workout_name: string;
+	description: string | null;
+	sport_type: { sport_type_key: string | null } | null;
+	estimated_duration_in_secs: number | null;
+	estimated_distance_in_meters: number | null;
+	created_date: string | null;
+	updated_date: string | null;
+	workout_segments: unknown[];
+};
+
+// `coach list` returns a CoachWorkout per workout in the active plan; rest
+// entries (FORCED_REST / EASY_WEEK_LOAD_REST) are kept in JSON output and
+// filtered by `mapCoachWorkout` since they carry no step structure.
+type RawCoachWorkout = {
+	workout_uuid: string;
+	workout_name: string | null;
+	description: string | null;
+	workout_phrase: string | null;
+	training_effect_label: string | null;
+	priority_type: string | null;
+	estimated_training_effect: number | null;
+	estimated_anaerobic_training_effect: number | null;
+	estimated_duration_seconds: number | null;
+	estimated_distance_meters: number | null;
+	sport_type: { sport_type_key: string | null } | null;
+	workout_segments: unknown[];
+	training_plan_id: number | null;
+};
 
 export interface SyncResult {
 	status: 'ok' | 'error';
@@ -54,6 +89,8 @@ export interface SyncResult {
 		weather: number;
 		courses: number;
 		projection_days: number;
+		workouts: number;
+		coach_workouts: number;
 	};
 }
 
@@ -175,6 +212,39 @@ const mapHillScore = (raw: RawHillScore): HillScore | null => {
 	};
 };
 
+const mapWorkout = (raw: RawWorkoutDetail): Workout => ({
+	workout_id: raw.workout_id,
+	workout_name: raw.workout_name,
+	description: raw.description ?? null,
+	sport_type: raw.sport_type?.sport_type_key ?? null,
+	estimated_distance_meters: raw.estimated_distance_in_meters ?? null,
+	estimated_duration_seconds: raw.estimated_duration_in_secs ?? null,
+	created_date: raw.created_date ?? '',
+	updated_date: raw.updated_date ?? '',
+	steps: parseWorkoutSteps(raw),
+});
+
+// `coach list` keeps rest-day entries (FORCED_REST / EASY_WEEK_LOAD_REST) in
+// JSON output. They have no step structure so we drop them at the mapper.
+const mapCoachWorkout = (raw: RawCoachWorkout): CoachWorkout | null => {
+	if (raw.workout_phrase === 'FORCED_REST' || raw.workout_phrase === 'EASY_WEEK_LOAD_REST') return null;
+	return {
+		workout_uuid: raw.workout_uuid,
+		workout_name: raw.workout_name ?? '',
+		description: raw.description ?? null,
+		sport_type: raw.sport_type?.sport_type_key ?? null,
+		estimated_distance_meters: raw.estimated_distance_meters ?? null,
+		estimated_duration_seconds: raw.estimated_duration_seconds ?? null,
+		steps: parseWorkoutSteps(raw),
+		workout_phrase: raw.workout_phrase ?? null,
+		training_effect_label: raw.training_effect_label ?? null,
+		estimated_training_effect: raw.estimated_training_effect ?? null,
+		estimated_anaerobic_training_effect: raw.estimated_anaerobic_training_effect ?? null,
+		priority_type: raw.priority_type ?? null,
+		training_plan_id: raw.training_plan_id ?? null,
+	};
+};
+
 // ---------------------------------------------------------------------------
 // Sync window computation
 // ---------------------------------------------------------------------------
@@ -244,6 +314,11 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			// per-event projection fetches below; also enriches calendar entries
 			// with race/primary flags + course links in Phase 7.
 			events,
+			// User-created workouts — `--steps` upgrades each entry to a detail
+			// fetch so step structure ships with the snapshot.
+			rawUserWorkouts,
+			// Adaptive coach workouts — also drives calendar enrichment in Phase 7.
+			rawCoachWorkouts,
 		] = await Promise.all([
 			// Snapshots (CLI returns single-item arrays — unwrap)
 			fetchOne(['training', 'readiness']),
@@ -273,6 +348,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			garmin<Activity[]>(['activities', 'list', '--limit', String(activityLimit), '--from', activityFrom]),
 			// Upcoming events
 			garminSafe<RaceEvent[]>(['calendar', 'events', '--limit', '20'], []),
+			// User-created workouts (with embedded step structure)
+			garminSafe<RawWorkoutDetail[]>(['workouts', 'list', '--steps', '--limit', '100'], []),
+			// Adaptive coach workouts (already includes step structure on the list endpoint)
+			garminSafe<RawCoachWorkout[]>(['coach', 'list'], []),
 		]);
 
 		// Normalize snapshots that use calendar_date
@@ -281,6 +360,13 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 		const bodyBattery = bodyBatteryRaw
 			? { ...bodyBatteryRaw, date: bodyBatteryRaw.calendar_date.slice(0, 10) }
 			: null;
+
+		// Workouts: flatten to storage shape. Coach rest-day entries are dropped
+		// inside `mapCoachWorkout` (they have no step structure to display).
+		const workouts: Workout[] = rawUserWorkouts.map(mapWorkout);
+		const coachWorkouts: CoachWorkout[] = rawCoachWorkouts
+			.map(mapCoachWorkout)
+			.filter((w): w is CoachWorkout => w != null);
 
 		// Coach plan (optional — absent for users without a plan). The plan's
 		// target event lives in `events`, identified by is_primary_event=true.
@@ -357,6 +443,8 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			if (userSettings) upsertSnapshot.run('user_settings', JSON.stringify(userSettings));
 			if (coachPlan) upsertSnapshot.run('coach_plan', JSON.stringify(coachPlan));
 			upsertSnapshot.run('events', JSON.stringify(events));
+			upsertSnapshot.run('workouts', JSON.stringify(workouts));
+			upsertSnapshot.run('coach_workouts', JSON.stringify(coachWorkouts));
 		});
 		snapshotBatch();
 
@@ -610,25 +698,10 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 
 		// Adaptive coach workouts — keyed by workout_uuid. Provides phrase,
 		// predicted TE, description, distance/duration, sport type, and steps
-		// for fbtAdaptiveWorkout calendar entries.
-		type CoachListItem = {
-			workout_uuid: string;
-			workout_phrase: string | null;
-			description: string | null;
-			estimated_training_effect: number | null;
-			estimated_anaerobic_training_effect: number | null;
-			estimated_duration_seconds: number | null;
-			estimated_distance_meters: number | null;
-			training_effect_label: string | null;
-			sport_type: { sport_type_key: string | null } | null;
-			workout_segments: unknown[];
-		};
-		const hasAdaptive = calendarItems.some(ci => ci.item_type === 'fbtAdaptiveWorkout');
-		const coachWorkouts = hasAdaptive
-			? await garminSafe<CoachListItem[]>(['coach', 'list'], [])
-			: [];
-		const coachByUuid = new Map<string, CoachListItem>(
-			coachWorkouts.filter(cw => cw.workout_uuid).map(cw => [cw.workout_uuid, cw])
+		// for fbtAdaptiveWorkout calendar entries. Reuses `rawCoachWorkouts`
+		// from Phase 1 (one fetch covers both the snapshot and this enrichment).
+		const coachByUuid = new Map<string, RawCoachWorkout>(
+			rawCoachWorkouts.filter(cw => cw.workout_uuid).map(cw => [cw.workout_uuid, cw])
 		);
 
 		for (const ci of calendarItems) {
@@ -684,6 +757,8 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 				weather: totalWeather,
 				courses: courseList.length,
 				projection_days: projectionResults.reduce((s, r) => s + r.projections.length, 0),
+				workouts: workouts.length,
+				coach_workouts: coachWorkouts.length,
 			},
 		};
 	} catch (err: any) {
@@ -694,7 +769,7 @@ export async function runSync(fullReset = false): Promise<SyncResult> {
 			status: 'error',
 			duration_ms: Date.now() - start,
 			error: err.message,
-			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0, courses: 0, projection_days: 0 },
+			counts: { status_days: 0, hrv_days: 0, hr_days: 0, sleep_days: 0, stress_days: 0, hill_days: 0, endurance_days: 0, activities: 0, splits: 0, weather: 0, courses: 0, projection_days: 0, workouts: 0, coach_workouts: 0 },
 		};
 	}
 }
@@ -748,6 +823,107 @@ export async function refreshEventsAndProjections(): Promise<void> {
 		}
 	});
 	tx();
+}
+
+// ---------------------------------------------------------------------------
+// Targeted refresh: user workouts only. Used by the workout CRUD endpoints
+// so the dashboard reflects Garmin's new state without a full sync pass.
+// ---------------------------------------------------------------------------
+
+export async function refreshWorkouts(): Promise<void> {
+	const db = getDb();
+	const rawUserWorkouts = await garminSafe<RawWorkoutDetail[]>(
+		['workouts', 'list', '--steps', '--limit', '100'],
+		[],
+	);
+	const workouts: Workout[] = rawUserWorkouts.map(mapWorkout);
+	db.prepare(
+		`INSERT INTO snapshots (command, data, synced_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		 ON CONFLICT(command) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at`
+	).run('workouts', JSON.stringify(workouts));
+}
+
+// ---------------------------------------------------------------------------
+// Targeted refresh: calendar snapshot only. Used after scheduling/unscheduling
+// a workout so the UI reflects Garmin's new calendar state without a full
+// sync pass. Reuses cached `events` and `coach_workouts` snapshots from the
+// DB for enrichment — only the calendar list and any newly-added user-workout
+// step structures are re-fetched.
+// ---------------------------------------------------------------------------
+
+export async function refreshCalendar(): Promise<void> {
+	const db = getDb();
+	const calendarItems = await garminSafe<CalendarItem[]>(['calendar', 'list', '--weeks', '16'], []);
+
+	const events = readSnapshot<RaceEvent[]>(db, 'events', []);
+	const eventsById = new Map<number, RaceEvent>(events.map(e => [e.id, e]));
+
+	const coachWorkouts = readSnapshot<CoachWorkout[]>(db, 'coach_workouts', []);
+	const coachByUuid = new Map<string, CoachWorkout>(
+		coachWorkouts.filter(cw => cw.workout_uuid).map(cw => [cw.workout_uuid, cw])
+	);
+
+	// User workouts: keyed by id. Steps already parsed into our flat shape;
+	// fetch detail for any calendar entry whose workout_id isn't in the cache
+	// (just-scheduled workouts can fall into this gap if the workouts snapshot
+	// was last refreshed before the schedule call).
+	const cachedWorkouts = readSnapshot<Workout[]>(db, 'workouts', []);
+	const workoutsById = new Map<number, Workout>(cachedWorkouts.map(w => [w.workout_id, w]));
+	const missingIds = [...new Set(
+		calendarItems
+			.map(ci => ci.workout_id)
+			.filter((id): id is number => id != null && !workoutsById.has(id))
+	)];
+	if (missingIds.length > 0) {
+		const fetched = await Promise.all(
+			missingIds.map(id => garminSafe<RawWorkoutDetail | null>(['workouts', 'get', String(id)], null)),
+		);
+		for (const raw of fetched) {
+			if (raw) workoutsById.set(raw.workout_id, mapWorkout(raw));
+		}
+	}
+
+	const calendarEntries: CalendarEntry[] = [];
+	for (const ci of calendarItems) {
+		if (!ci.title || !ci.date) continue;
+		const event = ci.item_type === 'event' ? eventsById.get(ci.id) : null;
+		const coach = ci.workout_uuid ? coachByUuid.get(ci.workout_uuid) : null;
+		const userWorkout = ci.workout_id != null ? workoutsById.get(ci.workout_id) ?? null : null;
+		const steps = coach?.steps ?? userWorkout?.steps ?? [];
+		calendarEntries.push({
+			id: ci.id,
+			item_type: ci.item_type,
+			sport_type: coach?.sport_type ?? userWorkout?.sport_type ?? null,
+			title: ci.title,
+			date: ci.date,
+			workout_id: ci.workout_id,
+			workout_uuid: ci.workout_uuid ?? null,
+			course_id: event?.course_id ?? null,
+			is_race: event?.is_race ?? false,
+			is_primary_event: event?.is_primary_event ?? false,
+			start_time_local: event?.start_time_local ?? null,
+			url: event?.url ?? null,
+			steps,
+			workout_description: coach?.description ?? null,
+			estimated_distance_meters: coach?.estimated_distance_meters ?? event?.distance_meters ?? null,
+			estimated_duration_seconds: coach?.estimated_duration_seconds ?? null,
+			training_effect_label: coach?.training_effect_label ?? null,
+			workout_phrase: coach?.workout_phrase ?? null,
+			estimated_training_effect: coach?.estimated_training_effect ?? null,
+			estimated_anaerobic_training_effect: coach?.estimated_anaerobic_training_effect ?? null,
+		});
+	}
+
+	db.prepare(
+		`INSERT INTO snapshots (command, data, synced_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		 ON CONFLICT(command) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at`
+	).run('calendar', JSON.stringify(calendarEntries));
+}
+
+function readSnapshot<T>(db: ReturnType<typeof getDb>, command: string, fallback: T): T {
+	const row = db.prepare('SELECT data FROM snapshots WHERE command = ?').get(command) as { data: string } | undefined;
+	if (!row) return fallback;
+	try { return JSON.parse(row.data) as T; } catch { return fallback; }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityDetails as ActivityDetailsType, ActivityWeather, HrZone } from '$lib/types.js';
+	import { toast } from 'svelte-sonner';
 	import { formatTime } from '$lib/format.js';
 	import { weatherIcon } from '$lib/weather.js';
 	import { C, ZONE_COLORS, hrZoneColor, gradColor, derivePowerZones, powerZoneColor } from '$lib/colors.js';
@@ -60,11 +61,18 @@
 
 	async function saveDescription() {
 		editingDesc = false;
-		await fetch(`/api/activity/${activity.activity_id}`, {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ description }),
-		});
+		try {
+			const res = await fetch(`/api/activity/${activity.activity_id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ description }),
+			});
+			if (!res.ok) throw new Error(await res.text());
+			toast.success('Note saved');
+		} catch (err) {
+			toast.error("Couldn't save note", { description: err instanceof Error ? err.message : undefined });
+			console.error(err);
+		}
 	}
 
 	function speedToPace(speed: number | null): string {

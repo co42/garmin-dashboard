@@ -27,6 +27,8 @@ import type {
 	CoachPlan,
 	EventProjection,
 	RaceEvent,
+	Workout,
+	CoachWorkout,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -129,6 +131,8 @@ export function loadDashboard(): DashboardData | null {
 	const hrZones = snapshot<HrZone[]>('hr_zones', []);
 	const userSettings = snapshot<UserSettings | null>('user_settings', null);
 	const coachPlan = snapshot<CoachPlan | null>('coach_plan', null);
+	const workouts = snapshot<Workout[]>('workouts', []);
+	const coachWorkouts = snapshot<CoachWorkout[]>('coach_workouts', []);
 
 	// Per-event projection history. SQLite groups by event_id; chronological
 	// ordering inside each event is enforced by the ASC sort.
@@ -230,6 +234,8 @@ export function loadDashboard(): DashboardData | null {
 		courses,
 		calendar,
 		events,
+		workouts,
+		coachWorkouts,
 		coachPlan,
 		eventProjections,
 		hrZones,

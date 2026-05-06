@@ -43,6 +43,21 @@ body {
 	letter-spacing: -0.02em;
 }
 
+/* Hide the browser-native up/down chevrons on `<input type="number">`.
+ * Their default rendering doesn't match the dark theme and is inconsistent
+ * across browsers. Opt-in via class so callers that genuinely want native
+ * stepper buttons aren't affected. */
+@utility no-spinner {
+	-moz-appearance: textfield;
+	appearance: textfield;
+
+	&::-webkit-outer-spin-button,
+	&::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+}
+
 
 /* Prevent chart cards from overflowing on mobile */
 .grid > * {

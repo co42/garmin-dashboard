@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 	import type { Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatDistance, formatTime } from '$lib/format.js';
 	import { weatherIcon } from '$lib/weather.js';
@@ -56,12 +57,19 @@
 	async function saveTitle() {
 		editingTitle = false;
 		if (editTitle === activity.activity_name) return;
-		await fetch(`/api/activity/${activity.activity_id}`, {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name: editTitle }),
-		});
-		await invalidateAll();
+		try {
+			const res = await fetch(`/api/activity/${activity.activity_id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: editTitle }),
+			});
+			if (!res.ok) throw new Error(await res.text());
+			toast.success('Activity renamed');
+			await invalidateAll();
+		} catch (err) {
+			toast.error("Couldn't rename activity", { description: err instanceof Error ? err.message : undefined });
+			console.error(err);
+		}
 	}
 
 	function startEditTitle(e: MouseEvent) {
