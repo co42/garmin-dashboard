@@ -24,6 +24,7 @@
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import Robot from 'phosphor-svelte/lib/Robot';
 	import Plus from 'phosphor-svelte/lib/Plus';
+	import Trash from 'phosphor-svelte/lib/Trash';
 
 	interface Props {
 		calendar: CalendarEntry[];
@@ -64,6 +65,19 @@
 			console.error(err);
 		} finally {
 			scheduling = false;
+		}
+	}
+
+	async function unschedule(entry: CalendarEntry) {
+		if (!confirm(`Remove "${entry.title}" from ${entry.date}? This unschedules it from Garmin.`)) return;
+		try {
+			const res = await fetch(`/api/calendar/workouts/${entry.id}`, { method: 'DELETE' });
+			if (!res.ok) throw new Error(await res.text());
+			toast.success('Workout unscheduled');
+			await invalidateAll();
+		} catch (err) {
+			toast.error("Couldn't unschedule workout", { description: err instanceof Error ? err.message : undefined });
+			console.error(err);
 		}
 	}
 
@@ -301,59 +315,76 @@
 		{@const distM = entry.estimated_distance_meters ?? (est && est.dist > 0 ? est.dist : null)}
 		{@const durS = entry.estimated_duration_seconds ?? (est && est.time > 0 ? est.time : null)}
 		{@const descText = entry.workout_description?.trim() || '—'}
-		<div class="rounded-lg bg-card px-3 md:px-4 py-3">
-			<button
-				class="w-full text-left {hasSteps ? 'cursor-pointer' : 'cursor-default'}"
-				onclick={() => hasSteps && toggle(key)}
-				disabled={!hasSteps}
-			>
-				<!-- Row 1: icon + badge code + name + (badge.name as right-meta) + caret -->
-				<div class="flex items-center gap-2.5 mb-1.5 leading-5">
-					<span class="shrink-0 leading-[0]" style="color: {badge?.color ?? C.textDim}">
-						{#if entry.item_type === 'fbtAdaptiveWorkout'}
-							<Robot size={16} weight="bold" />
-						{:else if isRunning(entry)}
-							<PersonSimpleRun size={16} weight="bold" />
-						{:else}
-							<Barbell size={16} weight="bold" />
-						{/if}
+		<!-- Outer is `role="button"` (not <button>) so we can nest the
+		     unschedule action button inside on row 2 right. -->
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div
+			class="rounded-lg bg-card px-3 md:px-4 py-3 {hasSteps ? 'cursor-pointer' : ''}"
+			role="button"
+			tabindex="0"
+			aria-expanded={hasSteps ? isExpanded : undefined}
+			onclick={() => hasSteps && toggle(key)}
+			onkeydown={(e) => {
+				if (hasSteps && (e.key === 'Enter' || e.key === ' ')) {
+					e.preventDefault();
+					toggle(key);
+				}
+			}}
+		>
+			<!-- Row 1: icon + badge code + name + (badge.name as right-meta) + caret -->
+			<div class="flex items-center gap-2.5 mb-1.5 leading-5">
+				<span class="shrink-0 leading-[0]" style="color: {badge?.color ?? C.textDim}">
+					{#if entry.item_type === 'fbtAdaptiveWorkout'}
+						<Robot size={16} weight="bold" />
+					{:else if isRunning(entry)}
+						<PersonSimpleRun size={16} weight="bold" />
+					{:else}
+						<Barbell size={16} weight="bold" />
+					{/if}
+				</span>
+				{#if badge}
+					<span class="shrink-0 num text-[10px] font-bold leading-[0] -ml-1" style="color: {badge.color}">
+						<Tip text={badge.name}>{badge.code}</Tip>
 					</span>
-					{#if badge}
-						<span class="shrink-0 num text-[10px] font-bold leading-[0] -ml-1" style="color: {badge.color}">
-							<Tip text={badge.name}>{badge.code}</Tip>
+				{/if}
+				<div class="min-w-0 flex-1">
+					<div class="font-medium text-sm text-text truncate">{entry.title}</div>
+				</div>
+				<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim">
+					{#if badge}<span class="truncate">{badge.name}</span>{/if}
+					{#if hasSteps}
+						<span class="text-text-dim transition-transform {isExpanded ? 'rotate-180' : ''}">
+							<CaretDown size={12} weight="bold" />
 						</span>
 					{/if}
-					<div class="min-w-0 flex-1">
-						<div class="font-medium text-sm text-text truncate">{entry.title}</div>
-					</div>
-					<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim">
-						{#if badge}<span class="truncate">{badge.name}</span>{/if}
-						{#if hasSteps}
-							<span class="text-text-dim transition-transform {isExpanded ? 'rotate-180' : ''}">
-								<CaretDown size={12} weight="bold" />
-							</span>
-						{/if}
-					</span>
-				</div>
+				</span>
+			</div>
 
-				<!-- Row 2: dist + duration + description + (TE values right-aligned) -->
-				<div class="flex flex-wrap items-end gap-x-3 gap-y-1.5 text-xs leading-none">
-					{#if distM}
-						<span class="num text-text font-semibold shrink-0">{fmtDist(distM)}</span>
-					{/if}
-					{#if durS}
-						<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(durS)}</span>
-					{/if}
-					<span class="text-[11px] text-text-dim min-w-0 truncate">{descText}</span>
+			<!-- Row 2: dist + duration + description + (TE values + unschedule, right-aligned) -->
+			<div class="flex flex-wrap items-end gap-x-3 gap-y-1.5 text-xs leading-none">
+				{#if distM}
+					<span class="num text-text font-semibold shrink-0">{fmtDist(distM)}</span>
+				{/if}
+				{#if durS}
+					<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><Timer size={11} weight="bold" />{fmtDuration(durS)}</span>
+				{/if}
+				<span class="text-[11px] text-text-dim min-w-0 truncate">{descText}</span>
 
+				<span class="flex items-center gap-2 shrink-0 ml-auto">
 					{#if aeroTE != null || anaeroTE != null}
-						<span class="flex items-center gap-1.5 shrink-0 ml-auto">
+						<span class="flex items-center gap-1.5">
 							<span class="num font-semibold leading-none" style="color: {teValueColor(aeroTE ?? 0)}">{(aeroTE ?? 0).toFixed(1)}</span>
 							<span class="num font-semibold leading-none" style="color: {teValueColor(anaeroTE ?? 0)}">{(anaeroTE ?? 0).toFixed(1)}</span>
 						</span>
 					{/if}
-				</div>
-			</button>
+					<button
+						type="button"
+						class="cursor-pointer text-text-dim hover:text-status-red transition-colors"
+						onclick={(e) => { e.stopPropagation(); unschedule(entry); }}
+						aria-label="Remove from calendar"
+					><Trash size={12} weight="bold" /></button>
+				</span>
+			</div>
 			{#if isExpanded && hasSteps}
 				<div class="mt-2 ml-[26px]">
 					<WorkoutSteps steps={entry.steps} sportType={entry.sport_type} />
