@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { CoachPhase, CoachPlan, RaceEvent } from '$lib/types.js';
 	import { C } from '$lib/colors.js';
-	import { daysBetween } from '$lib/dates.js';
+	import { addDays, daysBetween } from '$lib/dates.js';
 	import { todayStore } from '$lib/today.svelte.js';
 
 	interface Props {
@@ -18,11 +18,28 @@
 		return phase.replace(/_/g, ' ');
 	}
 
-	// Phase coverage determines bar geometry, NOT plan.start_date/end_date — those
-	// can over- or undershoot the sum of phase durations.
+	// Phase end_dates are inclusive (e.g. PEAK Apr 30 → May 20 = 21 days), so all
+	// duration math is `daysBetween(start, end) + 1`.
+	//
+	// Garmin's API drops past phases once they're complete — for a plan in PEAK,
+	// only PEAK / TAPER / TARGET_EVENT_DAY are returned. We synthesize a leading
+	// BUILD phase from plan.start_date to the day before the first real phase so
+	// the bar geometry, week counter, and progress % all reflect the true plan.
+	function phaseDuration(p: CoachPhase): number {
+		return daysBetween(p.start_date, p.end_date) + 1;
+	}
+
 	const phaseCoverage = $derived.by(() => {
 		const sorted = [...plan.phases].sort((a, b) => a.start_date.localeCompare(b.start_date));
-		const totalDays = sorted.reduce((s, p) => s + Math.max(1, daysBetween(p.start_date, p.end_date)), 0);
+		if (sorted.length > 0 && plan.start_date < sorted[0].start_date) {
+			sorted.unshift({
+				start_date: plan.start_date,
+				end_date: addDays(sorted[0].start_date, -1),
+				training_phase: 'BUILD',
+				current_phase: false,
+			});
+		}
+		const totalDays = sorted.reduce((s, p) => s + phaseDuration(p), 0);
 		const coverageStart = sorted[0]?.start_date ?? plan.start_date;
 		return { sorted, totalDays: Math.max(1, totalDays), coverageStart };
 	});
@@ -33,9 +50,9 @@
 		const todayDay = daysBetween(coverageStart, todayStr);
 		for (const p of sorted) {
 			const ps = daysBetween(coverageStart, p.start_date);
-			const dur = Math.max(1, daysBetween(p.start_date, p.end_date));
+			const dur = phaseDuration(p);
 			if (todayDay >= ps + dur) elapsedPhaseDays += dur;
-			else if (todayDay > ps) elapsedPhaseDays += (todayDay - ps);
+			else if (todayDay >= ps) elapsedPhaseDays += (todayDay - ps);
 		}
 		const pct = (elapsedPhaseDays / totalDays) * 100;
 		const weeksElapsed = Math.max(1, Math.ceil(elapsedPhaseDays / 7));
@@ -74,7 +91,7 @@
 		const todayDay = daysBetween(coverageStart, todayStr);
 		return sorted.map(p => {
 			const startDay = daysBetween(coverageStart, p.start_date);
-			const duration = Math.max(1, daysBetween(p.start_date, p.end_date));
+			const duration = phaseDuration(p);
 			const endDay = startDay + duration;
 			let status: 'past' | 'current' | 'future';
 			if (p.current_phase) status = 'current';

@@ -57,12 +57,14 @@ const SPORT_TO_BADGE: Record<string, Badge> = {
 	backcountry_skiing: BADGES.ski,
 };
 
-// Match Garmin's structured TE/phrase string. Order matters: narrower buckets
-// (THRESHOLD, ANAEROBIC) come before broader ones (SPEED, BASE) so e.g. an
-// "ANAEROBIC_THRESHOLD" tag doesn't get caught by the SPEED rule.
+// Match Garmin's structured TE/phrase string. Order matters:
+// - Specific workout categories come first so their substrings win.
+// - REST is checked LAST: Garmin uses a `REST_POSTPONED_<TYPE>` prefix when a
+//   rest day pushed a workout (e.g. REST_POSTPONED_LACTATE_THRESHOLD), so an
+//   eager REST match would mis-tag every postponed workout as a rest day.
+//   Pure rest phrases like FORCED_REST have no other category and still land here.
 function fromLabel(label: string): Badge {
 	const l = label.toUpperCase();
-	if (l.includes('REST')) return BADGES.rest;
 	if (l.includes('STRENGTH')) return BADGES.strength;
 	if (l.includes('RECOVERY')) return BADGES.recovery;
 	if (l.includes('THRESHOLD')) return BADGES.threshold;
@@ -73,6 +75,7 @@ function fromLabel(label: string): Badge {
 	if (l.includes('INTERVAL')) return BADGES.interval;
 	if (l.includes('LONG')) return BADGES.long;
 	if (l.includes('BASE') || l.includes('AEROBIC') || l.includes('EASY')) return BADGES.base;
+	if (l.includes('REST')) return BADGES.rest;
 	return BADGES.training;
 }
 
