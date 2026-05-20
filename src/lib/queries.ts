@@ -206,6 +206,16 @@ export function loadDashboard(): DashboardData | null {
 		'SELECT synced_at FROM snapshots ORDER BY synced_at DESC LIMIT 1'
 	).get() as { synced_at: string } | undefined;
 
+	// Local-only UI toggles persisted in the `settings` key/value table.
+	const hiddenRow = db.prepare("SELECT value FROM settings WHERE key = 'hidden_projection_events'").get() as { value: string } | undefined;
+	let hiddenProjectionEventIds: number[] = [];
+	if (hiddenRow) {
+		try {
+			const parsed = JSON.parse(hiddenRow.value);
+			if (Array.isArray(parsed)) hiddenProjectionEventIds = parsed.filter((x): x is number => typeof x === 'number');
+		} catch { /* ignore malformed value */ }
+	}
+
 	return {
 		currentStatus,
 		readiness,
@@ -240,6 +250,7 @@ export function loadDashboard(): DashboardData | null {
 		eventProjections,
 		hrZones,
 		userSettings,
+		hiddenProjectionEventIds,
 		lastRunDate,
 		daysSinceLastRun,
 		lastSyncedAt: syncRow?.synced_at ?? null,

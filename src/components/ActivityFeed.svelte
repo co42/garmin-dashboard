@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 	import type { Activity, ActivitySplit, ActivityDetails, ActivityWeather, HrZone } from '$lib/types.js';
 	import { computeMedianLoad, loadColor as computeLoadColor } from '$lib/colors.js';
 	import { formatDistance } from '$lib/format.js';
 	import ActivityRow from './ActivityRow.svelte';
 	import ActivityDetailsComp from './ActivityDetails.svelte';
+	import ActivityEditModal from './ActivityEditModal.svelte';
 
 	interface Props {
 		activities: Activity[];
@@ -22,6 +25,18 @@
 	let selectedYear = $state(new Date().getFullYear());
 	let selectedMonth = $state(new Date().getMonth());
 	let expandedId = $state<number | null>(null);
+	let editing = $state<Activity | null>(null);
+	let editorOpen = $state(false);
+
+	function editActivity(a: Activity) {
+		editing = a;
+		editorOpen = true;
+	}
+	async function onEditSaved() {
+		editorOpen = false;
+		toast.success('Activity updated');
+		await invalidateAll();
+	}
 
 	// Available years from activities
 	const years = $derived(() => {
@@ -138,6 +153,7 @@
 					context="feed"
 					expanded={expandedId === activity.activity_id}
 					ontoggle={() => toggleExpand(activity.activity_id)}
+					onedit={() => editActivity(activity)}
 				/>
 				{#if expandedId === activity.activity_id}
 					<ActivityDetailsComp
@@ -158,3 +174,10 @@
 		{/if}
 	</div>
 </div>
+
+<ActivityEditModal
+	activity={editing}
+	open={editorOpen}
+	onClose={() => editorOpen = false}
+	onSaved={onEditSaved}
+/>

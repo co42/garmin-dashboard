@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Activity, ActivitySplit, ActivityDetails as ActivityDetailsType, ActivityWeather, HrZone } from '$lib/types.js';
-	import { toast } from 'svelte-sonner';
 	import { formatTime } from '$lib/format.js';
 	import { weatherIcon } from '$lib/weather.js';
 	import { C, ZONE_COLORS, hrZoneColor, gradColor, derivePowerZones, powerZoneColor } from '$lib/colors.js';
@@ -43,12 +42,11 @@
 		hoveredDistMeters = null;
 	});
 
-	// Editable state — description is fetched lazily from Garmin (it's not in
-	// the dashboard snapshot). Refetch whenever activity_id flips so reusing
-	// the same component instance for a different activity doesn't show the
-	// previous activity's description.
+	// Note display only — editing lives in ActivityEditModal. The description
+	// isn't in the snapshot, so we lazy-fetch it from Garmin on expand. Refetch
+	// whenever activity_id flips so reusing the same component instance for a
+	// different activity doesn't show the previous activity's note.
 	let description = $state('');
-	let editingDesc = $state(false);
 
 	$effect(() => {
 		const id = activity.activity_id;
@@ -58,22 +56,6 @@
 			.then(data => { if (data && id === activity.activity_id) description = data.description ?? ''; })
 			.catch(() => {});
 	});
-
-	async function saveDescription() {
-		editingDesc = false;
-		try {
-			const res = await fetch(`/api/activity/${activity.activity_id}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ description }),
-			});
-			if (!res.ok) throw new Error(await res.text());
-			toast.success('Note saved');
-		} catch (err) {
-			toast.error("Couldn't save note", { description: err instanceof Error ? err.message : undefined });
-			console.error(err);
-		}
-	}
 
 	function speedToPace(speed: number | null): string {
 		if (!speed || speed <= 0) return '-';
@@ -153,26 +135,13 @@
 
 <div class="border-t border-card-border/50 px-3 md:px-4 py-4 space-y-5">
 
-	<!-- ═══ NOTE ═══ -->
-	<div>
-		<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><NoteBlank size={12} weight="bold" /> Note</h3>
-		{#if editingDesc}
-			<!-- svelte-ignore a11y_autofocus -->
-			<textarea
-				class="w-full bg-card-border/20 rounded text-xs text-text-secondary p-2 outline-none border border-card-border/50 focus:border-blue-500/50 resize-none whitespace-pre-line"
-				rows="3"
-				bind:value={description}
-				onblur={saveDescription}
-				onkeydown={(e: KeyboardEvent) => { if (e.key === 'Escape') { editingDesc = false; } }}
-				autofocus
-			></textarea>
-		{:else}
-			<button
-				class="block w-full text-left cursor-pointer text-xs whitespace-pre-line transition-colors {description ? 'text-text hover:text-text-secondary' : 'text-text-dim hover:text-text-secondary'}"
-				onclick={() => editingDesc = true}
-			>{description || 'add a note...'}</button>
-		{/if}
-	</div>
+	<!-- ═══ NOTE ═══ (read-only — editing lives in ActivityEditModal) -->
+	{#if description}
+		<div>
+			<h3 class="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-dim"><NoteBlank size={12} weight="bold" /> Note</h3>
+			<p class="text-xs text-text whitespace-pre-line">{description}</p>
+		</div>
+	{/if}
 
 	<!-- ═══ WEATHER ═══ -->
 	{#if weather && hasDistance}

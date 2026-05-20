@@ -20,6 +20,8 @@
 	import DotsThreeVertical from 'phosphor-svelte/lib/DotsThreeVertical';
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import Crown from 'phosphor-svelte/lib/Crown';
+	import Eye from 'phosphor-svelte/lib/Eye';
+	import EyeClosed from 'phosphor-svelte/lib/EyeClosed';
 
 	type Priority = 'primary' | 'secondary' | 'none';
 
@@ -28,10 +30,20 @@
 		coachPlan: CoachPlan | null;
 		projections: EventProjection[];
 		courseMap: Map<number, Course>;
+		projectionHidden: boolean;
+		hiddenProjectionEventIds: number[];
 		onNavigateCourse?: (courseId: number) => void;
 	}
 
-	let { event, coachPlan, projections, courseMap, onNavigateCourse }: Props = $props();
+	let {
+		event,
+		coachPlan,
+		projections,
+		courseMap,
+		projectionHidden,
+		hiddenProjectionEventIds,
+		onNavigateCourse,
+	}: Props = $props();
 
 	const todayStr = $derived(todayStore.current);
 	const days = $derived(daysBetween(todayStr, event.date));
@@ -52,16 +64,18 @@
 	const showPlan = $derived(event.is_primary_event && coachPlan != null);
 	const DEAD_PLAN_STATUSES = new Set(['Completed', 'Paused', 'Cancelled']);
 	const showPhaseBar = $derived(showPlan && !DEAD_PLAN_STATUSES.has(coachPlan?.training_status ?? ''));
-	const hasProjectionChart = $derived(projections.length >= 2);
+	const hasProjectionChart = $derived(!projectionHidden && projections.length >= 2);
 
 	// True when EventGoalProjection has anything to render — drives whether we
 	// allocate the body grid at all when there's neither plan nor chart.
 	const hasGoalProjectionBlock = $derived(
-		event.goal_seconds != null
-			|| latestProjection?.predicted_race_time_seconds != null
-			|| latestProjection?.projection_race_time_seconds != null
-			|| event.predicted_race_time_seconds != null
-			|| event.projected_race_time_seconds != null
+		!projectionHidden && (
+			event.goal_seconds != null
+				|| latestProjection?.predicted_race_time_seconds != null
+				|| latestProjection?.projection_race_time_seconds != null
+				|| event.predicted_race_time_seconds != null
+				|| event.projected_race_time_seconds != null
+		)
 	);
 
 	function fmtDate(iso: string): string {
@@ -140,6 +154,32 @@
 		}
 	}
 
+	// Toggle the local-only "hide race projection" flag for this event.
+	// Persisted in the settings table as a JSON array under
+	// `hidden_projection_events`. We compute the next array client-side
+	// (single user, no concurrency concerns), PUT the whole list, then
+	// invalidateAll so the dashboard re-reads.
+	async function toggleProjectionHidden() {
+		busy = true;
+		const next = projectionHidden
+			? hiddenProjectionEventIds.filter(id => id !== event.id)
+			: [...hiddenProjectionEventIds, event.id];
+		try {
+			const res = await fetch('/api/settings', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: 'hidden_projection_events', value: JSON.stringify(next) }),
+			});
+			if (!res.ok) throw new Error(await res.text());
+			await invalidateAll();
+		} catch (err) {
+			toast.error(`Couldn't update projection visibility`);
+			console.error(err);
+		} finally {
+			busy = false;
+		}
+	}
+
 	async function deleteEvent() {
 		menuOpen = false;
 		if (!confirm(`Delete "${event.name}"? This removes it from Garmin and can't be undone.`)) return;
@@ -203,6 +243,17 @@
 							<span class="text-text">{opt.label}</span>
 						</button>
 					{/each}
+					<div class="my-1 border-t border-card-border"></div>
+					<button
+						type="button"
+						class="w-full flex items-center gap-2 px-3 py-1.5 text-left cursor-pointer hover:bg-card-border/40 transition-colors"
+						onclick={() => { menuOpen = false; toggleProjectionHidden(); }}
+					>
+						<span class="text-text-dim">
+							{#if projectionHidden}<Eye size={12} weight="bold" />{:else}<EyeClosed size={12} weight="bold" />{/if}
+						</span>
+						<span class="text-text">{projectionHidden ? 'Show projection' : 'Hide projection'}</span>
+					</button>
 					<div class="my-1 border-t border-card-border"></div>
 					<button
 						type="button"

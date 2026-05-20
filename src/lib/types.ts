@@ -591,6 +591,11 @@ export interface DashboardData {
 	// HR Zones
 	hrZones: HrZone[];
 
+	// Per-event UI toggle: events whose race projection (goal/current/projection
+	// block + projection chart) is hidden on the dashboard. Persisted in the
+	// local `settings` table — survives sync, not synced to Garmin.
+	hiddenProjectionEventIds: number[];
+
 	// Computed
 	lastRunDate: string | null;
 	daysSinceLastRun: number | null;

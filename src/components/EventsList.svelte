@@ -9,13 +9,15 @@
 		courses: Course[];
 		coachPlan: CoachPlan | null;
 		eventProjections: Record<number, EventProjection[]>;
+		hiddenProjectionEventIds: number[];
 		onNavigateCourse?: (courseId: number) => void;
 	}
 
-	let { events, courses, coachPlan, eventProjections, onNavigateCourse }: Props = $props();
+	let { events, courses, coachPlan, eventProjections, hiddenProjectionEventIds, onNavigateCourse }: Props = $props();
 
 	const courseMap = $derived(new Map(courses.map(c => [c.course_id, c])));
 	const sorted = $derived([...events].sort((a, b) => a.date.localeCompare(b.date)));
+	const hiddenSet = $derived(new Set(hiddenProjectionEventIds));
 </script>
 
 <div class="mt-4 mb-1 flex items-center gap-3">
@@ -33,6 +35,8 @@
 			{coachPlan}
 			projections={eventProjections[event.id] ?? []}
 			{courseMap}
+			projectionHidden={hiddenSet.has(event.id)}
+			{hiddenProjectionEventIds}
 			{onNavigateCourse}
 		/>
 	{/each}

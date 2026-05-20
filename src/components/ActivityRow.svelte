@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
-	import { toast } from 'svelte-sonner';
 	import type { Activity, ActivitySplit, ActivityWeather, HrZone } from '$lib/types.js';
 	import { formatDistance, formatTime } from '$lib/format.js';
 	import { weatherIcon } from '$lib/weather.js';
@@ -23,6 +21,7 @@
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import CaretUp from 'phosphor-svelte/lib/CaretUp';
 	import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
+	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import Flame from 'phosphor-svelte/lib/Flame';
 	import Sun from 'phosphor-svelte/lib/Sun';
 	import CloudSun from 'phosphor-svelte/lib/CloudSun';
@@ -43,40 +42,11 @@
 		context: 'feed' | 'calendar';
 		expanded?: boolean;
 		ontoggle?: () => void;
+		onedit?: () => void;
 		onNavigate?: (activityId: number) => void;
 	}
 
-	let { activity, splits = [], weather = null, hrZones, loadColor, context, expanded = false, ontoggle, onNavigate }: Props = $props();
-
-	// Inline title editing — server PUT updates Garmin + local DB row, then
-	// invalidateAll() reloads page data so every view (feed, calendar, …) sees
-	// the fresh activity_name.
-	let editingTitle = $state(false);
-	let editTitle = $state('');
-
-	async function saveTitle() {
-		editingTitle = false;
-		if (editTitle === activity.activity_name) return;
-		try {
-			const res = await fetch(`/api/activity/${activity.activity_id}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: editTitle }),
-			});
-			if (!res.ok) throw new Error(await res.text());
-			toast.success('Activity renamed');
-			await invalidateAll();
-		} catch (err) {
-			toast.error("Couldn't rename activity", { description: err instanceof Error ? err.message : undefined });
-			console.error(err);
-		}
-	}
-
-	function startEditTitle(e: MouseEvent) {
-		e.stopPropagation();
-		editTitle = activity.activity_name;
-		editingTitle = true;
-	}
+	let { activity, splits = [], weather = null, hrZones, loadColor, context, expanded = false, ontoggle, onedit, onNavigate }: Props = $props();
 
 	function fmtDate(dateStr: string): string {
 		const d = new Date(dateStr);
@@ -158,12 +128,31 @@
 		const el = document.getElementById(`activity-${activity.activity_id}`);
 		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
+
+	function handleRowClick() {
+		if (context === 'feed') ontoggle?.();
+		else if (onNavigate) onNavigate(activity.activity_id);
+		else scrollToActivity();
+	}
+
+	function handleRowKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			handleRowClick();
+		}
+	}
 </script>
 
-<button
-	type="button"
-	class="w-full text-left px-3 md:px-4 py-3 cursor-pointer hover:bg-card-border/20 transition-colors rounded-lg"
-	onclick={() => { if (context === 'feed') ontoggle?.(); else if (onNavigate) onNavigate(activity.activity_id); else scrollToActivity(); }}
+<!-- Outer wrapper is role="button" (not a real <button>) so we can nest the
+     edit action button on row 1 without invalid markup. -->
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div
+	class="px-3 md:px-4 py-3 cursor-pointer hover:bg-card-border/20 transition-colors rounded-lg"
+	role="button"
+	tabindex="0"
+	aria-expanded={context === 'feed' ? expanded : undefined}
+	onclick={handleRowClick}
+	onkeydown={handleRowKeydown}
 >
 	<!-- Row 1: Name + badge + weather + date -->
 	<div class="flex items-center gap-2.5 mb-1.5 leading-5">
@@ -200,25 +189,24 @@
 			{/if}
 		</span>
 		<div class="min-w-0 flex-1">
-			{#if editingTitle}
-				<!-- svelte-ignore a11y_autofocus -->
-				<input
-					class="w-full bg-transparent text-sm font-medium text-text border-b border-blue-500/50 outline-none py-0"
-					bind:value={editTitle}
-					onblur={saveTitle}
-					onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { editingTitle = false; } }}
-					onclick={(e: MouseEvent) => e.stopPropagation()}
-					autofocus
-				/>
-			{:else}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="font-medium text-text text-sm truncate"
-					ondblclick={startEditTitle}
-				>{activity.activity_name}</div>
-			{/if}
+			<div class="font-medium text-text text-sm truncate">{activity.activity_name}</div>
 		</div>
 		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">
+			<!-- Headline pace in the row header — GAP (teal) for trail runs,
+			     average pace (secondary) for road/treadmill runs. Mirrors what
+			     was previously buried in row 2 metrics so you can glance the
+			     pace without expanding the card. -->
+			{#if hasDistance && trail && activity.avg_grade_adjusted_speed_mps}
+				<span class="inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground">
+					<Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed_mps)}
+				</span>
+				<span class="text-text-dim">·</span>
+			{:else if !trail && hasDistance && activity.average_speed_mps && (activity.activity_type === 'running' || activity.activity_type === 'treadmill_running')}
+				<span class="inline-flex items-center gap-0.5 text-text-secondary" title="Average pace">
+					<Timer size={11} weight="bold" />{speedToPace(activity.average_speed_mps)}
+				</span>
+				<span class="text-text-dim">·</span>
+			{/if}
 			{fmtDate(activity.start_time_local)} {fmtTime(activity.start_time_local)}
 			{#if activity.location_name}
 				<span class="hidden md:inline text-[10px] text-text-dim">· {activity.location_name}</span>
@@ -241,6 +229,14 @@
 					</span>
 				</Tip>
 			{/if}
+			{#if context === 'feed' && onedit}
+				<button
+					type="button"
+					class="cursor-pointer text-text-dim hover:text-text-secondary transition-colors"
+					onclick={(e: MouseEvent) => { e.stopPropagation(); onedit?.(); }}
+					aria-label="Edit activity"
+				><PencilSimple size={13} weight="bold" /></button>
+			{/if}
 			{#if context === 'feed'}
 				<span class="text-text-dim">
 					<CaretDown size={12} weight="bold" class="transition-transform {expanded ? 'rotate-180' : ''}" />
@@ -259,11 +255,6 @@
 			<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
 		{/if}
 		<span class="num text-text-secondary shrink-0">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
-		{#if hasDistance && trail && activity.avg_grade_adjusted_speed_mps}
-			<span class="num shrink-0 inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground"><Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed_mps)}</span>
-		{:else if hasDistance && activity.average_speed_mps}
-			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{speedToPace(activity.average_speed_mps)}</span>
-		{/if}
 		{#if hasDistance && trail}
 			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{activity.elevation_gain_meters}m</span>
 		{/if}
@@ -313,4 +304,4 @@
 			{/if}
 		</span>
 	</div>
-</button>
+</div>

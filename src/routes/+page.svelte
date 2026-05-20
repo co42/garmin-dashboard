@@ -147,6 +147,7 @@
 				courses={d.courses}
 				coachPlan={d.coachPlan}
 				eventProjections={d.eventProjections}
+				hiddenProjectionEventIds={d.hiddenProjectionEventIds}
 				onNavigateCourse={navigateToCourse}
 			/>
 		{/if}

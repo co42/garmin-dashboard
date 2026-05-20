@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Workout, WorkoutStep } from '$lib/types.js';
 	import { stepsEstimates, fmtDist, fmtDuration } from '$lib/workout-steps.js';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import X from 'phosphor-svelte/lib/X';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import Trash from 'phosphor-svelte/lib/Trash';
@@ -71,14 +71,21 @@
 	let nextUid = 0;
 	const uid = () => ++nextUid;
 
-	// Reset whenever the modal opens (or the bound workout changes)
+	// Reset whenever the modal flips OPEN. We deliberately gate on `open`
+	// alone and `untrack` the props read inside — otherwise any prop-identity
+	// churn (parent re-render after invalidateAll, fresh `prefill` objects,
+	// etc.) could re-fire the reset while the user is mid-edit, clobbering
+	// their input. iOS Safari was reporting effect_update_depth_exceeded
+	// here as resets cascaded with the form binds.
 	$effect(() => {
 		if (!open) return;
-		const source = workout ?? prefill;
-		name = source?.workout_name ?? '';
-		description = source?.description ?? '';
-		steps = source ? source.steps.map(toEdit) : [defaultStep('warmup')];
-		errorMsg = null;
+		untrack(() => {
+			const source = workout ?? prefill;
+			name = source?.workout_name ?? '';
+			description = source?.description ?? '';
+			steps = source ? source.steps.map(toEdit) : [defaultStep('warmup')];
+			errorMsg = null;
+		});
 	});
 
 	function toEdit(s: WorkoutStep): EditStep {
@@ -470,7 +477,11 @@
 						type="number"
 						min="1"
 						class="no-spinner w-16 bg-bg border border-card-border rounded px-2 py-0.5 text-text num outline-none focus:border-blue-500/60"
-						bind:value={step.iterations}
+						value={step.iterations}
+						oninput={(e) => {
+							const v = (e.currentTarget as HTMLInputElement).valueAsNumber;
+							step.iterations = Number.isFinite(v) ? v : 1;
+						}}
 					/>
 					<span class="text-text-dim">×</span>
 				</div>
