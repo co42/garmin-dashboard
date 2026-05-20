@@ -124,6 +124,11 @@
 	const paceRange = $derived(paceMax - paceMin || 1);
 	const maxDist = $derived(sparkBars.length > 0 ? arrMax(sparkBars.map(b => b.dist)) : 1);
 
+	// "Is a run" — any activity_type ending in "running" (running, trail_running,
+	// treadmill_running, …). Pace in row 1 is gated on this so we don't surface
+	// it for cycling/hiking even though distance/duration are present.
+	const isRun = $derived(typeof activity.activity_type === 'string' && activity.activity_type.endsWith('running'));
+
 	function scrollToActivity() {
 		const el = document.getElementById(`activity-${activity.activity_id}`);
 		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -192,16 +197,10 @@
 			<div class="font-medium text-text text-sm truncate">{activity.activity_name}</div>
 		</div>
 		<span class="shrink-0 flex items-center gap-2 text-[10px] text-text-dim num">
-			<!-- Headline pace in the row header — GAP (teal) for trail runs,
-			     average pace (secondary) for road/treadmill runs. Mirrors what
-			     was previously buried in row 2 metrics so you can glance the
-			     pace without expanding the card. -->
-			{#if hasDistance && trail && activity.avg_grade_adjusted_speed_mps}
-				<span class="inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground">
-					<Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed_mps)}
-				</span>
-				<span class="text-text-dim">·</span>
-			{:else if !trail && hasDistance && activity.average_speed_mps && (activity.activity_type === 'running' || activity.activity_type === 'treadmill_running')}
+			<!-- Average pace surfaced in the row header for non-trail runs, so
+			     you can glance the pace without expanding. Trail runs keep GAP
+			     in row 2 (more useful than raw pace on hilly terrain). -->
+			{#if isRun && !trail && hasDistance && activity.average_speed_mps}
 				<span class="inline-flex items-center gap-0.5 text-text-secondary" title="Average pace">
 					<Timer size={11} weight="bold" />{speedToPace(activity.average_speed_mps)}
 				</span>
@@ -255,6 +254,11 @@
 			<span class="num text-text font-semibold shrink-0">{formatDistance(activity.distance_meters)}<span class="text-text-dim font-normal">km</span></span>
 		{/if}
 		<span class="num text-text-secondary shrink-0">{Math.floor(activity.duration_seconds / 3600)}:{Math.floor((activity.duration_seconds % 3600) / 60).toString().padStart(2, '0')}:{Math.floor(activity.duration_seconds % 60).toString().padStart(2, '0')}</span>
+		{#if hasDistance && trail && activity.avg_grade_adjusted_speed_mps}
+			<span class="num shrink-0 inline-flex items-center gap-0.5" style="color: {C.teal}" title="Grade Adjusted Pace — equivalent effort on flat ground"><Timer size={11} weight="bold" />{speedToPace(activity.avg_grade_adjusted_speed_mps)}</span>
+		{:else if hasDistance && activity.average_speed_mps}
+			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5" title="Average pace"><Timer size={11} weight="bold" />{speedToPace(activity.average_speed_mps)}</span>
+		{/if}
 		{#if hasDistance && trail}
 			<span class="num text-text-secondary shrink-0 inline-flex items-center gap-0.5"><TrendUp size={11} weight="bold" />{activity.elevation_gain_meters}m</span>
 		{/if}
